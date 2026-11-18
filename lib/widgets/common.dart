@@ -648,12 +648,16 @@ class FilterChipX extends StatelessWidget {
                 Icon(icon, size: 16, color: fg),
                 const Gap(5),
               ],
-              Text(
-                label,
-                style: AppFonts.body(
-                  size: 13,
-                  weight: FontWeight.w600,
-                  color: fg,
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppFonts.body(
+                    size: 13,
+                    weight: FontWeight.w600,
+                    color: fg,
+                  ),
                 ),
               ),
             ],
