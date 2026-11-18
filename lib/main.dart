@@ -1,16 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
+import 'package:go_router/go_router.dart';
+
+import 'router.dart';
+import 'theme.dart';
 
 void main() {
-  runApp(const MainApp());
+  usePathUrlStrategy();
+  runApp(EvShareGridApp());
 }
 
-class MainApp extends StatelessWidget {
-  const MainApp({super.key});
+class EvShareGridApp extends StatelessWidget {
+  EvShareGridApp({super.key, String? initialLocation})
+    : _router = buildRouter(initialLocation: initialLocation);
+
+  final GoRouter _router;
 
   @override
-  Widget build(BuildContext context) {
-    return const MaterialApp(
-      home: Scaffold(body: Center(child: Text('Hello World!'))),
-    );
-  }
+  Widget build(BuildContext context) => MaterialApp.router(
+    title: 'EV ShareGrid',
+    debugShowCheckedModeBanner: false,
+    theme: buildAppTheme(),
+    routerConfig: _router,
+  );
 }
