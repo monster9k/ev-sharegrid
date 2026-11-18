@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Trang chủ</title>
+</head>
+<body style="margin:0;background:#FFFFFF">
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#3465D6}a:hover{color:#284FB0}
+.nav{position:absolute;left:12px;right:12px;bottom:14px;height:64px;padding:6px;gap:4px;border-radius:999px;background:rgba(255,255,255,.62);-webkit-backdrop-filter:blur(22px) saturate(180%);backdrop-filter:blur(22px) saturate(180%);border:1px solid rgba(255,255,255,.75);box-shadow:0 10px 30px rgba(11,27,63,.18),inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 1px rgba(11,27,63,.06);display:grid;grid-template-columns:repeat(5,minmax(0,1fr));box-sizing:border-box;z-index:5}
+.nav a{position:relative;display:flex;align-items:center;justify-content:center;border-radius:999px;font-size:0;color:#0B1B3F;text-decoration:none}
+.nav a span{display:flex;align-items:center;justify-content:center;background:transparent!important}
+.nav a svg{width:26px;height:26px}
+.nav a.on{background:rgba(52,101,214,.13);box-shadow:inset 0 1px 0 rgba(255,255,255,.8)}
+.nav a:nth-child(4)::after{content:"1";position:absolute;top:2px;left:calc(50% + 4px);min-width:20px;height:20px;padding:0 5px;box-sizing:border-box;border-radius:999px;background:#D8232A;color:#FFFFFF;font:700 11px/16px 'Plus Jakarta Sans',sans-serif;text-align:center;border:2px solid #FFFFFF}
+.nav a.on{color:#3465D6}.nav a.on span{background:#EAF0FD}
+.h2{margin:0;font-family:'Bricolage Grotesque',sans-serif;font-size:19px;font-weight:700}
+.qa{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#0B1B3F;text-decoration:none;text-align:center}
+.qa span{width:58px;height:58px;border-radius:18px;background:#FFFFFF;border:1px solid #E1E6EF;display:flex;align-items:center;justify-content:center;color:#3465D6}
+.hc{flex:1;height:30px}
+.sc{width:212px;flex:none;background:#FFFFFF;border:1px solid #E1E6EF;border-radius:18px;padding:12px;display:flex;flex-direction:column;gap:6px;text-decoration:none;color:#0B1B3F}
+</style>
+</helmet>
+<div style="width:390px;height:1060px;box-sizing:border-box;background:#F4F6FA;font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#0B1B3F;position:relative;overflow:hidden">
+<div style="padding:24px 16px 96px;display:flex;flex-direction:column;gap:16px">
+
+  <div style="display:flex;align-items:center;gap:12px">
+    <div style="flex:1;display:flex;flex-direction:column;gap:2px">
+      <button style="align-self:flex-start;border:0;background:none;padding:0;font:600 13px 'Plus Jakarta Sans',sans-serif;color:#56627D;display:flex;align-items:center;gap:4px"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#3465D6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>Hải Châu, Đà Nẵng ▾</button>
+      <h1 style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-size:26px;line-height:32px;font-weight:700;letter-spacing:-.01em">Chào buổi sáng, An</h1>
+    </div>
+    <a href="08-Notifications.dc.html" aria-label="Thông báo" style="text-decoration:none;width:44px;height:44px;border-radius:50%;border:1px solid #E1E6EF;background:#FFFFFF;color:#0B1B3F;display:flex;align-items:center;justify-content:center;position:relative">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/></svg>
+      <span style="position:absolute;top:9px;right:10px;width:8px;height:8px;border-radius:50%;background:#D8232A;border:2px solid #FFFFFF"></span>
+    </a>
+  </div>
+
+  <div style="background:#0B1B3F;color:#FFFFFF;border-radius:22px;padding:18px;display:flex;flex-direction:column;gap:12px;position:relative;overflow:hidden">
+    <svg viewBox="0 0 200 120" width="200" height="120" aria-hidden="true" style="position:absolute;right:-30px;top:-10px;opacity:.18"><path d="M20 90 C60 40 140 40 180 90" fill="none" stroke="#FFFFFF" stroke-width="2"/><path d="M40 100 C70 65 130 65 160 100" fill="none" stroke="#FFFFFF" stroke-width="2"/></svg>
+    <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px;color:#C9D4F2">VFe34 Gia đình · 43A-678.90</span><span style="font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;background:#3465D6">Đang đỗ</span></div>
+    <div style="display:flex;align-items:baseline;gap:10px"><b style="font-family:'Bricolage Grotesque',sans-serif;font-size:46px;line-height:48px;font-variant-numeric:tabular-nums">46%</b><span style="font-size:14px;color:#C9D4F2">≈ 180 km còn lại</span></div>
+    <div style="height:8px;border-radius:999px;background:#1F3366;overflow:hidden"><div style="width:46%;height:100%;background:#FFFFFF;border-radius:999px"></div></div>
+  </div>
+
+  <a href="06-AISmartCharging.dc.html" style="text-decoration:none;color:#0B1B3F;background:#FFFFFF;border:1px solid #E1E6EF;border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:10px">
+    <span style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:15px">Biểu giá điện hôm nay</b><span style="font-size:11px;font-weight:700;color:#56627D;background:#F4F6FA;padding:3px 7px;border-radius:6px">Cụm Hải Châu</span></span>
+    <span role="img" aria-label="Biểu giá theo giờ: thấp điểm 22h đến 4h, cao điểm 9h30 đến 11h30 và 17h đến 20h" style="display:flex;gap:2px;border-radius:8px;overflow:hidden">
+      <span class="hc" style="background:#BFD0F7"></span><span class="hc" style="background:#BFD0F7"></span><span class="hc" style="background:#BFD0F7"></span><span class="hc" style="background:#BFD0F7"></span><span class="hc" style="background:#4F79DE"></span><span class="hc" style="background:#4F79DE"></span><span class="hc" style="background:#4F79DE"></span><span class="hc" style="background:#4F79DE"></span><span class="hc" style="background:#4F79DE"></span><span class="hc" style="background:#4F79DE"></span><span class="hc" style="background:#B45309"></span><span class="hc" style="background:#B45309"></span><span class="hc" style="background:#4F79DE"></span><span class="hc" style="background:#4F79DE"></span><span class="hc" style="background:#4F79DE"></span><span class="hc" style="background:#4F79DE"></span><span class="hc" style="background:#4F79DE"></span><span class="hc" style="background:#B45309"></span><span class="hc" style="background:#B45309"></span><span class="hc" style="background:#B45309"></span><span class="hc" style="background:#4F79DE"></span><span class="hc" style="background:#4F79DE"></span><span class="hc" style="background:#BFD0F7"></span><span class="hc" style="background:#BFD0F7"></span>
+    </span>
+    <span style="display:flex;justify-content:space-between;font-size:11px;color:#56627D;font-variant-numeric:tabular-nums"><span>0h</span><span>6h</span><span>12h</span><span>18h</span><span>24h</span></span>
+    <span style="display:flex;gap:12px;font-size:11px;color:#56627D"><span style="display:flex;align-items:center;gap:4px"><i style="width:10px;height:10px;border-radius:3px;background:#BFD0F7"></i>1.600 đ</span><span style="display:flex;align-items:center;gap:4px"><i style="width:10px;height:10px;border-radius:3px;background:#4F79DE"></i>2.400 đ</span><span style="display:flex;align-items:center;gap:4px"><i style="width:10px;height:10px;border-radius:3px;background:#B45309"></i>4.000 đ</span></span>
+    <span style="display:flex;align-items:center;gap:8px;font-size:13px;color:#3A4560"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#3465D6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Đặt lịch để hệ thống tự tránh <b style="color:#0B1B3F">09:30–11:30</b> và <b style="color:#0B1B3F">17:00–20:00</b></span></span>
+  </a>
+
+  <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px">
+    <a class="qa" href="03-StationFinder.dc.html"><span><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg></span>Bản đồ</a>
+    <a class="qa" href="05-Booking.dc.html"><span><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span>Đặt lịch</a>
+    <a class="qa" href="06-AISmartCharging.dc.html"><span><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="3"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/><path d="M8.6 15.2 10.4 8.8h.2l1.8 6.4M9.1 13.4h2.8M14.6 8.8v6.4" stroke-width="1.6"/></svg></span>Thông minh</a>
+    <a class="qa" href="11-Garage.dc.html"><span><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 17h14v-5l-2-5H7l-2 5z"/><circle cx="8" cy="17" r="2"/><circle cx="16" cy="17" r="2"/></svg></span>Xe của tôi</a>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center"><h2 class="h2">Trạm gần bạn</h2><a href="03-StationFinder.dc.html" style="font-size:14px;font-weight:600;text-decoration:none">Xem bản đồ</a></div>
+  <div style="display:flex;gap:10px;margin-right:-16px;overflow:hidden">
+    <a class="sc" href="04-StationDetail.dc.html">
+      <span style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:700;color:#13804A">● 3 cổng trống</span><span style="font-size:12px;color:#56627D">1,4 km</span></span>
+      <b style="font-size:15px;line-height:20px">ShareGrid Nguyễn Văn Linh</b>
+      <span style="font-size:12px;color:#56627D">CCS2 · Type2 · AC_HOME · 24/7</span>
+    </a>
+    <a class="sc" href="04-StationDetail.dc.html">
+      <span style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:700;color:#B45309">● Gần đầy</span><span style="font-size:12px;color:#56627D">2,1 km</span></span>
+      <b style="font-size:15px;line-height:20px">ShareGrid Bạch Đằng</b>
+      <span style="font-size:12px;color:#56627D">CCS2 · AC_HOME · 06:00–23:00</span>
+    </a>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center"><h2 class="h2">Lịch sắp tới</h2><a href="07-MyBookings.dc.html" style="font-size:14px;font-weight:600;text-decoration:none">Tất cả</a></div>
+  <div style="background:#FFFFFF;border:1px solid #E1E6EF;border-radius:18px;padding:14px;display:flex;gap:12px;align-items:center">
+    <div style="width:52px;height:56px;border-radius:14px;background:#EAF0FD;color:#3465D6;display:flex;flex-direction:column;align-items:center;justify-content:center;flex:none"><b style="font-size:19px;line-height:20px">05</b><span style="font-size:11px;font-weight:700">TH12</span></div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:3px"><b style="font-size:15px">Nguyễn Văn Linh · cổng P3</b><span style="font-size:13px;color:#56627D">Sạc 08:00–12:15 · ≈ 54.700 đ</span></div>
+    <span style="font-size:12px;font-weight:700;padding:4px 9px;border-radius:8px;background:#E7F4EC;color:#13804A">✓ Đã xác nhận</span>
+  </div>
+</div>
+
+  <nav class="nav" aria-label="Điều hướng chính">
+    <a href="02-Home.dc.html" class="on"><span><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></span>Trang chủ</a>
+    <a href="03-StationFinder.dc.html"><span><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg></span>Bản đồ</a>
+    <a href="06-AISmartCharging.dc.html"><span><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="3"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/><path d="M8.6 15.2 10.4 8.8h.2l1.8 6.4M9.1 13.4h2.8M14.6 8.8v6.4" stroke-width="1.6"/></svg></span>Thông minh</a>
+    <a href="07-MyBookings.dc.html"><span><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span>Lịch đặt</a>
+    <a href="09-Profile.dc.html"><span><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span>Cá nhân</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1060}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

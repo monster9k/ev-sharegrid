@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Admin – Cụm điều phối</title>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#3465D6}a:hover{color:#284FB0}
+.side a{display:flex;align-items:center;gap:12px;height:44px;padding:0 14px;border-radius:12px;color:#3A4560;text-decoration:none;font-size:14px;font-weight:600}
+.side a.on{background:#C3E7F5;color:#0B3550}
+.side a em{margin-left:auto;font-style:normal;font-size:11px;font-weight:800;background:#D8232A;color:#FFFFFF;border-radius:999px;padding:1px 7px}
+.card{background:rgba(255,255,255,.62);-webkit-backdrop-filter:blur(24px) saturate(180%);backdrop-filter:blur(24px) saturate(180%);border:1px solid rgba(255,255,255,.85);border-radius:24px;box-shadow:0 12px 36px rgba(11,27,63,.10),inset 0 1px 0 rgba(255,255,255,.95);padding:20px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.h2{margin:0;font-family:'Bricolage Grotesque',sans-serif;font-size:19px;font-weight:700}
+.kpi{background:rgba(255,255,255,.62);-webkit-backdrop-filter:blur(24px) saturate(180%);backdrop-filter:blur(24px) saturate(180%);border:1px solid rgba(255,255,255,.85);border-radius:20px;box-shadow:0 10px 30px rgba(11,27,63,.08),inset 0 1px 0 rgba(255,255,255,.95);padding:16px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.kpi span{font-size:12px;color:#56627D;font-weight:600}.kpi b{font-family:'Bricolage Grotesque',sans-serif;font-size:26px;font-variant-numeric:tabular-nums}.kpi em{font-style:normal;font-size:12px;font-weight:600;color:#56627D}
+.fl{display:flex;flex-direction:column;gap:6px;min-width:0}
+.fl label{font-size:12px;font-weight:700;color:#56627D}
+.fl input,.fl select{height:42px;border:1px solid rgba(255,255,255,.9);border-radius:12px;padding:0 12px;font:600 14px 'Plus Jakarta Sans',sans-serif;color:#0B1B3F;background:rgba(255,255,255,.75);box-shadow:inset 0 1px 2px rgba(11,27,63,.06);min-width:0}
+.pill{font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.btn{height:42px;padding:0 18px;border-radius:999px;border:0;background:#3465D6;color:#FFFFFF;font:700 14px 'Plus Jakarta Sans',sans-serif;box-shadow:0 8px 20px rgba(52,101,214,.3);display:inline-flex;align-items:center;gap:8px}
+.btn2{height:42px;padding:0 16px;border-radius:999px;border:1px solid rgba(255,255,255,.9);background:rgba(255,255,255,.65);color:#0B1B3F;font:700 14px 'Plus Jakarta Sans',sans-serif}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:12px;color:#56627D;font-weight:700;padding:8px 10px;border-bottom:1px solid rgba(11,27,63,.1);white-space:nowrap}
+td{padding:10px;border-bottom:1px solid rgba(11,27,63,.06);white-space:nowrap;font-variant-numeric:tabular-nums}
+.bar{width:90px;height:8px;border-radius:999px;background:rgba(11,27,63,.08);display:inline-block;vertical-align:middle;margin-right:8px;position:relative;overflow:hidden}
+.bar i{position:absolute;left:0;top:0;bottom:0;border-radius:999px}
+</style>
+</helmet>
+<div style="min-height:100vh;box-sizing:border-box;background:#F7FBFD;font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#0B1B3F;display:flex;flex-wrap:wrap;position:relative;overflow:hidden">
+  <div aria-hidden="true" style="position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden">
+    <div style="position:absolute;width:640px;height:640px;left:22%;top:-220px;border-radius:50%;background:#C3E7F5;opacity:.75;filter:blur(100px)"></div>
+    <div style="position:absolute;width:520px;height:520px;right:-120px;top:520px;border-radius:50%;background:#C3E7F5;opacity:.75;filter:blur(100px)"></div>
+  </div>
+
+  <aside class="side" style="flex:1 1 240px;max-width:100%;position:relative;z-index:1;background:rgba(255,255,255,.78);-webkit-backdrop-filter:blur(28px) saturate(160%);backdrop-filter:blur(28px) saturate(160%);border-right:1px solid #E1E6EF;padding:24px 16px;box-sizing:border-box;display:flex;flex-direction:column;gap:6px">
+    <div style="display:flex;align-items:center;gap:10px;padding:0 6px 20px">
+      <span style="width:38px;height:38px;border-radius:11px;background:#3465D6;display:flex;align-items:center;justify-content:center;position:relative"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg><span style="position:absolute;right:5px;top:5px;width:6px;height:6px;border-radius:50%;background:#D8232A"></span></span>
+      <span style="display:flex;flex-direction:column"><b style="color:#0B1B3F;font-family:'Bricolage Grotesque',sans-serif;font-size:17px">EV ShareGrid</b><span style="color:#56627D;font-size:11px;font-weight:600">Quản trị hệ thống (ADMIN)</span></span>
+    </div>
+    <a href="15-Admin-Clusters.dc.html" class="on"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 20 6.5v9L12 20l-8-4.5v-9z"/><path d="M12 11 20 6.5M12 11 4 6.5M12 11v9"/></svg>Cụm điều phối</a>
+    <a href="16-Admin-StationReview.dc.html"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg>Duyệt trạm<em>1</em></a>
+    <a href="17-Admin-Tariff.dc.html"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/></svg>Biểu giá điện</a>
+    <a href="18-Admin-SolverMonitor.dc.html"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Giám sát solver</a>
+    <a href="10-AdminDashboard.dc.html"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="3"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/><path d="M8.6 15.2 10.4 8.8h.2l1.8 6.4M9.1 13.4h2.8M14.6 8.8v6.4" stroke-width="1.6"/></svg>Mô phỏng &amp; Benchmark</a>
+    <a href="19-Admin-ForecastAudit.dc.html"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/></svg>Dự báo &amp; Audit</a>
+    <div style="flex:1;min-height:24px"></div>
+    <div style="border-top:1px solid #E1E6EF;padding:14px 6px 0;display:flex;gap:10px;align-items:center"><span style="width:34px;height:34px;border-radius:50%;background:#3465D6;color:#FFFFFF;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">QT</span><span style="display:flex;flex-direction:column"><b style="color:#0B1B3F;font-size:13px">Quản trị Hệ thống</b><span style="color:#56627D;font-size:11px">ADMIN · admin@sharegrid.vn</span></span></div>
+  </aside>
+
+  <main style="flex:999 1 560px;min-width:0;position:relative;z-index:1;padding:28px 32px 40px;box-sizing:border-box;display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <span style="font-size:13px;color:#56627D;font-weight:600">Quản trị · grid_cluster</span>
+        <h1 style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-size:30px;line-height:36px;font-weight:700">Cụm điều phối</h1>
+      </div>
+      <button class="btn"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Tạo cụm</button>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px">
+      <div class="kpi"><span>Cụm hoạt động</span><b>4</b><em>Đà Nẵng 2 · Hà Nội 1 · TP.HCM 1</em></div>
+      <div class="kpi"><span>Tổng trần công suất</span><b>2.650 kW</b><em>Cấu hình cố định</em></div>
+      <div class="kpi"><span>Trạm đang hoạt động</span><b>41</b><em>+1 chờ duyệt</em></div>
+      <div class="kpi"><span>Request đang hoạt động</span><b>874</b><em>Mô phỏng</em></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:20px;align-items:start">
+      <section class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center"><h2 class="h2">Ranh giới cụm – Đà Nẵng</h2><span style="font-size:12px;color:#56627D">Lưới H3 res 7</span></div>
+        <svg viewBox="0 0 520 300" style="width:100%;height:auto;display:block;border-radius:16px" role="img" aria-label="Bản đồ hai cụm Hải Châu và Sơn Trà ở Đà Nẵng, cụm Sơn Trà đang chạm trần">
+          <rect width="520" height="300" fill="#F3F1EC"/>
+          <path d="M360 0 C345 80 380 160 360 300 H520 V0 Z" fill="#AAD3F2"/>
+          <path d="M250 300 C262 230 240 160 262 90 C270 60 262 30 270 0" fill="none" stroke="#AAD3F2" stroke-width="22"/>
+          <g stroke="#FFFFFF" stroke-width="2">
+            <path d="M130 90 l40 -23 l40 23 v46 l-40 23 l-40 -23 z" fill="#3465D6" fill-opacity=".28"/>
+            <path d="M90 159 l40 -23 l40 23 v46 l-40 23 l-40 -23 z" fill="#3465D6" fill-opacity=".28"/>
+            <path d="M170 159 l40 -23 l40 23 v46 l-40 23 l-40 -23 z" fill="#3465D6" fill-opacity=".28"/>
+            <path d="M130 228 l40 -23 l40 23 v46 l-40 23 l-40 -23 z" fill="#3465D6" fill-opacity=".2"/>
+            <path d="M270 70 l40 -23 l40 23 v46 l-40 23 l-40 -23 z" fill="#B45309" fill-opacity=".3"/>
+            <path d="M270 139 l40 -23 l40 23 v46 l-40 23 l-40 -23 z" fill="#B45309" fill-opacity=".3"/>
+          </g>
+          <g font-family="Plus Jakarta Sans, sans-serif" font-weight="700">
+            <rect x="96" y="120" width="150" height="40" rx="10" fill="#FFFFFF" fill-opacity=".9"/>
+            <text x="106" y="137" font-size="12" fill="#0B1B3F">Cụm 1 · Hải Châu</text><text x="106" y="152" font-size="11" fill="#56627D">500 kW · đỉnh 88%</text>
+            <rect x="282" y="100" width="150" height="40" rx="10" fill="#FFFFFF" fill-opacity=".9"/>
+            <text x="292" y="117" font-size="12" fill="#0B1B3F">Cụm 2 · Sơn Trà</text><text x="292" y="132" font-size="11" fill="#B45309">350 kW · chạm trần !</text>
+          </g>
+        </svg>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>ID</th><th>Tên cụm</th><th>Tỉnh/TP</th><th>Trần (kW)</th><th>Trạm</th><th>Request</th><th>Đỉnh hôm nay</th><th>Trạng thái</th></tr></thead>
+            <tbody>
+              <tr style="background:rgba(227,244,251,.6)"><td>1</td><td><b>Hải Châu – Trung tâm</b></td><td>Đà Nẵng</td><td>500</td><td>15</td><td>412</td><td><span class="bar"><i style="width:88%;background:#3465D6"></i></span>88%</td><td><span class="pill" style="background:#E7F4EC;color:#13804A">ACTIVE</span></td></tr>
+              <tr><td>2</td><td><b>Sơn Trà – Ven biển</b></td><td>Đà Nẵng</td><td>350</td><td>9</td><td>186</td><td><span class="bar"><i style="width:100%;background:#B45309"></i></span>100% !</td><td><span class="pill" style="background:#E7F4EC;color:#13804A">ACTIVE</span></td></tr>
+              <tr><td>3</td><td><b>Cầu Giấy</b></td><td>Hà Nội</td><td>800</td><td>10</td><td>143</td><td><span class="bar"><i style="width:61%;background:#3465D6"></i></span>61%</td><td><span class="pill" style="background:#E7F4EC;color:#13804A">ACTIVE</span></td></tr>
+              <tr><td>4</td><td><b>Quận 1</b></td><td>TP. Hồ Chí Minh</td><td>1.000</td><td>7</td><td>133</td><td><span class="bar"><i style="width:47%;background:#3465D6"></i></span>47%</td><td><span class="pill" style="background:#E7F4EC;color:#13804A">ACTIVE</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 class="h2">Sửa cụm · Hải Châu – Trung tâm</h2>
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">
+          <div class="fl" style="grid-column:1 / -1"><label for="c-name">Tên cụm</label><input id="c-name" value="Cụm Hải Châu - Trung tâm"></div>
+          <div class="fl"><label for="c-prov">Tỉnh/TP</label><input id="c-prov" value="Đà Nẵng"></div>
+          <div class="fl"><label for="c-tz">Múi giờ</label><select id="c-tz"><option>Asia/Ho_Chi_Minh</option></select></div>
+          <div class="fl"><label for="c-h3">H3 index</label><input id="c-h3" value="87652636affffff"></div>
+          <div class="fl"><label for="c-st">Trạng thái</label><select id="c-st"><option>ACTIVE</option><option>INACTIVE</option></select></div>
+          <div class="fl" style="grid-column:1 / -1"><label for="c-lim">Trần công suất cụm – grid_limit_kw</label><input id="c-lim" type="number" value="550"></div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;font-size:13px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.65)"><span style="color:#56627D">Thay đổi:</span><b>500 kW</b><span>→</span><b style="color:#3465D6">550 kW</b></div>
+        <div style="background:rgba(227,244,251,.8);border-radius:14px;padding:12px 14px;font-size:12px;line-height:18px;color:#284FB0">Đây là trần cố định cho tổng công suất sạc của cụm trong mỗi slot 15 phút, không phải tải lưới đo theo thời điểm. Thay đổi được ghi audit (ai, khi nào, cũ → mới) và áp dụng ở lần tối ưu kế tiếp với snapshot mới.</div>
+        <div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn2">Hủy</button><button class="btn">Lưu thay đổi</button></div>
+      </section>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1180}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
