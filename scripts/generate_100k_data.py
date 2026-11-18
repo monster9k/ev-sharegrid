@@ -8,9 +8,10 @@ Tác giả: Thắng (thangchien1607@gmail.com)
 """
 
 import os
+import sys
+from datetime import datetime, timedelta, timezone
 import numpy as np
 import pandas as pd
-import psycopg2
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -18,12 +19,315 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 DB_CONFIG = {
     "dbname": os.environ.get("POSTGRES_DB", "ev_sharegrid"),
     "user": os.environ.get("POSTGRES_USER", "postgres"),
-    "password": os.environ.get("POSTGRES_PASSWORD", "password"),
+    "password": os.environ.get("POSTGRES_PASSWORD"),
     "host": os.environ.get("POSTGRES_HOST", "localhost"),
     "port": int(os.environ.get("POSTGRES_PORT", 5432))
 }
 
-np.random.seed(42)
+SEED = 42
+TARGET_CLUSTER_UTILIZATION = 0.80
+PEAK_WINDOW_MAX_LOAD_RATIO = 0.90
+PEAK_WINDOW_START_HOUR = 17
+PEAK_WINDOW_END_HOUR = 20
+PEAK_WINDOW_HOURS = PEAK_WINDOW_END_HOUR - PEAK_WINDOW_START_HOUR
+CHARGING_EFFICIENCY = 0.90
+SCENARIOS = [100, 500, 1000, 2500, 5000, 10000]
+BEHAVIOR_RATIOS = {"short_stay": 0.40, "workplace": 0.35, "overnight": 0.25}
+
+np.random.seed(SEED)
+
+
+def allocate_counts(total, weights):
+    """Allocate an exact row count proportionally, using largest remainders."""
+    weight_sum = sum(weights.values())
+    exact = {key: total * value / weight_sum for key, value in weights.items()}
+    counts = {key: int(value) for key, value in exact.items()}
+    remaining = total - sum(counts.values())
+    order = sorted(weights, key=lambda key: (-(exact[key] - counts[key]), str(key)))
+    for key in order[:remaining]:
+        counts[key] += 1
+    return counts
+
+
+def distribute_energy(target_kwh, max_energy_by_request):
+    """Distribute energy up to each request's battery-derived physical limit."""
+    capacities = np.floor(np.asarray(max_energy_by_request, dtype=float) * 10000) / 10000
+    total_capacity = float(capacities.sum())
+    allocated_total = min(max(float(target_kwh), 0.0), total_capacity)
+    if allocated_total <= 0 or total_capacity <= 0:
+        return np.zeros(len(capacities), dtype=float)
+
+    values = np.floor((allocated_total * capacities / total_capacity) * 10000) / 10000
+    remaining = round(allocated_total - float(values.sum()), 4)
+    for index in np.argsort(-capacities):
+        room = round(float(capacities[index] - values[index]), 4)
+        addition = min(room, remaining)
+        values[index] = round(float(values[index] + addition), 4)
+        remaining = round(remaining - addition, 4)
+        if remaining <= 0:
+            break
+    return values
+
+
+def _profile_arrival_and_duration(profile, rng):
+    if profile == "short_stay":
+        hour = int(rng.integers(8, 22))
+        duration_minutes = int(rng.choice([90, 120, 150]))
+    elif profile == "workplace":
+        hour = int(rng.integers(7, 10))
+        duration_minutes = int(rng.choice([480, 510, 540, 570]))
+    else:
+        hour = int(rng.integers(18, 23))
+        duration_minutes = int(rng.choice([540, 600, 660, 720]))
+
+    minute = int(rng.choice([0, 30]))
+    arrival = datetime(2026, 11, 18, hour, minute, tzinfo=timezone(timedelta(hours=7)))
+    departure = arrival + timedelta(minutes=duration_minutes)
+    return arrival, departure, duration_minutes / 60.0
+
+
+def generate_scenario_files():
+    """Generate fixed-size scenarios; small sets may not physically reach 60% load."""
+    rng = np.random.default_rng(SEED)
+    models_path = os.path.join(DATA_DIR, "vehicle_model_cleaned.csv")
+    vehicles_path = os.path.join(DATA_DIR, "vehicle_100k.csv")
+    stations_path = os.path.join(DATA_DIR, "charging_station_cleaned.csv")
+    clusters_path = os.path.join(DATA_DIR, "grid_cluster.csv")
+    for path in (models_path, vehicles_path, stations_path, clusters_path):
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Chưa tìm thấy {path}; hãy nạp catalog trước.")
+
+    df_models = pd.read_csv(models_path)
+    df_vehicles = pd.read_csv(vehicles_path)
+    df_stations = pd.read_csv(stations_path)
+    df_clusters = pd.read_csv(clusters_path)
+    active_stations = df_stations[df_stations["status"] == "ACTIVE"].copy()
+    if active_stations.empty:
+        raise ValueError("Không có trạm ACTIVE có tọa độ để sinh kịch bản.")
+
+    model_lookup = df_models.set_index("model_id").to_dict("index")
+    limits_kw = {
+        int(row["cluster_id"]): float(row["grid_limit_kw"])
+        for _, row in df_clusters.iterrows()
+    }
+    station_pools = {
+        int(cluster_id): group["station_id"].astype(int).to_numpy()
+        for cluster_id, group in active_stations.groupby("cluster_id")
+    }
+    active_clusters = sorted(station_pools)
+    missing_limits = set(active_clusters) - set(limits_kw)
+    if missing_limits:
+        raise ValueError(f"Thiếu grid_limit_kw cho các cụm: {sorted(missing_limits)}")
+    cluster_weights = {cluster_id: limits_kw[cluster_id] for cluster_id in active_clusters}
+    scenario_summaries = []
+
+    for scenario_id, request_count in enumerate(SCENARIOS, start=1):
+        if request_count > len(df_vehicles):
+            raise ValueError("Số vehicle mẫu phải ít nhất bằng số request của kịch bản.")
+        vehicle_indices = rng.choice(len(df_vehicles), size=request_count, replace=False)
+        selected_vehicles = df_vehicles.iloc[vehicle_indices].to_dict("records")
+
+        cluster_counts = allocate_counts(request_count, cluster_weights)
+        cluster_labels = [
+            cluster_id
+            for cluster_id, count in cluster_counts.items()
+            for _ in range(count)
+        ]
+        rng.shuffle(cluster_labels)
+
+        behavior_counts = allocate_counts(request_count, BEHAVIOR_RATIOS)
+        behavior_labels = [
+            profile
+            for profile, count in behavior_counts.items()
+            for _ in range(count)
+        ]
+        rng.shuffle(behavior_labels)
+
+        requests = []
+        for index, (vehicle, cluster_id, profile) in enumerate(
+            zip(selected_vehicles, cluster_labels, behavior_labels), start=1
+        ):
+            model_id = int(vehicle["model_id"])
+            model = model_lookup[model_id]
+            station_id = int(rng.choice(station_pools[cluster_id]))
+            arrival, departure, dwell_hours = _profile_arrival_and_duration(profile, rng)
+            preferred_soc_now = float(rng.integers(10, 40))
+            preferred_soc_target = float(rng.integers(75, 95))
+            battery_kwh = float(model["battery_kwh"])
+            preferred_energy_kwh = round(
+                ((preferred_soc_target - preferred_soc_now) / 100.0)
+                * battery_kwh
+                / CHARGING_EFFICIENCY,
+                4,
+            )
+            # Conservatively charge the full requested energy against the peak
+            # budget when a request arrives during 17:00–20:00.
+            arrives_in_peak = (
+                PEAK_WINDOW_START_HOUR <= arrival.hour < PEAK_WINDOW_END_HOUR
+            )
+            requests.append({
+                "request_id": index,
+                "user_id": int(vehicle["user_id"]),
+                "vehicle_id": int(vehicle["vehicle_id"]),
+                "cluster_id": cluster_id,
+                "station_id": station_id,
+                "scenario_id": scenario_id,
+                "arrival_time": arrival.isoformat(timespec="seconds"),
+                "departure_time": departure.isoformat(timespec="seconds"),
+                "soc_now": preferred_soc_now,
+                "soc_target": preferred_soc_target,
+                "battery_kwh_snapshot": battery_kwh,
+                "max_kw_snapshot": float(model["max_kw"]),
+                "energy_needed_kwh": None,
+                "status": "PENDING",
+                "_behavior": profile,
+                "_dwell_hours": dwell_hours,
+                "_arrives_in_peak": arrives_in_peak,
+                "_preferred_energy_kwh": preferred_energy_kwh,
+                "_preferred_soc_now": preferred_soc_now,
+            })
+
+        physical_max_by_cluster = {}
+        for cluster_id in active_clusters:
+            cluster_rows = [row for row in requests if row["cluster_id"] == cluster_id]
+            peak_rows = [row for row in cluster_rows if row["_arrives_in_peak"]]
+            off_peak_rows = [row for row in cluster_rows if not row["_arrives_in_peak"]]
+
+            physical_peak_caps = np.floor(
+                np.asarray([row["battery_kwh_snapshot"] for row in peak_rows])
+                / CHARGING_EFFICIENCY * 10000
+            ) / 10000
+            physical_off_peak_caps = np.floor(
+                np.asarray([row["battery_kwh_snapshot"] for row in off_peak_rows])
+                / CHARGING_EFFICIENCY * 10000
+            ) / 10000
+            grid_limit_kw = limits_kw[cluster_id]
+            target_kwh = (
+                TARGET_CLUSTER_UTILIZATION * grid_limit_kw * 24.0
+            )
+            peak_budget_kwh = (
+                PEAK_WINDOW_MAX_LOAD_RATIO * grid_limit_kw * PEAK_WINDOW_HOURS - 0.1
+            )
+            physical_max_kwh = (
+                min(float(physical_peak_caps.sum()), peak_budget_kwh)
+                + float(physical_off_peak_caps.sum())
+            )
+            physical_max_by_cluster[cluster_id] = physical_max_kwh
+            if physical_max_kwh < target_kwh:
+                # Preserve ordinary 10–39% to 75–94% SOC requests when this
+                # fixed row count cannot meet the utilization target even at
+                # full battery capacity.
+                peak_caps = np.asarray(
+                    [row["_preferred_energy_kwh"] for row in peak_rows], dtype=float
+                )
+                off_peak_caps = np.asarray(
+                    [row["_preferred_energy_kwh"] for row in off_peak_rows], dtype=float
+                )
+            else:
+                peak_caps = physical_peak_caps
+                off_peak_caps = physical_off_peak_caps
+            peak_possible = min(float(peak_caps.sum()), peak_budget_kwh)
+            off_peak_capacity = float(off_peak_caps.sum())
+            achievable_kwh = min(target_kwh, peak_possible + off_peak_capacity)
+            if cluster_rows and peak_rows:
+                desired_peak = achievable_kwh * len(peak_rows) / len(cluster_rows)
+            else:
+                desired_peak = 0.0
+            peak_target_kwh = min(peak_possible, desired_peak)
+            peak_target_kwh = max(peak_target_kwh, achievable_kwh - off_peak_capacity)
+            peak_target_kwh = min(peak_target_kwh, peak_possible)
+            peak_allocations = distribute_energy(peak_target_kwh, peak_caps)
+            off_peak_target_kwh = max(
+                0.0, achievable_kwh - float(peak_allocations.sum())
+            )
+            off_peak_allocations = distribute_energy(off_peak_target_kwh, off_peak_caps)
+
+            for row, energy_kwh in zip(peak_rows, peak_allocations):
+                row["_allocated_energy_kwh"] = float(energy_kwh)
+            for row, energy_kwh in zip(off_peak_rows, off_peak_allocations):
+                row["_allocated_energy_kwh"] = float(energy_kwh)
+
+        for row in requests:
+            battery_kwh = row["battery_kwh_snapshot"]
+            energy_kwh = row["_allocated_energy_kwh"]
+            soc_delta = min(100.0, energy_kwh * CHARGING_EFFICIENCY / battery_kwh * 100.0)
+            max_soc_now = max(0.0, 100.0 - soc_delta)
+            soc_now = round(min(row["_preferred_soc_now"], max_soc_now), 6)
+            soc_target = round(min(100.0, soc_now + soc_delta), 6)
+            row["soc_now"] = soc_now
+            row["soc_target"] = soc_target
+            row["energy_needed_kwh"] = round(
+                ((soc_target - soc_now) / 100.0) * battery_kwh / CHARGING_EFFICIENCY,
+                4,
+            )
+            for internal_key in (
+                "_behavior", "_dwell_hours", "_arrives_in_peak", "_allocated_energy_kwh",
+                "_preferred_energy_kwh", "_preferred_soc_now",
+            ):
+                row.pop(internal_key, None)
+
+        sc_file = os.path.join(DATA_DIR, f"scenario_{request_count}_requests.csv")
+        pd.DataFrame(requests).to_csv(sc_file, index=False, encoding="utf-8")
+
+        total_kwh = sum(float(row["energy_needed_kwh"]) for row in requests)
+        cluster_metrics = {}
+        for cluster_id in active_clusters:
+            rows = [row for row in requests if int(row["cluster_id"]) == cluster_id]
+            energy_kwh = sum(float(row["energy_needed_kwh"]) for row in rows)
+            capacity_kwh = limits_kw[cluster_id] * 24.0
+            peak_energy_kwh = sum(
+                float(row["energy_needed_kwh"])
+                for row in rows
+                if PEAK_WINDOW_START_HOUR
+                <= datetime.fromisoformat(row["arrival_time"]).hour
+                < PEAK_WINDOW_END_HOUR
+            )
+            peak_capacity_kwh = limits_kw[cluster_id] * PEAK_WINDOW_HOURS
+            cluster_metrics[cluster_id] = {
+                "energy_kwh": energy_kwh,
+                "capacity_kwh": capacity_kwh,
+                "utilization": energy_kwh / capacity_kwh,
+                "peak_ratio": peak_energy_kwh / peak_capacity_kwh,
+            }
+            if cluster_metrics[cluster_id]["peak_ratio"] > PEAK_WINDOW_MAX_LOAD_RATIO:
+                raise ValueError(
+                    f"Scenario {request_count}, cụm {cluster_id} vượt giới hạn tải cao điểm: "
+                    f"{cluster_metrics[cluster_id]['peak_ratio']:.4f}"
+                )
+        scenario_summaries.append(
+            (request_count, total_kwh, cluster_metrics, physical_max_by_cluster)
+        )
+
+    print("Kịch bản | Requests | Tổng kWh | Tỷ lệ tải 24h | Tải theo cụm / tỷ lệ cao điểm")
+    for request_count, total_kwh, metrics, physical_limits in scenario_summaries:
+        total_capacity = sum(value["capacity_kwh"] for value in metrics.values())
+        utilization = total_kwh / total_capacity if total_capacity else 0.0
+        target_total = sum(
+            TARGET_CLUSTER_UTILIZATION * value["capacity_kwh"]
+            for value in metrics.values()
+        )
+        physical_max_total = sum(physical_limits.values())
+        per_cluster = "; ".join(
+            f"C{cluster_id}: {value['energy_kwh']:.1f}/{value['capacity_kwh']:.0f} kWh "
+            f"({value['utilization']:.1%}), peak {value['peak_ratio']:.1%}"
+            for cluster_id, value in metrics.items()
+        )
+        print(
+            f"{request_count:>5} | {request_count:>8} | {total_kwh:>9.1f} | "
+            f"{utilization:>10.1%} | {per_cluster}"
+        )
+        if physical_max_total < target_total:
+            print(
+                f"  Giới hạn vật lý của {request_count} requests: "
+                f"{physical_max_total:.1f}/{total_capacity:.0f} kWh "
+                f"({physical_max_total / total_capacity:.1%}); không đạt target 80% với số dòng này."
+            )
+    inactive_clusters = sorted(set(limits_kw) - set(active_clusters))
+    if inactive_clusters:
+        print(
+            "Không sinh request cho cụm không có trạm ACTIVE có tọa độ: "
+            + ", ".join(map(str, inactive_clusters))
+        )
 
 
 def generate_100k_dataset():
@@ -46,7 +350,7 @@ def generate_100k_dataset():
     df_stations = pd.read_csv(stations_path)
     active_stations = df_stations[df_stations["status"] == "ACTIVE"].copy()
     if len(active_stations) == 0:
-        active_stations = df_stations.head(15).copy()
+        raise ValueError("Không có trạm ACTIVE có tọa độ để sinh kịch bản.")
 
     station_list = active_stations[["station_id", "cluster_id", "name"]].to_dict("records")
     print(f"📊 Tìm thấy {len(df_models)} mẫu xe và {len(station_list)} trạm sạc ACTIVE có GPS tại Đà Nẵng.")
@@ -125,84 +429,16 @@ def generate_100k_dataset():
     vehicles_df.to_csv(vehicles_csv, index=False, encoding="utf-8")
     print(f"✅ Đã xuất {vehicles_csv} ({len(vehicles_df):,} dòng)")
 
-    # 5. Sinh 6 kịch bản simulation_scenario (100, 500, 1.000, 2.500, 5.000, 10.000 requests)
-    scenarios = [100, 500, 1000, 2500, 5000, 10000]
-    print(f"⏳ Sinh 6 kịch bản thực nghiệm sạc: {scenarios}...")
-
-    # Khung giờ cao điểm và phân bổ đến sạc
-    # 07-09 (sáng), 11-13 (trưa), 17-20 (chiều tối), giờ khác
-    hours = np.arange(0, 24)
-    hour_weights = [
-        0.01, 0.01, 0.01, 0.01, 0.01, 0.02,  # 0h - 5h
-        0.05, 0.09, 0.08, 0.06, 0.05,        # 6h - 10h (sáng cao điểm)
-        0.07, 0.07, 0.05, 0.04, 0.04, 0.05,  # 11h - 16h (trưa)
-        0.09, 0.09, 0.06, 0.04, 0.02, 0.01   # 17h - 22h (chiều cao điểm)
-    ]
-    # Bổ sung 23h
-    if len(hour_weights) == 23:
-        hour_weights.append(0.01)
-    hour_weights = np.array(hour_weights) / np.sum(hour_weights)
-
-    for sc_id, req_count in enumerate(scenarios, start=1):
-        requests = []
-        for r_id in range(1, req_count + 1):
-            # Chọn user và vehicle
-            v_idx = (r_id * 7) % n_users
-            v_id = int(vehicles_df["vehicle_id"].iloc[v_idx])
-            u_id = int(vehicles_df["user_id"].iloc[v_idx])
-            m_id = int(vehicles_df["model_id"].iloc[v_idx])
-            model_info = model_lookup[m_id]
-
-            # Chọn trạm sạc thực tế
-            st_info = station_list[r_id % len(station_list)]
-            st_id = int(st_info["station_id"])
-            cl_id = int(st_info["cluster_id"])
-
-            # Thời gian sạc
-            arr_h = int(np.random.choice(hours, p=hour_weights))
-            arr_m = int(np.random.choice([0, 15, 30, 45]))
-            dur_hours = int(np.random.choice([1, 2, 3, 4], p=[0.2, 0.4, 0.3, 0.1]))
-
-            arr_str = f"2026-11-18T{arr_h:02d}:{arr_m:02d}:00+07:00"
-            dep_h = min(arr_h + dur_hours, 23)
-            dep_m = arr_m
-            dep_str = f"2026-11-18T{dep_h:02d}:{dep_m:02d}:00+07:00"
-            if dep_h == arr_h:
-                dep_str = f"2026-11-18T23:59:00+07:00"
-
-            soc_now = float(np.random.randint(10, 40))
-            soc_target = float(np.random.randint(75, 95))
-            battery_kwh = float(model_info["battery_kwh"])
-            max_kw = float(model_info["max_kw"])
-
-            energy_needed = round(((soc_target - soc_now) / 100.0) * battery_kwh / 0.90, 4)
-
-            requests.append({
-                "request_id": r_id,
-                "user_id": u_id,
-                "vehicle_id": v_id,
-                "cluster_id": cl_id,
-                "station_id": st_id,
-                "scenario_id": sc_id,
-                "arrival_time": arr_str,
-                "departure_time": dep_str,
-                "soc_now": soc_now,
-                "soc_target": soc_target,
-                "battery_kwh_snapshot": battery_kwh,
-                "max_kw_snapshot": max_kw,
-                "energy_needed_kwh": energy_needed,
-                "status": "PENDING"
-            })
-
-        sc_file = os.path.join(DATA_DIR, f"scenario_{req_count}_requests.csv")
-        pd.DataFrame(requests).to_csv(sc_file, index=False, encoding="utf-8")
-        print(f"  👉 Kịch bản {req_count} requests: {sc_file}")
+    # 5. Sinh các kịch bản có khống chế tổng tải và tải giờ cao điểm.
+    generate_scenario_files()
 
     # 6. Ghi simulation_scenario vào PostgreSQL nếu có kết nối
     try:
+        import psycopg2
+
         conn = psycopg2.connect(**DB_CONFIG)
         cur = conn.cursor()
-        for sc_id, req_count in enumerate(scenarios, start=1):
+        for sc_id, req_count in enumerate(SCENARIOS, start=1):
             cur.execute("""
                 INSERT INTO simulation_scenario (scenario_id, name, registry_users, active_requests)
                 VALUES (%s, %s, 100000, %s)
@@ -219,4 +455,19 @@ def generate_100k_dataset():
 
 
 if __name__ == "__main__":
-    generate_100k_dataset()
+    import argparse
+
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+
+    parser = argparse.ArgumentParser(description="Sinh dữ liệu benchmark EV ShareGrid.")
+    parser.add_argument(
+        "--scenarios-only",
+        action="store_true",
+        help="Chỉ sinh lại các CSV scenario từ catalog/user/vehicle hiện có.",
+    )
+    args = parser.parse_args()
+    if args.scenarios_only:
+        generate_scenario_files()
+    else:
+        generate_100k_dataset()
