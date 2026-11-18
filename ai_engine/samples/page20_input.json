@@ -1,0 +1,125 @@
+{
+  "cluster_id": 1,
+  "input_version": "page20-v1",
+  "snapshot_time": "2026-11-18T17:00:00+07:00",
+  "slot_minutes": 15,
+  "horizon_slots": 4,
+  "grid_limit_kw": 3.0,
+  "time_budget_ms": 2000,
+  "stations": [
+    {
+      "station_id": 10,
+      "station_power_kw": 4,
+      "open_time": "2026-11-18T06:00:00+07:00",
+      "close_time": "2026-11-18T23:00:00+07:00",
+      "ports": [
+        {
+          "port_id": 101,
+          "connector_type": "CCS2",
+          "control_type": "CONTINUOUS",
+          "min_power_kw": 0,
+          "max_power_kw": 2,
+          "status": "ACTIVE"
+        },
+        {
+          "port_id": 102,
+          "connector_type": "CCS2",
+          "control_type": "CONTINUOUS",
+          "min_power_kw": 0,
+          "max_power_kw": 2,
+          "status": "ACTIVE"
+        }
+      ]
+    },
+    {
+      "station_id": 11,
+      "station_power_kw": 2,
+      "open_time": "2026-11-18T00:00:00+07:00",
+      "close_time": "2026-11-18T23:59:00+07:00",
+      "ports": [
+        {
+          "port_id": 201,
+          "connector_type": "AC_HOME",
+          "control_type": "ON_OFF_SWITCH",
+          "min_power_kw": 1,
+          "max_power_kw": 1,
+          "status": "ACTIVE"
+        },
+        {
+          "port_id": 202,
+          "connector_type": "AC_HOME",
+          "control_type": "ON_OFF_SWITCH",
+          "min_power_kw": 1,
+          "max_power_kw": 1,
+          "status": "ACTIVE"
+        }
+      ]
+    }
+  ],
+  "tariffs": [
+    {
+      "start_time": "17:00",
+      "end_time": "17:15",
+      "price_vnd_kwh": 4000
+    },
+    {
+      "start_time": "17:15",
+      "end_time": "18:00",
+      "price_vnd_kwh": 2000
+    }
+  ],
+  "requests": [
+    {
+      "request_id": "A",
+      "station_id": 10,
+      "connector_type": "CCS2",
+      "vehicle_max_kw": 2,
+      "arrival_time": "2026-11-18T16:30:00+07:00",
+      "departure_time": "2026-11-18T18:00:00+07:00",
+      "energy_needed_kwh": 1,
+      "energy_delivered_kwh": 0,
+      "priority_weight": 1,
+      "status": "CONFIRMED",
+      "locked_port_id": null
+    },
+    {
+      "request_id": "B",
+      "station_id": 10,
+      "connector_type": "CCS2",
+      "vehicle_max_kw": 2,
+      "arrival_time": "2026-11-18T17:00:00+07:00",
+      "departure_time": "2026-11-18T17:45:00+07:00",
+      "energy_needed_kwh": 0.5,
+      "energy_delivered_kwh": 0,
+      "priority_weight": 1,
+      "status": "PENDING",
+      "locked_port_id": null
+    },
+    {
+      "request_id": "C",
+      "station_id": 11,
+      "connector_type": "AC_HOME",
+      "vehicle_max_kw": 1,
+      "arrival_time": "2026-11-18T16:30:00+07:00",
+      "departure_time": "2026-11-18T17:30:00+07:00",
+      "energy_needed_kwh": 0.5,
+      "energy_delivered_kwh": 0,
+      "priority_weight": 1,
+      "status": "CONFIRMED",
+      "locked_port_id": null
+    },
+    {
+      "request_id": "D",
+      "station_id": 11,
+      "connector_type": "AC_HOME",
+      "vehicle_max_kw": 1,
+      "arrival_time": "2026-11-18T17:00:00+07:00",
+      "departure_time": "2026-11-18T18:00:00+07:00",
+      "energy_needed_kwh": 0.5,
+      "energy_delivered_kwh": 0,
+      "priority_weight": 1,
+      "status": "PENDING",
+      "locked_port_id": null
+    }
+  ]
+}

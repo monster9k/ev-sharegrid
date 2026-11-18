@@ -1,0 +1,1979 @@
+{
+  "description": "Bộ JSON Schema độc lập sinh bằng model_json_schema(), không phải tài liệu OpenAPI đầy đủ. Mỗi schema có $defs riêng. Các validator liên trường được thực thi bởi Python. Mọi thời gian phải có +07:00; slot_start căn 15 phút; hour_start căn giờ.",
+  "schemas": {
+    "OptimizeRequest": {
+      "$defs": {
+        "ChargingRequestIn": {
+          "additionalProperties": false,
+          "description": "Nhu cầu sạc của một xe, không chứa đặc quyền theo tuổi tài khoản.",
+          "properties": {
+            "request_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "description": "Mã yêu cầu sạc duy nhất trong snapshot.",
+              "title": "Request Id"
+            },
+            "station_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "description": "Mã trạm xe đăng ký sạc.",
+              "title": "Station Id"
+            },
+            "connector_type": {
+              "$ref": "#/$defs/ConnectorType",
+              "description": "Chuẩn đầu nối xe yêu cầu."
+            },
+            "battery_capacity_kwh": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Dung lượng pin sử dụng được, kWh.",
+              "title": "Battery Capacity Kwh"
+            },
+            "current_soc_pct": {
+              "anyOf": [
+                {
+                  "maximum": 100,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "SOC tại thời điểm snapshot, phần trăm.",
+              "title": "Current Soc Pct"
+            },
+            "previous_port_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Cổng trước khi Backend chuyển phiên sang cổng hiện tại.",
+              "title": "Previous Port Id"
+            },
+            "vehicle_max_kw": {
+              "description": "Công suất sạc tối đa xe nhận được, kW.",
+              "exclusiveMinimum": 0,
+              "title": "Vehicle Max Kw",
+              "type": "number"
+            },
+            "arrival_time": {
+              "description": "Thời điểm xe đến, ISO-8601 +07:00.",
+              "format": "date-time",
+              "title": "Arrival Time",
+              "type": "string"
+            },
+            "departure_time": {
+              "description": "Thời điểm xe rời đi, ISO-8601 +07:00; phải sau khi đến.",
+              "format": "date-time",
+              "title": "Departure Time",
+              "type": "string"
+            },
+            "energy_needed_kwh": {
+              "description": "Tổng điện năng xe yêu cầu cho phiên, kWh.",
+              "minimum": 0,
+              "title": "Energy Needed Kwh",
+              "type": "number"
+            },
+            "energy_delivered_kwh": {
+              "description": "Điện năng đã cấp trước snapshot, kWh.",
+              "minimum": 0,
+              "title": "Energy Delivered Kwh",
+              "type": "number"
+            },
+            "priority_weight": {
+              "description": "Trọng số ưu tiên dương; không dựa vào tuổi tài khoản.",
+              "exclusiveMinimum": 0,
+              "title": "Priority Weight",
+              "type": "number"
+            },
+            "status": {
+              "$ref": "#/$defs/RequestStatus",
+              "description": "Trạng thái hiện tại của yêu cầu sạc."
+            },
+            "locked_port_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Cổng đã khóa cho phiên; CHARGING có khóa phải giữ nguyên cổng.",
+              "title": "Locked Port Id"
+            }
+          },
+          "required": [
+            "request_id",
+            "station_id",
+            "connector_type",
+            "vehicle_max_kw",
+            "arrival_time",
+            "departure_time",
+            "energy_needed_kwh",
+            "energy_delivered_kwh",
+            "priority_weight",
+            "status"
+          ],
+          "title": "ChargingRequestIn",
+          "type": "object"
+        },
+        "ConnectorType": {
+          "description": "Chuẩn đầu nối giữa xe và cổng sạc.",
+          "enum": [
+            "CCS2",
+            "Type2",
+            "CHAdeMO",
+            "AC_HOME"
+          ],
+          "title": "ConnectorType",
+          "type": "string"
+        },
+        "ControlType": {
+          "description": "Khả năng điều khiển công suất của cổng.",
+          "enum": [
+            "CONTINUOUS",
+            "ON_OFF_SWITCH"
+          ],
+          "title": "ControlType",
+          "type": "string"
+        },
+        "Port": {
+          "additionalProperties": false,
+          "description": "Thông số và trạng thái một cổng sạc.",
+          "properties": {
+            "port_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "description": "Mã cổng duy nhất trong toàn cụm.",
+              "title": "Port Id"
+            },
+            "connector_type": {
+              "$ref": "#/$defs/ConnectorType",
+              "description": "Chuẩn đầu nối của cổng."
+            },
+            "control_type": {
+              "$ref": "#/$defs/ControlType",
+              "description": "Kiểu điều khiển công suất."
+            },
+            "min_power_kw": {
+              "description": "Công suất nhỏ nhất khi bật, kW.",
+              "minimum": 0,
+              "title": "Min Power Kw",
+              "type": "number"
+            },
+            "max_power_kw": {
+              "description": "Công suất định mức lớn nhất, kW.",
+              "exclusiveMinimum": 0,
+              "title": "Max Power Kw",
+              "type": "number"
+            },
+            "status": {
+              "$ref": "#/$defs/PortStatus",
+              "description": "Trạng thái hoạt động của cổng."
+            }
+          },
+          "required": [
+            "port_id",
+            "connector_type",
+            "control_type",
+            "min_power_kw",
+            "max_power_kw",
+            "status"
+          ],
+          "title": "Port",
+          "type": "object"
+        },
+        "PortStatus": {
+          "description": "Trạng thái vận hành cổng sạc.",
+          "enum": [
+            "ACTIVE",
+            "MAINTENANCE",
+            "OFFLINE"
+          ],
+          "title": "PortStatus",
+          "type": "string"
+        },
+        "RequestStatus": {
+          "description": "Trạng thái vòng đời yêu cầu sạc.",
+          "enum": [
+            "PENDING",
+            "SCHEDULED",
+            "CONFIRMED",
+            "CHARGING",
+            "DONE",
+            "CANCELLED",
+            "NO_SHOW",
+            "FAILED"
+          ],
+          "title": "RequestStatus",
+          "type": "string"
+        },
+        "ScheduleItem": {
+          "additionalProperties": false,
+          "description": "Công suất một xe tại một cổng trong một slot 15 phút.",
+          "properties": {
+            "request_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "description": "Mã yêu cầu được cấp điện.",
+              "title": "Request Id"
+            },
+            "port_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "description": "Mã cổng được giữ cố định trong phiên.",
+              "title": "Port Id"
+            },
+            "slot_start": {
+              "description": "Đầu slot ISO-8601 +07:00, căn :00, :15, :30 hoặc :45.",
+              "format": "date-time",
+              "title": "Slot Start",
+              "type": "string"
+            },
+            "power_kw": {
+              "description": "Công suất cấp trong toàn slot, kW; cho phép 0.",
+              "minimum": 0,
+              "title": "Power Kw",
+              "type": "number"
+            }
+          },
+          "required": [
+            "request_id",
+            "port_id",
+            "slot_start",
+            "power_kw"
+          ],
+          "title": "ScheduleItem",
+          "type": "object"
+        },
+        "Station": {
+          "additionalProperties": false,
+          "description": "Trạm sạc với một khoảng mở cửa tuyệt đối trong snapshot.",
+          "properties": {
+            "station_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "description": "Mã trạm duy nhất trong cụm.",
+              "title": "Station Id"
+            },
+            "station_power_kw": {
+              "description": "Giới hạn tổng công suất trạm, kW.",
+              "minimum": 0,
+              "title": "Station Power Kw",
+              "type": "number"
+            },
+            "open_time": {
+              "description": "Thời điểm mở cửa ISO-8601 +07:00.",
+              "format": "date-time",
+              "title": "Open Time",
+              "type": "string"
+            },
+            "close_time": {
+              "description": "Thời điểm đóng cửa, không bao gồm mốc này; +07:00.",
+              "format": "date-time",
+              "title": "Close Time",
+              "type": "string"
+            },
+            "ports": {
+              "description": "Danh sách cổng thuộc trạm.",
+              "items": {
+                "$ref": "#/$defs/Port"
+              },
+              "title": "Ports",
+              "type": "array"
+            }
+          },
+          "required": [
+            "station_id",
+            "station_power_kw",
+            "open_time",
+            "close_time",
+            "ports"
+          ],
+          "title": "Station",
+          "type": "object"
+        },
+        "Tariff": {
+          "additionalProperties": false,
+          "description": "Giá điện trong khoảng thời gian nửa kín [bắt đầu, kết thúc).",
+          "properties": {
+            "start_time": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "pattern": "^(?:(?:[01][0-9]|2[0-3]):[0-5][0-9]|24:00)$",
+                  "type": "string"
+                }
+              ],
+              "description": "Bắt đầu theo ISO-8601 +07:00 hoặc giờ hằng ngày HH:MM tại Việt Nam.",
+              "title": "Start Time"
+            },
+            "end_time": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "pattern": "^(?:(?:[01][0-9]|2[0-3]):[0-5][0-9]|24:00)$",
+                  "type": "string"
+                }
+              ],
+              "description": "Kết thúc cùng kiểu với start_time. Giờ hằng ngày được qua đêm, 24:00 là cuối ngày.",
+              "title": "End Time"
+            },
+            "price_vnd_kwh": {
+              "description": "Đơn giá điện, VND/kWh.",
+              "minimum": 0,
+              "title": "Price Vnd Kwh",
+              "type": "number"
+            }
+          },
+          "required": [
+            "start_time",
+            "end_time",
+            "price_vnd_kwh"
+          ],
+          "title": "Tariff",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Snapshot đầu vào của POST /ai/optimize.",
+      "properties": {
+        "cluster_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "description": "Mã cụm trạm cần điều phối.",
+          "title": "Cluster Id"
+        },
+        "input_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "integer"
+            }
+          ],
+          "description": "Phiên bản snapshot do Backend cấp, chuỗi hoặc số nguyên không âm.",
+          "title": "Input Version"
+        },
+        "snapshot_time": {
+          "description": "Thời điểm chụp trạng thái ISO-8601 +07:00; có thể nằm giữa slot.",
+          "format": "date-time",
+          "title": "Snapshot Time",
+          "type": "string"
+        },
+        "slot_minutes": {
+          "const": 15,
+          "description": "Độ dài slot cố định 15 phút, tương đương 0,25 giờ.",
+          "title": "Slot Minutes",
+          "type": "integer"
+        },
+        "horizon_slots": {
+          "description": "Số slot trong khoảng lập lịch.",
+          "exclusiveMinimum": 0,
+          "title": "Horizon Slots",
+          "type": "integer"
+        },
+        "previous_schedule": {
+          "description": "Lịch MPC cũ. Công suất ở slot đóng băng phải được tính đủ trong nhu cầu còn lại của snapshot.",
+          "items": {
+            "$ref": "#/$defs/ScheduleItem"
+          },
+          "title": "Previous Schedule",
+          "type": "array"
+        },
+        "grid_limit_kw": {
+          "description": "Giới hạn công suất cụm áp dụng cho mọi slot, kW.",
+          "minimum": 0,
+          "title": "Grid Limit Kw",
+          "type": "number"
+        },
+        "time_budget_ms": {
+          "default": 2000,
+          "description": "Ngân sách thời gian giải tối đa, mili giây.",
+          "exclusiveMinimum": 0,
+          "title": "Time Budget Ms",
+          "type": "integer"
+        },
+        "stations": {
+          "description": "Danh sách trạm và cổng thuộc cụm.",
+          "items": {
+            "$ref": "#/$defs/Station"
+          },
+          "title": "Stations",
+          "type": "array"
+        },
+        "tariffs": {
+          "description": "Các khoảng giá điện không chồng lấn; phủ thời gian cần tính phí.",
+          "items": {
+            "$ref": "#/$defs/Tariff"
+          },
+          "title": "Tariffs",
+          "type": "array"
+        },
+        "requests": {
+          "description": "Các yêu cầu sạc trong snapshot, mã không trùng.",
+          "items": {
+            "$ref": "#/$defs/ChargingRequestIn"
+          },
+          "title": "Requests",
+          "type": "array"
+        }
+      },
+      "required": [
+        "cluster_id",
+        "input_version",
+        "snapshot_time",
+        "slot_minutes",
+        "horizon_slots",
+        "grid_limit_kw",
+        "stations",
+        "tariffs",
+        "requests"
+      ],
+      "title": "OptimizeRequest",
+      "type": "object"
+    },
+    "OptimizeResponse": {
+      "$defs": {
+        "Algorithm": {
+          "description": "Tên thuật toán lập lịch được hỗ trợ trong hợp đồng API.",
+          "enum": [
+            "MILP",
+            "MILP_MPC",
+            "NSGA_II",
+            "CP_SAT",
+            "LP_MPC",
+            "MASTER_LP",
+            "LLF",
+            "FCFS",
+            "EDF",
+            "EQUAL_SHARE",
+            "ASAP"
+          ],
+          "title": "Algorithm",
+          "type": "string"
+        },
+        "KPI": {
+          "additionalProperties": false,
+          "description": "Chỉ số đánh giá chung của một nghiệm lập lịch.",
+          "properties": {
+            "total_shortfall_kwh": {
+              "description": "Tổng điện năng còn thiếu sau lịch, kWh.",
+              "minimum": 0,
+              "title": "Total Shortfall Kwh",
+              "type": "number"
+            },
+            "total_cost_vnd": {
+              "description": "Tổng chi phí điện của lịch mới, VND.",
+              "minimum": 0,
+              "title": "Total Cost Vnd",
+              "type": "number"
+            },
+            "peak_power_kw": {
+              "description": "Công suất tổng cụm lớn nhất trong lịch, kW.",
+              "minimum": 0,
+              "title": "Peak Power Kw",
+              "type": "number"
+            },
+            "on_time_rate": {
+              "description": "Tỷ lệ yêu cầu được sạc đủ trước hạn, từ 0 đến 1.",
+              "maximum": 1,
+              "minimum": 0,
+              "title": "On Time Rate",
+              "type": "number"
+            },
+            "fairness": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Chỉ số Jain trên tỷ lệ điện đã phân bổ cho các yêu cầu cần giải. Null với kết quả cũ chưa đo.",
+              "title": "Fairness"
+            },
+            "cap_violations": {
+              "description": "Số vi phạm giới hạn công suất; nghiệm hợp lệ phải bằng 0.",
+              "minimum": 0,
+              "title": "Cap Violations",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "total_shortfall_kwh",
+            "total_cost_vnd",
+            "peak_power_kw",
+            "on_time_rate",
+            "cap_violations"
+          ],
+          "title": "KPI",
+          "type": "object"
+        },
+        "RequestResult": {
+          "additionalProperties": false,
+          "description": "Kết quả phân bổ và giải thích cho một yêu cầu sạc.",
+          "properties": {
+            "request_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "description": "Mã yêu cầu sạc.",
+              "title": "Request Id"
+            },
+            "allocated_kwh": {
+              "description": "Điện năng cấp thêm trong lịch mới, kWh.",
+              "minimum": 0,
+              "title": "Allocated Kwh",
+              "type": "number"
+            },
+            "shortfall_kwh": {
+              "description": "Điện năng còn thiếu so với nhu cầu còn lại, kWh.",
+              "minimum": 0,
+              "title": "Shortfall Kwh",
+              "type": "number"
+            },
+            "expected_soc": {
+              "anyOf": [
+                {
+                  "maximum": 100,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "SOC dự kiến theo phần trăm; khi thiếu dữ liệu pin, dùng tỷ lệ đáp ứng tổng nhu cầu phiên.",
+              "title": "Expected Soc"
+            },
+            "estimated_cost_vnd": {
+              "description": "Chi phí ước tính của phần điện năng cấp thêm, VND.",
+              "minimum": 0,
+              "title": "Estimated Cost Vnd",
+              "type": "number"
+            },
+            "explanation": {
+              "description": "Giải thích kết quả phân bổ bằng tiếng Việt.",
+              "minLength": 1,
+              "title": "Explanation",
+              "type": "string"
+            }
+          },
+          "required": [
+            "request_id",
+            "allocated_kwh",
+            "shortfall_kwh",
+            "expected_soc",
+            "estimated_cost_vnd",
+            "explanation"
+          ],
+          "title": "RequestResult",
+          "type": "object"
+        },
+        "ScheduleItem": {
+          "additionalProperties": false,
+          "description": "Công suất một xe tại một cổng trong một slot 15 phút.",
+          "properties": {
+            "request_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "description": "Mã yêu cầu được cấp điện.",
+              "title": "Request Id"
+            },
+            "port_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "description": "Mã cổng được giữ cố định trong phiên.",
+              "title": "Port Id"
+            },
+            "slot_start": {
+              "description": "Đầu slot ISO-8601 +07:00, căn :00, :15, :30 hoặc :45.",
+              "format": "date-time",
+              "title": "Slot Start",
+              "type": "string"
+            },
+            "power_kw": {
+              "description": "Công suất cấp trong toàn slot, kW; cho phép 0.",
+              "minimum": 0,
+              "title": "Power Kw",
+              "type": "number"
+            }
+          },
+          "required": [
+            "request_id",
+            "port_id",
+            "slot_start",
+            "power_kw"
+          ],
+          "title": "ScheduleItem",
+          "type": "object"
+        },
+        "SolverStatus": {
+          "description": "Trạng thái kết quả giải bài toán điều phối.",
+          "enum": [
+            "OPTIMAL",
+            "FEASIBLE",
+            "FALLBACK",
+            "INFEASIBLE",
+            "ERROR"
+          ],
+          "title": "SolverStatus",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Kết quả POST /ai/optimize; ràng buộc vật lý do validator kiểm tra riêng.",
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/SolverStatus",
+          "description": "Trạng thái giải hoặc fallback."
+        },
+        "algorithm": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Algorithm"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Thuật toán thực tế tạo ra nghiệm; null nếu chưa có nghiệm."
+        },
+        "solve_ms": {
+          "description": "Thời gian xử lý thực tế, mili giây.",
+          "minimum": 0,
+          "title": "Solve Ms",
+          "type": "number"
+        },
+        "kpi": {
+          "$ref": "#/$defs/KPI",
+          "description": "Các chỉ số đánh giá nghiệm."
+        },
+        "request_results": {
+          "description": "Kết quả chi tiết cho từng yêu cầu.",
+          "items": {
+            "$ref": "#/$defs/RequestResult"
+          },
+          "title": "Request Results",
+          "type": "array"
+        },
+        "schedules": {
+          "description": "Danh sách phân bổ công suất theo slot 15 phút.",
+          "items": {
+            "$ref": "#/$defs/ScheduleItem"
+          },
+          "title": "Schedules",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status",
+        "algorithm",
+        "solve_ms",
+        "kpi",
+        "request_results",
+        "schedules"
+      ],
+      "title": "OptimizeResponse",
+      "type": "object"
+    },
+    "BenchmarkRequest": {
+      "$defs": {
+        "Algorithm": {
+          "description": "Tên thuật toán lập lịch được hỗ trợ trong hợp đồng API.",
+          "enum": [
+            "MILP",
+            "MILP_MPC",
+            "NSGA_II",
+            "CP_SAT",
+            "LP_MPC",
+            "MASTER_LP",
+            "LLF",
+            "FCFS",
+            "EDF",
+            "EQUAL_SHARE",
+            "ASAP"
+          ],
+          "title": "Algorithm",
+          "type": "string"
+        },
+        "ChargingRequestIn": {
+          "additionalProperties": false,
+          "description": "Nhu cầu sạc của một xe, không chứa đặc quyền theo tuổi tài khoản.",
+          "properties": {
+            "request_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "description": "Mã yêu cầu sạc duy nhất trong snapshot.",
+              "title": "Request Id"
+            },
+            "station_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "description": "Mã trạm xe đăng ký sạc.",
+              "title": "Station Id"
+            },
+            "connector_type": {
+              "$ref": "#/$defs/ConnectorType",
+              "description": "Chuẩn đầu nối xe yêu cầu."
+            },
+            "battery_capacity_kwh": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Dung lượng pin sử dụng được, kWh.",
+              "title": "Battery Capacity Kwh"
+            },
+            "current_soc_pct": {
+              "anyOf": [
+                {
+                  "maximum": 100,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "SOC tại thời điểm snapshot, phần trăm.",
+              "title": "Current Soc Pct"
+            },
+            "previous_port_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Cổng trước khi Backend chuyển phiên sang cổng hiện tại.",
+              "title": "Previous Port Id"
+            },
+            "vehicle_max_kw": {
+              "description": "Công suất sạc tối đa xe nhận được, kW.",
+              "exclusiveMinimum": 0,
+              "title": "Vehicle Max Kw",
+              "type": "number"
+            },
+            "arrival_time": {
+              "description": "Thời điểm xe đến, ISO-8601 +07:00.",
+              "format": "date-time",
+              "title": "Arrival Time",
+              "type": "string"
+            },
+            "departure_time": {
+              "description": "Thời điểm xe rời đi, ISO-8601 +07:00; phải sau khi đến.",
+              "format": "date-time",
+              "title": "Departure Time",
+              "type": "string"
+            },
+            "energy_needed_kwh": {
+              "description": "Tổng điện năng xe yêu cầu cho phiên, kWh.",
+              "minimum": 0,
+              "title": "Energy Needed Kwh",
+              "type": "number"
+            },
+            "energy_delivered_kwh": {
+              "description": "Điện năng đã cấp trước snapshot, kWh.",
+              "minimum": 0,
+              "title": "Energy Delivered Kwh",
+              "type": "number"
+            },
+            "priority_weight": {
+              "description": "Trọng số ưu tiên dương; không dựa vào tuổi tài khoản.",
+              "exclusiveMinimum": 0,
+              "title": "Priority Weight",
+              "type": "number"
+            },
+            "status": {
+              "$ref": "#/$defs/RequestStatus",
+              "description": "Trạng thái hiện tại của yêu cầu sạc."
+            },
+            "locked_port_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Cổng đã khóa cho phiên; CHARGING có khóa phải giữ nguyên cổng.",
+              "title": "Locked Port Id"
+            }
+          },
+          "required": [
+            "request_id",
+            "station_id",
+            "connector_type",
+            "vehicle_max_kw",
+            "arrival_time",
+            "departure_time",
+            "energy_needed_kwh",
+            "energy_delivered_kwh",
+            "priority_weight",
+            "status"
+          ],
+          "title": "ChargingRequestIn",
+          "type": "object"
+        },
+        "ConnectorType": {
+          "description": "Chuẩn đầu nối giữa xe và cổng sạc.",
+          "enum": [
+            "CCS2",
+            "Type2",
+            "CHAdeMO",
+            "AC_HOME"
+          ],
+          "title": "ConnectorType",
+          "type": "string"
+        },
+        "ControlType": {
+          "description": "Khả năng điều khiển công suất của cổng.",
+          "enum": [
+            "CONTINUOUS",
+            "ON_OFF_SWITCH"
+          ],
+          "title": "ControlType",
+          "type": "string"
+        },
+        "OptimizeRequest": {
+          "additionalProperties": false,
+          "description": "Snapshot đầu vào của POST /ai/optimize.",
+          "properties": {
+            "cluster_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "description": "Mã cụm trạm cần điều phối.",
+              "title": "Cluster Id"
+            },
+            "input_version": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              ],
+              "description": "Phiên bản snapshot do Backend cấp, chuỗi hoặc số nguyên không âm.",
+              "title": "Input Version"
+            },
+            "snapshot_time": {
+              "description": "Thời điểm chụp trạng thái ISO-8601 +07:00; có thể nằm giữa slot.",
+              "format": "date-time",
+              "title": "Snapshot Time",
+              "type": "string"
+            },
+            "slot_minutes": {
+              "const": 15,
+              "description": "Độ dài slot cố định 15 phút, tương đương 0,25 giờ.",
+              "title": "Slot Minutes",
+              "type": "integer"
+            },
+            "horizon_slots": {
+              "description": "Số slot trong khoảng lập lịch.",
+              "exclusiveMinimum": 0,
+              "title": "Horizon Slots",
+              "type": "integer"
+            },
+            "previous_schedule": {
+              "description": "Lịch MPC cũ. Công suất ở slot đóng băng phải được tính đủ trong nhu cầu còn lại của snapshot.",
+              "items": {
+                "$ref": "#/$defs/ScheduleItem"
+              },
+              "title": "Previous Schedule",
+              "type": "array"
+            },
+            "grid_limit_kw": {
+              "description": "Giới hạn công suất cụm áp dụng cho mọi slot, kW.",
+              "minimum": 0,
+              "title": "Grid Limit Kw",
+              "type": "number"
+            },
+            "time_budget_ms": {
+              "default": 2000,
+              "description": "Ngân sách thời gian giải tối đa, mili giây.",
+              "exclusiveMinimum": 0,
+              "title": "Time Budget Ms",
+              "type": "integer"
+            },
+            "stations": {
+              "description": "Danh sách trạm và cổng thuộc cụm.",
+              "items": {
+                "$ref": "#/$defs/Station"
+              },
+              "title": "Stations",
+              "type": "array"
+            },
+            "tariffs": {
+              "description": "Các khoảng giá điện không chồng lấn; phủ thời gian cần tính phí.",
+              "items": {
+                "$ref": "#/$defs/Tariff"
+              },
+              "title": "Tariffs",
+              "type": "array"
+            },
+            "requests": {
+              "description": "Các yêu cầu sạc trong snapshot, mã không trùng.",
+              "items": {
+                "$ref": "#/$defs/ChargingRequestIn"
+              },
+              "title": "Requests",
+              "type": "array"
+            }
+          },
+          "required": [
+            "cluster_id",
+            "input_version",
+            "snapshot_time",
+            "slot_minutes",
+            "horizon_slots",
+            "grid_limit_kw",
+            "stations",
+            "tariffs",
+            "requests"
+          ],
+          "title": "OptimizeRequest",
+          "type": "object"
+        },
+        "Port": {
+          "additionalProperties": false,
+          "description": "Thông số và trạng thái một cổng sạc.",
+          "properties": {
+            "port_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "description": "Mã cổng duy nhất trong toàn cụm.",
+              "title": "Port Id"
+            },
+            "connector_type": {
+              "$ref": "#/$defs/ConnectorType",
+              "description": "Chuẩn đầu nối của cổng."
+            },
+            "control_type": {
+              "$ref": "#/$defs/ControlType",
+              "description": "Kiểu điều khiển công suất."
+            },
+            "min_power_kw": {
+              "description": "Công suất nhỏ nhất khi bật, kW.",
+              "minimum": 0,
+              "title": "Min Power Kw",
+              "type": "number"
+            },
+            "max_power_kw": {
+              "description": "Công suất định mức lớn nhất, kW.",
+              "exclusiveMinimum": 0,
+              "title": "Max Power Kw",
+              "type": "number"
+            },
+            "status": {
+              "$ref": "#/$defs/PortStatus",
+              "description": "Trạng thái hoạt động của cổng."
+            }
+          },
+          "required": [
+            "port_id",
+            "connector_type",
+            "control_type",
+            "min_power_kw",
+            "max_power_kw",
+            "status"
+          ],
+          "title": "Port",
+          "type": "object"
+        },
+        "PortStatus": {
+          "description": "Trạng thái vận hành cổng sạc.",
+          "enum": [
+            "ACTIVE",
+            "MAINTENANCE",
+            "OFFLINE"
+          ],
+          "title": "PortStatus",
+          "type": "string"
+        },
+        "RequestStatus": {
+          "description": "Trạng thái vòng đời yêu cầu sạc.",
+          "enum": [
+            "PENDING",
+            "SCHEDULED",
+            "CONFIRMED",
+            "CHARGING",
+            "DONE",
+            "CANCELLED",
+            "NO_SHOW",
+            "FAILED"
+          ],
+          "title": "RequestStatus",
+          "type": "string"
+        },
+        "ScheduleItem": {
+          "additionalProperties": false,
+          "description": "Công suất một xe tại một cổng trong một slot 15 phút.",
+          "properties": {
+            "request_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "description": "Mã yêu cầu được cấp điện.",
+              "title": "Request Id"
+            },
+            "port_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "description": "Mã cổng được giữ cố định trong phiên.",
+              "title": "Port Id"
+            },
+            "slot_start": {
+              "description": "Đầu slot ISO-8601 +07:00, căn :00, :15, :30 hoặc :45.",
+              "format": "date-time",
+              "title": "Slot Start",
+              "type": "string"
+            },
+            "power_kw": {
+              "description": "Công suất cấp trong toàn slot, kW; cho phép 0.",
+              "minimum": 0,
+              "title": "Power Kw",
+              "type": "number"
+            }
+          },
+          "required": [
+            "request_id",
+            "port_id",
+            "slot_start",
+            "power_kw"
+          ],
+          "title": "ScheduleItem",
+          "type": "object"
+        },
+        "Station": {
+          "additionalProperties": false,
+          "description": "Trạm sạc với một khoảng mở cửa tuyệt đối trong snapshot.",
+          "properties": {
+            "station_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "description": "Mã trạm duy nhất trong cụm.",
+              "title": "Station Id"
+            },
+            "station_power_kw": {
+              "description": "Giới hạn tổng công suất trạm, kW.",
+              "minimum": 0,
+              "title": "Station Power Kw",
+              "type": "number"
+            },
+            "open_time": {
+              "description": "Thời điểm mở cửa ISO-8601 +07:00.",
+              "format": "date-time",
+              "title": "Open Time",
+              "type": "string"
+            },
+            "close_time": {
+              "description": "Thời điểm đóng cửa, không bao gồm mốc này; +07:00.",
+              "format": "date-time",
+              "title": "Close Time",
+              "type": "string"
+            },
+            "ports": {
+              "description": "Danh sách cổng thuộc trạm.",
+              "items": {
+                "$ref": "#/$defs/Port"
+              },
+              "title": "Ports",
+              "type": "array"
+            }
+          },
+          "required": [
+            "station_id",
+            "station_power_kw",
+            "open_time",
+            "close_time",
+            "ports"
+          ],
+          "title": "Station",
+          "type": "object"
+        },
+        "Tariff": {
+          "additionalProperties": false,
+          "description": "Giá điện trong khoảng thời gian nửa kín [bắt đầu, kết thúc).",
+          "properties": {
+            "start_time": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "pattern": "^(?:(?:[01][0-9]|2[0-3]):[0-5][0-9]|24:00)$",
+                  "type": "string"
+                }
+              ],
+              "description": "Bắt đầu theo ISO-8601 +07:00 hoặc giờ hằng ngày HH:MM tại Việt Nam.",
+              "title": "Start Time"
+            },
+            "end_time": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "pattern": "^(?:(?:[01][0-9]|2[0-3]):[0-5][0-9]|24:00)$",
+                  "type": "string"
+                }
+              ],
+              "description": "Kết thúc cùng kiểu với start_time. Giờ hằng ngày được qua đêm, 24:00 là cuối ngày.",
+              "title": "End Time"
+            },
+            "price_vnd_kwh": {
+              "description": "Đơn giá điện, VND/kWh.",
+              "minimum": 0,
+              "title": "Price Vnd Kwh",
+              "type": "number"
+            }
+          },
+          "required": [
+            "start_time",
+            "end_time",
+            "price_vnd_kwh"
+          ],
+          "title": "Tariff",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Cấu hình so sánh thuật toán trên một kịch bản hoặc snapshot.",
+      "properties": {
+        "scenario_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "default": "inline",
+          "description": "Mã kịch bản benchmark do service quản lý.",
+          "title": "Scenario Id"
+        },
+        "algorithms": {
+          "description": "Các thuật toán cần so sánh, không trùng tên.",
+          "items": {
+            "$ref": "#/$defs/Algorithm"
+          },
+          "minItems": 1,
+          "title": "Algorithms",
+          "type": "array"
+        },
+        "seed": {
+          "default": 42,
+          "description": "Hạt giống ngẫu nhiên uint32 để tái lập kết quả.",
+          "maximum": 4294967295,
+          "minimum": 0,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "repeats": {
+          "default": 1,
+          "description": "Số lần chạy cho mỗi thuật toán.",
+          "exclusiveMinimum": 0,
+          "title": "Repeats",
+          "type": "integer"
+        },
+        "snapshot": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OptimizeRequest"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Snapshot tùy chọn; khi có sẽ dùng thay dữ liệu kịch bản."
+        }
+      },
+      "required": [
+        "algorithms"
+      ],
+      "title": "BenchmarkRequest",
+      "type": "object"
+    },
+    "BenchmarkResponse": {
+      "$defs": {
+        "Algorithm": {
+          "description": "Tên thuật toán lập lịch được hỗ trợ trong hợp đồng API.",
+          "enum": [
+            "MILP",
+            "MILP_MPC",
+            "NSGA_II",
+            "CP_SAT",
+            "LP_MPC",
+            "MASTER_LP",
+            "LLF",
+            "FCFS",
+            "EDF",
+            "EQUAL_SHARE",
+            "ASAP"
+          ],
+          "title": "Algorithm",
+          "type": "string"
+        },
+        "BenchmarkRun": {
+          "additionalProperties": false,
+          "description": "Kết quả một lần chạy benchmark, giữ rõ thuật toán yêu cầu và thực tế.",
+          "properties": {
+            "algorithm": {
+              "$ref": "#/$defs/Algorithm",
+              "description": "Thuật toán được yêu cầu chạy."
+            },
+            "repeat_index": {
+              "description": "Chỉ số lần chạy bắt đầu từ 0.",
+              "minimum": 0,
+              "title": "Repeat Index",
+              "type": "integer"
+            },
+            "result": {
+              "$ref": "#/$defs/OptimizeResponse",
+              "description": "Kết quả chuẩn, chứa thuật toán thực tế và KPI của lần chạy."
+            }
+          },
+          "required": [
+            "algorithm",
+            "repeat_index",
+            "result"
+          ],
+          "title": "BenchmarkRun",
+          "type": "object"
+        },
+        "BenchmarkSummary": {
+          "additionalProperties": false,
+          "description": "Thống kê theo thuật toán trên các lượt chạy.",
+          "properties": {
+            "algorithm": {
+              "$ref": "#/$defs/Algorithm",
+              "description": "Thuật toán yêu cầu."
+            },
+            "status": {
+              "description": "Trạng thái tổng hợp hoặc NOT_IMPLEMENTED.",
+              "title": "Status",
+              "type": "string"
+            },
+            "actual_algorithms": {
+              "description": "Các thuật toán thực tế đã chạy.",
+              "items": {
+                "$ref": "#/$defs/Algorithm"
+              },
+              "title": "Actual Algorithms",
+              "type": "array"
+            },
+            "kpi": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/KPI"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "KPI trung bình, số vi phạm là giá trị lớn nhất qua các lượt."
+            },
+            "solve_ms_mean": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Thời gian trung bình, ms.",
+              "title": "Solve Ms Mean"
+            },
+            "solve_ms_std": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Độ lệch chuẩn tổng thể, ms.",
+              "title": "Solve Ms Std"
+            }
+          },
+          "required": [
+            "algorithm",
+            "status",
+            "actual_algorithms"
+          ],
+          "title": "BenchmarkSummary",
+          "type": "object"
+        },
+        "KPI": {
+          "additionalProperties": false,
+          "description": "Chỉ số đánh giá chung của một nghiệm lập lịch.",
+          "properties": {
+            "total_shortfall_kwh": {
+              "description": "Tổng điện năng còn thiếu sau lịch, kWh.",
+              "minimum": 0,
+              "title": "Total Shortfall Kwh",
+              "type": "number"
+            },
+            "total_cost_vnd": {
+              "description": "Tổng chi phí điện của lịch mới, VND.",
+              "minimum": 0,
+              "title": "Total Cost Vnd",
+              "type": "number"
+            },
+            "peak_power_kw": {
+              "description": "Công suất tổng cụm lớn nhất trong lịch, kW.",
+              "minimum": 0,
+              "title": "Peak Power Kw",
+              "type": "number"
+            },
+            "on_time_rate": {
+              "description": "Tỷ lệ yêu cầu được sạc đủ trước hạn, từ 0 đến 1.",
+              "maximum": 1,
+              "minimum": 0,
+              "title": "On Time Rate",
+              "type": "number"
+            },
+            "fairness": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Chỉ số Jain trên tỷ lệ điện đã phân bổ cho các yêu cầu cần giải. Null với kết quả cũ chưa đo.",
+              "title": "Fairness"
+            },
+            "cap_violations": {
+              "description": "Số vi phạm giới hạn công suất; nghiệm hợp lệ phải bằng 0.",
+              "minimum": 0,
+              "title": "Cap Violations",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "total_shortfall_kwh",
+            "total_cost_vnd",
+            "peak_power_kw",
+            "on_time_rate",
+            "cap_violations"
+          ],
+          "title": "KPI",
+          "type": "object"
+        },
+        "OptimizeResponse": {
+          "additionalProperties": false,
+          "description": "Kết quả POST /ai/optimize; ràng buộc vật lý do validator kiểm tra riêng.",
+          "properties": {
+            "status": {
+              "$ref": "#/$defs/SolverStatus",
+              "description": "Trạng thái giải hoặc fallback."
+            },
+            "algorithm": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Algorithm"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Thuật toán thực tế tạo ra nghiệm; null nếu chưa có nghiệm."
+            },
+            "solve_ms": {
+              "description": "Thời gian xử lý thực tế, mili giây.",
+              "minimum": 0,
+              "title": "Solve Ms",
+              "type": "number"
+            },
+            "kpi": {
+              "$ref": "#/$defs/KPI",
+              "description": "Các chỉ số đánh giá nghiệm."
+            },
+            "request_results": {
+              "description": "Kết quả chi tiết cho từng yêu cầu.",
+              "items": {
+                "$ref": "#/$defs/RequestResult"
+              },
+              "title": "Request Results",
+              "type": "array"
+            },
+            "schedules": {
+              "description": "Danh sách phân bổ công suất theo slot 15 phút.",
+              "items": {
+                "$ref": "#/$defs/ScheduleItem"
+              },
+              "title": "Schedules",
+              "type": "array"
+            }
+          },
+          "required": [
+            "status",
+            "algorithm",
+            "solve_ms",
+            "kpi",
+            "request_results",
+            "schedules"
+          ],
+          "title": "OptimizeResponse",
+          "type": "object"
+        },
+        "RequestResult": {
+          "additionalProperties": false,
+          "description": "Kết quả phân bổ và giải thích cho một yêu cầu sạc.",
+          "properties": {
+            "request_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "description": "Mã yêu cầu sạc.",
+              "title": "Request Id"
+            },
+            "allocated_kwh": {
+              "description": "Điện năng cấp thêm trong lịch mới, kWh.",
+              "minimum": 0,
+              "title": "Allocated Kwh",
+              "type": "number"
+            },
+            "shortfall_kwh": {
+              "description": "Điện năng còn thiếu so với nhu cầu còn lại, kWh.",
+              "minimum": 0,
+              "title": "Shortfall Kwh",
+              "type": "number"
+            },
+            "expected_soc": {
+              "anyOf": [
+                {
+                  "maximum": 100,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "SOC dự kiến theo phần trăm; khi thiếu dữ liệu pin, dùng tỷ lệ đáp ứng tổng nhu cầu phiên.",
+              "title": "Expected Soc"
+            },
+            "estimated_cost_vnd": {
+              "description": "Chi phí ước tính của phần điện năng cấp thêm, VND.",
+              "minimum": 0,
+              "title": "Estimated Cost Vnd",
+              "type": "number"
+            },
+            "explanation": {
+              "description": "Giải thích kết quả phân bổ bằng tiếng Việt.",
+              "minLength": 1,
+              "title": "Explanation",
+              "type": "string"
+            }
+          },
+          "required": [
+            "request_id",
+            "allocated_kwh",
+            "shortfall_kwh",
+            "expected_soc",
+            "estimated_cost_vnd",
+            "explanation"
+          ],
+          "title": "RequestResult",
+          "type": "object"
+        },
+        "ScheduleItem": {
+          "additionalProperties": false,
+          "description": "Công suất một xe tại một cổng trong một slot 15 phút.",
+          "properties": {
+            "request_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "description": "Mã yêu cầu được cấp điện.",
+              "title": "Request Id"
+            },
+            "port_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "description": "Mã cổng được giữ cố định trong phiên.",
+              "title": "Port Id"
+            },
+            "slot_start": {
+              "description": "Đầu slot ISO-8601 +07:00, căn :00, :15, :30 hoặc :45.",
+              "format": "date-time",
+              "title": "Slot Start",
+              "type": "string"
+            },
+            "power_kw": {
+              "description": "Công suất cấp trong toàn slot, kW; cho phép 0.",
+              "minimum": 0,
+              "title": "Power Kw",
+              "type": "number"
+            }
+          },
+          "required": [
+            "request_id",
+            "port_id",
+            "slot_start",
+            "power_kw"
+          ],
+          "title": "ScheduleItem",
+          "type": "object"
+        },
+        "SolverStatus": {
+          "description": "Trạng thái kết quả giải bài toán điều phối.",
+          "enum": [
+            "OPTIMAL",
+            "FEASIBLE",
+            "FALLBACK",
+            "INFEASIBLE",
+            "ERROR"
+          ],
+          "title": "SolverStatus",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Danh sách kết quả từng lần chạy để Backend tổng hợp so sánh.",
+      "properties": {
+        "scenario_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "description": "Mã kịch bản đã chạy.",
+          "title": "Scenario Id"
+        },
+        "seed": {
+          "description": "Hạt giống ngẫu nhiên uint32 đã sử dụng.",
+          "maximum": 4294967295,
+          "minimum": 0,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "repeats": {
+          "description": "Số lần chạy cho mỗi thuật toán.",
+          "exclusiveMinimum": 0,
+          "title": "Repeats",
+          "type": "integer"
+        },
+        "summary": {
+          "description": "Bảng KPI theo thuật toán.",
+          "items": {
+            "$ref": "#/$defs/BenchmarkSummary"
+          },
+          "title": "Summary",
+          "type": "array"
+        },
+        "results": {
+          "description": "Kết quả chi tiết theo thuật toán và lần lặp.",
+          "items": {
+            "$ref": "#/$defs/BenchmarkRun"
+          },
+          "title": "Results",
+          "type": "array"
+        }
+      },
+      "required": [
+        "scenario_id",
+        "seed",
+        "repeats",
+        "results"
+      ],
+      "title": "BenchmarkResponse",
+      "type": "object"
+    },
+    "ForecastRequest": {
+      "$defs": {
+        "ForecastHistoryItem": {
+          "additionalProperties": false,
+          "description": "Số lượt xe thực tế trong một giờ lịch sử.",
+          "properties": {
+            "hour_start": {
+              "description": "Đầu giờ quan sát ISO-8601 +07:00, phút và giây bằng 0.",
+              "format": "date-time",
+              "title": "Hour Start",
+              "type": "string"
+            },
+            "arrivals": {
+              "description": "Số lượt xe đến trong giờ, số nguyên không âm.",
+              "minimum": 0,
+              "title": "Arrivals",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "hour_start",
+            "arrivals"
+          ],
+          "title": "ForecastHistoryItem",
+          "type": "object"
+        },
+        "ForecastModel": {
+          "description": "Tên mô hình dự báo số lượt xe theo giờ.",
+          "enum": [
+            "HOURLY_MEAN",
+            "RANDOM_FOREST",
+            "XGBOOST",
+            "BEST"
+          ],
+          "title": "ForecastModel",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Đầu vào dự báo lượt xe của POST /ai/forecast.",
+      "properties": {
+        "cluster_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "description": "Mã cụm trạm cần dự báo.",
+          "title": "Cluster Id"
+        },
+        "history": {
+          "description": "Lịch sử lượt xe theo giờ, không trùng giờ; cho phép chưa sắp xếp.",
+          "items": {
+            "$ref": "#/$defs/ForecastHistoryItem"
+          },
+          "minItems": 1,
+          "title": "History",
+          "type": "array"
+        },
+        "horizon_hours": {
+          "default": 24,
+          "description": "Số giờ dự báo liên tiếp sau giờ lịch sử mới nhất.",
+          "exclusiveMinimum": 0,
+          "title": "Horizon Hours",
+          "type": "integer"
+        },
+        "model": {
+          "$ref": "#/$defs/ForecastModel",
+          "default": "HOURLY_MEAN",
+          "description": "Mô hình dự báo được yêu cầu sử dụng."
+        }
+      },
+      "required": [
+        "cluster_id",
+        "history"
+      ],
+      "title": "ForecastRequest",
+      "type": "object"
+    },
+    "ForecastResponse": {
+      "$defs": {
+        "ForecastModel": {
+          "description": "Tên mô hình dự báo số lượt xe theo giờ.",
+          "enum": [
+            "HOURLY_MEAN",
+            "RANDOM_FOREST",
+            "XGBOOST",
+            "BEST"
+          ],
+          "title": "ForecastModel",
+          "type": "string"
+        },
+        "ForecastPrediction": {
+          "additionalProperties": false,
+          "description": "Số lượt xe kỳ vọng trong một giờ tương lai.",
+          "properties": {
+            "hour_start": {
+              "description": "Đầu giờ dự báo ISO-8601 +07:00.",
+              "format": "date-time",
+              "title": "Hour Start",
+              "type": "string"
+            },
+            "pred_arrivals": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "minimum": 0,
+                  "type": "number"
+                }
+              ],
+              "description": "Số lượt xe dự báo không âm; cho phép số thập phân kỳ vọng.",
+              "title": "Pred Arrivals"
+            }
+          },
+          "required": [
+            "hour_start",
+            "pred_arrivals"
+          ],
+          "title": "ForecastPrediction",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Kết quả dự báo lượt xe theo giờ.",
+      "properties": {
+        "cluster_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "description": "Mã cụm trạm được dự báo.",
+          "title": "Cluster Id"
+        },
+        "model": {
+          "$ref": "#/$defs/ForecastModel",
+          "description": "Mô hình thực tế dùng để dự báo."
+        },
+        "horizon_hours": {
+          "description": "Số giờ đã dự báo.",
+          "exclusiveMinimum": 0,
+          "title": "Horizon Hours",
+          "type": "integer"
+        },
+        "metrics": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "minimum": 0,
+                "type": "number"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "MAE và RMSE trên tập kiểm tra theo thời gian.",
+          "title": "Metrics"
+        },
+        "warnings": {
+          "description": "Lý do dùng mô hình dự phòng nếu có.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        },
+        "predictions": {
+          "description": "Dự báo theo thứ tự thời gian, mỗi giờ một phần tử.",
+          "items": {
+            "$ref": "#/$defs/ForecastPrediction"
+          },
+          "title": "Predictions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "cluster_id",
+        "model",
+        "horizon_hours",
+        "predictions"
+      ],
+      "title": "ForecastResponse",
+      "type": "object"
+    }
+  }
+}
