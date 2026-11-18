@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import logging
+import sys
 from collections import defaultdict
 from contextvars import ContextVar
 from dataclasses import replace
+from threading import Timer
 from time import perf_counter
 
 from .baselines import solve_llf
 from .normalizer import NormProblem, Solution
 from .schemas import Algorithm, SolverStatus
+from .settings import EPS_KW, is_leq, is_zero, snap
 from .validator import validate_solution
 
 
@@ -23,7 +26,7 @@ def _optimize(p: NormProblem, prefer_lp: bool) -> Solution:
 
     end = perf_counter()+p.time_budget_ms/1000
     old = p.previous_schedule
-    fixed = {k:v for k,v in old.items() if k[2]<p.first_mutable_slot and v}
+    fixed = {k:v for k,v in old.items() if k[2]<p.first_mutable_slot and not is_zero(v, EPS_KW)}
     seed = solve_llf(replace(p,time_budget_ms=p.time_budget_ms//5))
     seed.status = SolverStatus.FALLBACK
     if not validate_solution(p,seed).ok:
@@ -38,7 +41,7 @@ def _optimize(p: NormProblem, prefer_lp: bool) -> Solution:
             for pid in r.candidate_ports:
                 port = p.ports[pid]
                 times = {(pid,t) for t in r.active_slots}
-                if port.min_power_kw or port.control_type!="CONTINUOUS" or occupied & times:
+                if not is_zero(port.min_power_kw, EPS_KW) or port.control_type!="CONTINUOUS" or occupied & times:
                     lp=False
                     break
                 occupied.update(times)
@@ -47,7 +50,11 @@ def _optimize(p: NormProblem, prefer_lp: bool) -> Solution:
         raise RuntimeError("Thiếu backend OR-Tools")
     if not lp:
         m.SetNumThreads(1)
-        m.SetSolverSpecificParametersAsString(f"randomization/randomseedshift = {BENCHMARK_SEED.get() % 2147483647}")
+        parameters = f"randomization/randomseedshift = {BENCHMARK_SEED.get() % 2147483647}"
+        if sys.platform == "win32":
+            # SCIP's Windows wall clock can report a whole second during presolve.
+            parameters += "\ntiming/clocktype = 1"
+        m.SetSolverSpecificParametersAsString(parameters)
     ps, xs, gaps, floors = {}, {}, {}, {}
     ports, stations, grid = defaultdict(list),defaultdict(list),defaultdict(list)
     peak = m.NumVar(0,p.grid_limit_kw,"")
@@ -103,7 +110,7 @@ def _optimize(p: NormProblem, prefer_lp: bool) -> Solution:
         m.Add(total<=1)
         if p.ports[pid].control_type=="ON_OFF_SWITCH":
             switches[pid,t]=total
-    for pid,t in switches.keys()|{(pid,t+1) for pid,t in switches if t+1<p.T}:
+    for pid,t in sorted(switches.keys()|{(pid,t+1) for pid,t in switches if t+1<p.T}):
         delta=switches.get((pid,t),0)-switches.get((pid,t-1),0)
         d=m.NumVar(0,1,"")
         m.Add(d>=delta)
@@ -117,29 +124,54 @@ def _optimize(p: NormProblem, prefer_lp: bool) -> Solution:
         m.SetHint(*zip(*hints))
     objectives=[m.Sum([p.requests[r].priority_weight*g for r,g in gaps.items()]),
                 *[-floors[w] for w in sorted(floors,reverse=True)],m.Sum(costs),peak+m.Sum(penalties)]
+    # Bound cumulative rounding error for a whole slot and for a long session.
+    rounding_error = EPS_KW / max(1, len(p.requests), p.T * p.dt)
     best=seed
     for i,obj in enumerate(objectives):
         ms=int((end-perf_counter())*1000)
         if ms<=0:
             return best
         m.Minimize(obj)
-        m.SetTimeLimit(max(1,ms//(len(objectives)-i)))
-        status=m.Solve()
+        stage_ms = max(1, ms // (len(objectives) - i))
+        m.SetTimeLimit(stage_ms)
+        if not lp and sys.platform == "win32":
+            # Enforce the same wall-time budget even when CPU time advances slowly.
+            timeout = Timer(stage_ms / 1000, m.InterruptSolve)
+            timeout.start()
+            try:
+                status = m.Solve()
+            finally:
+                timeout.cancel()
+                timeout.join()
+        else:
+            status = m.Solve()
         if status not in (m.OPTIMAL,m.FEASIBLE):
             return best
         sol=Solution({}, {},SolverStatus.FEASIBLE,Algorithm.LP_MPC if lp else Algorithm.MILP_MPC,
-                     {rid:max(0,g.solution_value()) for rid,g in gaps.items()})
+                     {rid:snap(max(0,g.solution_value())) for rid,g in gaps.items()})
         for rid,r in p.requests.items():
             if r.locked_port_id in r.candidate_ports:
                 sol.assign[rid]=r.locked_port_id
         for k,v in ps.items():
-            if v.solution_value()>1e-8:
-                sol.assign[k[0]]=k[1]
-                sol.power[k]=v.solution_value()
+            rid, pid, _ = k
+            port = p.ports[pid]
+            kw = snap(v.solution_value(), EPS_KW)
+            if port.control_type == "ON_OFF_SWITCH":
+                kw = port.max_power_kw if xs[k].solution_value() > 0.5 else 0.0
+            elif k in fixed:
+                kw = fixed[k]
+            else:
+                rounded = round(kw, 6)
+                if is_zero(kw - rounded, rounding_error):
+                    kw = rounded
+            if not is_zero(kw, EPS_KW):
+                sol.assign[rid] = pid
+                sol.power[k] = kw
         if not validate_solution(p,sol).ok:
             return best
         if status==m.FEASIBLE and i==0:
-            if sum(p.requests[r].priority_weight*(sol.shortfall[r]-seed.shortfall[r]) for r in gaps)>=-1e-8:
+            improvement = sum(p.requests[r].priority_weight * (seed.shortfall[r] - sol.shortfall[r]) for r in gaps)
+            if is_leq(improvement, 0):
                 return seed
         best=sol
         if status!=m.OPTIMAL:
@@ -147,6 +179,7 @@ def _optimize(p: NormProblem, prefer_lp: bool) -> Solution:
         if i==len(objectives)-1:
             best.status=SolverStatus.OPTIMAL
         else:
+            # Slack for lexicographic objective locking (also applies to price and fairness).
             m.Add(obj<=m.Objective().Value()+1e-8)
     return best
 
@@ -167,7 +200,7 @@ def solve(problem: NormProblem) -> Solution:
     changed = {}
     for rid,r in problem.requests.items():
         if r.port_lost and r.replacement_ports and not any(
-            k[0]==rid and k[2]<problem.first_mutable_slot and v>0
+            k[0]==rid and k[2]<problem.first_mutable_slot and not is_leq(v, 0, EPS_KW)
             for k,v in problem.previous_schedule.items()
         ):
             changed[rid] = replace(r,locked_port_id=None,port_lost=False,

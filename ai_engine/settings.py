@@ -2,6 +2,21 @@
 import os
 
 
+EPS_KWH = EPS_KW = 1e-6
+
+
+def is_zero(value: float, eps: float = EPS_KWH) -> bool:
+    return abs(value) <= eps
+
+
+def is_leq(a: float, b: float, eps: float = EPS_KWH) -> bool:
+    return a <= b + eps
+
+
+def snap(value: float, eps: float = EPS_KWH) -> float:
+    return 0.0 if is_zero(value, eps) else value
+
+
 def positive(name: str, default: int) -> int:
     """Đọc số nguyên dương từ biến môi trường."""
     value = int(os.getenv(name, str(default)))

@@ -62,6 +62,8 @@ def test_page20(capsys: pytest.CaptureFixture[str]) -> None:
     assert set(s.shortfall)==set("ABCD") and all(abs(v)<=1e-6 for v in s.shortfall.values())
     assert compute_kpi(p,s).total_cost_vnd==pytest.approx(5500,abs=1)
     assert s.status in {"OPTIMAL","FEASIBLE"}
+    assert s.algorithm != "LLF"
+    assert s.status != "FALLBACK"
 
 
 def test_new_joins_old() -> None:

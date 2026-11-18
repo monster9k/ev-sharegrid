@@ -45,6 +45,9 @@ def evaluate(req: OptimizeRequest, solver: Solver = solve, asap: bool = False) -
 
 
 if __name__ == "__main__":
+    from .console import configure_console
+
+    configure_console()
     start=perf_counter()
     try:
         body=json.load(sys.stdin.buffer)

@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Iterable, Literal
 
+from .settings import EPS_KW, is_zero, snap
 from .schemas import (
     ConnectorType, ControlType, OptimizeRequest, PortStatus, RequestStatus,
     ScheduleItem, Tariff, Algorithm, SolverStatus, ChargingRequestIn,
@@ -184,7 +185,7 @@ def normalize(req: OptimizeRequest) -> NormProblem:
     requests: dict[str, NormRequest] = {}
     skipped: dict[str, tuple[float, float]] = {}
     for r in sorted(req.requests,key=lambda item:item.request_id):
-        remaining = max(0.0, r.energy_needed_kwh - r.energy_delivered_kwh)
+        remaining = snap(max(0.0, r.energy_needed_kwh - r.energy_delivered_kwh))
         if not remaining or r.status in TERMINAL:
             skipped[r.request_id] = (0.0, 0.0)
             continue
@@ -214,7 +215,11 @@ def normalize(req: OptimizeRequest) -> NormProblem:
             key = (row.request_id, row.port_id, t)
             if key in previous:
                 raise ValueError("Lịch MPC cũ trùng dòng")
-            previous[key] = row.power_kw
+            kw = snap(row.power_kw, EPS_KW)
+            port = ports.get(row.port_id)
+            if port and port.control_type == "ON_OFF_SWITCH" and is_zero(kw - port.max_power_kw, EPS_KW):
+                kw = port.max_power_kw
+            previous[key] = kw
     return NormProblem(t0, now, count, 0.25, _prices(req.tariffs, t0, count), req.grid_limit_kw,
                        req.time_budget_ms, stations, ports, requests, skipped,
                        first_mutable_slot=int(now != t0 or bool(previous) or any(r.status == "CHARGING" for r in requests.values())),
