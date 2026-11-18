@@ -250,7 +250,8 @@ class ScheduleResultScreen extends StatelessWidget {
                       ),
                     ),
                     const TextSpan(
-                      text: ' đang hoạt động của cụm Hải Châu (cả yêu cầu cũ và mới). Không vượt trần trạm 40 kW, trần cụm 500 kW; các slot đã sạc được giữ nguyên.',
+                      text:
+                          ' đang hoạt động của cụm Hải Châu (cả yêu cầu cũ và mới). Không vượt trần trạm 40 kW, trần cụm 500 kW; các slot đã sạc được giữ nguyên.',
                     ),
                   ],
                 ),

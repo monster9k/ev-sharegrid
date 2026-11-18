@@ -47,8 +47,9 @@ class MobileFrame extends StatelessWidget {
               ),
               clipBehavior: Clip.antiAlias,
               child: MediaQuery(
-                data: MediaQuery.of(context)
-                    .copyWith(size: Size(maxWidth, height)),
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(size: Size(maxWidth, height)),
                 child: child,
               ),
             ),

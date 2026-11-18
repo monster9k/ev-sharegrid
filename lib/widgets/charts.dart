@@ -47,7 +47,8 @@ class TariffStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: 'Biểu giá theo giờ: thấp điểm 22h đến 4h, cao điểm 9h30 đến 11h30 và 17h đến 20h',
+      label:
+          'Biểu giá theo giờ: thấp điểm 22h đến 4h, cao điểm 9h30 đến 11h30 và 17h đến 20h',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

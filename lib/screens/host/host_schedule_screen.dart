@@ -101,7 +101,8 @@ class _HostScheduleScreenState extends State<HostScheduleScreen> {
                   color: AppColors.blue,
                   colorFor: (i, v) =>
                       v >= 40 ? AppColors.blue800 : AppColors.blue,
-                  semantics: 'Tổng công suất trạm theo giờ, chạm trần 40 kW lúc 8h và 13h',
+                  semantics:
+                      'Tổng công suất trạm theo giờ, chạm trần 40 kW lúc 8h và 13h',
                 ),
               ],
             ),

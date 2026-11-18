@@ -7,21 +7,41 @@ class Mock {
   Mock._();
 
   // ---------------------------------------------------------------- Xe
+  static const vf3 = VehicleModel(
+    brand: 'VinFast',
+    name: 'VF 3',
+    type: 'CAR',
+    connector: 'CCS2',
+    batteryKwh: 18.64,
+    maxKw: 24,
+    sourceRef: 'vinfastauto.com',
+  );
   static const vf5 = VehicleModel(
     brand: 'VinFast',
     name: 'VF 5 Plus',
     type: 'CAR',
     connector: 'CCS2',
     batteryKwh: 37.23,
-    maxKw: 7.4,
+    maxKw: 50,
+    sourceRef: 'vinfastauto.com',
   );
-  static const vfe34 = VehicleModel(
+  static const vf6 = VehicleModel(
     brand: 'VinFast',
-    name: 'VF e34',
+    name: 'VF 6 Eco',
     type: 'CAR',
     connector: 'CCS2',
-    batteryKwh: 41.9,
-    maxKw: 11,
+    batteryKwh: 59.6,
+    maxKw: 100,
+    sourceRef: 'vinfastauto.com',
+  );
+  static const vf7 = VehicleModel(
+    brand: 'VinFast',
+    name: 'VF 7 Eco',
+    type: 'CAR',
+    connector: 'CCS2',
+    batteryKwh: 59.6,
+    maxKw: 110,
+    sourceRef: 'vinfastauto.com',
   );
   static const vf8 = VehicleModel(
     brand: 'VinFast',
@@ -29,7 +49,44 @@ class Mock {
     type: 'CAR',
     connector: 'CCS2',
     batteryKwh: 87.7,
-    maxKw: 11,
+    maxKw: 149,
+    sourceRef: 'vinfastauto.com',
+  );
+  static const limoGreen = VehicleModel(
+    brand: 'VinFast',
+    name: 'Limo Green',
+    type: 'CAR',
+    connector: 'CCS2',
+    batteryKwh: 60.13,
+    maxKw: 80,
+    sourceRef: 'vinfastauto.com',
+  );
+  static const vfe34 = VehicleModel(
+    brand: 'VinFast',
+    name: 'VF e34',
+    type: 'CAR',
+    connector: 'CCS2',
+    batteryKwh: 42.0,
+    maxKw: 60,
+    sourceRef: 'vinfastauto.com',
+  );
+  static const evo200 = VehicleModel(
+    brand: 'VinFast',
+    name: 'Evo200',
+    type: 'MOTORBIKE',
+    connector: 'AC_HOME',
+    batteryKwh: 3.5,
+    maxKw: 1,
+    sourceRef: 'vinfastauto.com',
+  );
+  static const evo200Lite = VehicleModel(
+    brand: 'VinFast',
+    name: 'Evo200 Lite',
+    type: 'MOTORBIKE',
+    connector: 'AC_HOME',
+    batteryKwh: 3.5,
+    maxKw: 1,
+    sourceRef: 'vinfastauto.com',
   );
   static const feliz = VehicleModel(
     brand: 'VinFast',
@@ -38,27 +95,113 @@ class Mock {
     connector: 'AC_HOME',
     batteryKwh: 3.5,
     maxKw: 1,
+    sourceRef: 'vinfastauto.com',
   );
-  static const atto3 = VehicleModel(
+  static const klaraS = VehicleModel(
+    brand: 'VinFast',
+    name: 'Klara S 2022',
+    type: 'MOTORBIKE',
+    connector: 'AC_HOME',
+    batteryKwh: 3.5,
+    maxKw: 1,
+    sourceRef: 'vinfastauto.com',
+  );
+  static const ventoS = VehicleModel(
+    brand: 'VinFast',
+    name: 'Vento S',
+    type: 'MOTORBIKE',
+    connector: 'AC_HOME',
+    batteryKwh: 3.5,
+    maxKw: 1,
+    sourceRef: 'vinfastauto.com',
+  );
+  static const theonS = VehicleModel(
+    brand: 'VinFast',
+    name: 'Theon S',
+    type: 'MOTORBIKE',
+    connector: 'AC_HOME',
+    batteryKwh: 3.5,
+    maxKw: 1,
+    sourceRef: 'vinfastauto.com',
+  );
+  static const atto3Dyn = VehicleModel(
     brand: 'BYD',
-    name: 'Atto 3',
+    name: 'Atto 3 Dynamic',
     type: 'CAR',
-    connector: 'Type2',
-    batteryKwh: 60.48,
-    maxKw: 7,
+    connector: 'CCS2',
+    batteryKwh: 49.92,
+    maxKw: 70,
     sourceRef: 'byd.com',
   );
-  static const ioniq5 = VehicleModel(
+  static const atto3Prem = VehicleModel(
+    brand: 'BYD',
+    name: 'Atto 3 Premium',
+    type: 'CAR',
+    connector: 'CCS2',
+    batteryKwh: 60.48,
+    maxKw: 88,
+    sourceRef: 'byd.com',
+  );
+  static const atto3 = atto3Prem;
+  static const dolphin = VehicleModel(
+    brand: 'BYD',
+    name: 'Dolphin',
+    type: 'CAR',
+    connector: 'CCS2',
+    batteryKwh: 50.25,
+    maxKw: 60,
+    sourceRef: 'byd.com',
+  );
+  static const ioniq5Excl = VehicleModel(
     brand: 'Hyundai',
-    name: 'Ioniq 5',
+    name: 'Ioniq 5 Exclusive',
+    type: 'CAR',
+    connector: 'CCS2',
+    batteryKwh: 58.0,
+    maxKw: 350,
+    sourceRef: 'hyundai.thanhcong.vn',
+  );
+  static const ioniq5Prest = VehicleModel(
+    brand: 'Hyundai',
+    name: 'Ioniq 5 Prestige',
     type: 'CAR',
     connector: 'CCS2',
     batteryKwh: 72.6,
-    maxKw: 11,
+    maxKw: 350,
     sourceRef: 'hyundai.thanhcong.vn',
   );
+  static const ioniq5 = ioniq5Prest;
+  static const wulingMini = VehicleModel(
+    brand: 'Wuling',
+    name: 'HongGuang MiniEV',
+    type: 'CAR',
+    connector: 'AC_HOME',
+    batteryKwh: 13.9,
+    maxKw: 2,
+    sourceRef: 'wuling-ev.vn',
+  );
 
-  static const vehicleModels = [vf5, vfe34, vf8, feliz, atto3, ioniq5];
+  static const vehicleModels = [
+    vf3,
+    vf5,
+    vf6,
+    vf7,
+    vf8,
+    limoGreen,
+    vfe34,
+    evo200,
+    evo200Lite,
+    feliz,
+    klaraS,
+    ventoS,
+    theonS,
+    atto3Dyn,
+    atto3Prem,
+    dolphin,
+    ioniq5Excl,
+    ioniq5Prest,
+    wulingMini,
+  ];
 
   static const vehicles = [
     Vehicle(
@@ -325,7 +468,8 @@ class Mock {
     NotificationItem(
       kind: NotifKind.scheduleChanged,
       title: 'Lịch sạc đã thay đổi · v2 → v3',
-      body: 'Có 2 yêu cầu mới trong cụm Hải Châu. Slot 08:30–09:00 giảm từ 11 kW còn 7,4 kW; giờ đạt 80% đổi 12:00 → 12:15. Không phát sinh điện thiếu.',
+      body:
+          'Có 2 yêu cầu mới trong cụm Hải Châu. Slot 08:30–09:00 giảm từ 11 kW còn 7,4 kW; giờ đạt 80% đổi 12:00 → 12:15. Không phát sinh điện thiếu.',
       time: '09:15',
       unread: true,
       action: 'Xem lịch mới',
@@ -333,20 +477,23 @@ class Mock {
     NotificationItem(
       kind: NotifKind.maintenance,
       title: 'Cổng P2 chuyển sang bảo trì',
-      body: 'Chủ trạm báo bảo trì đến 14:00. Lịch tương lai của bạn đã chuyển sang cổng P3 (cùng đầu nối CCS2), phần đã sạc giữ nguyên.',
+      body:
+          'Chủ trạm báo bảo trì đến 14:00. Lịch tương lai của bạn đã chuyển sang cổng P3 (cùng đầu nối CCS2), phần đã sạc giữ nguyên.',
       time: '08:40',
       unread: true,
     ),
     NotificationItem(
       kind: NotifKind.scheduled,
       title: 'Lịch đã được xếp · OPTIMAL',
-      body: 'Request #R-5012: 22,77 kWh tại cổng P3, dự kiến 80% lúc 12:00, chi phí điện 54.700 đ.',
+      body:
+          'Request #R-5012: 22,77 kWh tại cổng P3, dự kiến 80% lúc 12:00, chi phí điện 54.700 đ.',
       time: 'Hôm qua 21:04',
     ),
     NotificationItem(
       kind: NotifKind.shortfall,
       title: 'Có thể thiếu 0,6 kWh',
-      body: 'Request #R-4870 thiếu 0,6 kWh vì cụm Sơn Trà đã chạm trần 350 kW trong các slot trước giờ rời 18:00. Bạn có thể lùi giờ lấy xe để nạp đủ.',
+      body:
+          'Request #R-4870 thiếu 0,6 kWh vì cụm Sơn Trà đã chạm trần 350 kW trong các slot trước giờ rời 18:00. Bạn có thể lùi giờ lấy xe để nạp đủ.',
       time: '03/12',
     ),
     NotificationItem(

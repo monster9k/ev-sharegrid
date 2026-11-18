@@ -20,11 +20,15 @@ CREATE TABLE vehicle_model (
     brand VARCHAR(50) NOT NULL,
     model_name VARCHAR(50) NOT NULL,
     vehicle_type VARCHAR(20) CHECK (vehicle_type IN ('CAR', 'MOTORBIKE')),
-    connector_type VARCHAR(20) CHECK (connector_type IN ('CCS2', 'Type2', 'AC_HOME', 'CHAdeMO')),
+    connector_type VARCHAR(50) CHECK (connector_type IN ('CCS2', 'Type2', 'AC_HOME', 'CHAdeMO', 'CCS2_DC', 'AC_HOME_VINFAST_ADAPTER')),
     source_type VARCHAR(20) DEFAULT 'REAL',
     source_ref TEXT,
     battery_kwh NUMERIC(10,3) NOT NULL,
-    max_kw NUMERIC(10,3) NOT NULL
+    max_kw NUMERIC(10,3) NOT NULL,
+    max_ac_kw NUMERIC(10,3),
+    max_dc_kw NUMERIC(10,3),
+    standard_charger_kw NUMERIC(10,3),
+    data_note TEXT
 );
 
 -- 3. vehicle
@@ -69,8 +73,8 @@ CREATE TABLE charging_station (
     osm_id VARCHAR(50),
     source_type VARCHAR(20) DEFAULT 'SURVEY',
     source_ref TEXT,
-    lat NUMERIC(9,6) NOT NULL,
-    lng NUMERIC(9,6) NOT NULL,
+    lat NUMERIC(9,6),
+    lng NUMERIC(9,6),
     location GEOMETRY(Point, 4326),
     open_time TIME DEFAULT '00:00',
     close_time TIME DEFAULT '23:59',
@@ -80,7 +84,11 @@ CREATE TABLE charging_station (
     service_fee_vnd NUMERIC(14,2) DEFAULT 0.00,
     price_override_vnd_kwh NUMERIC(14,2),
     max_session_minutes INTEGER DEFAULT 360,
-    rating NUMERIC(3,2) DEFAULT 5.00
+    rating NUMERIC(3,2) DEFAULT 5.00,
+    listed_network VARCHAR(50),
+    listed_port_count INTEGER,
+    listed_max_port_kw NUMERIC(10,3),
+    qa_notes TEXT
 );
 CREATE INDEX idx_charging_station_location ON charging_station USING GIST(location);
 

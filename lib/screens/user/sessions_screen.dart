@@ -42,7 +42,8 @@ class _SessionsScreenState extends State<SessionsScreen> {
           _done = true;
           _status = 'DONE';
           _updated = '09:22';
-          _note = 'Đã dừng sạc sớm ở 65%. Slot tương lai chuyển is_active = false và được giải phóng cho yêu cầu khác.';
+          _note =
+              'Đã dừng sạc sớm ở 65%. Slot tương lai chuyển is_active = false và được giải phóng cho yêu cầu khác.';
       }
     });
   }

@@ -261,7 +261,8 @@ class _AdminBenchmarkScreenState extends State<AdminBenchmarkScreen> {
                   yTicks: const [.01, .1, 1, 10, 100],
                   yFormat: (v) => v < 1 ? vnDec(v, v < .1 ? 2 : 1) : vnInt(v),
                   height: 220,
-                  semantics: 'Biểu đồ thang log thời gian giải theo số request, minh hoạ',
+                  semantics:
+                      'Biểu đồ thang log thời gian giải theo số request, minh hoạ',
                 ),
               ],
             ),
