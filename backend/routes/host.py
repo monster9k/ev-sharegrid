@@ -72,7 +72,10 @@ def create_host_station(
     body: HostStationCreate,
     user: AuthUser = Depends(require_roles("HOST")),
 ):
-    connection = connect()
+    try:
+        connection = connect()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Station database is unavailable") from exc
     try:
         with connection:
             with dict_cursor(connection) as cursor:
@@ -125,7 +128,10 @@ def add_host_port(
     body: HostPortCreate,
     user: AuthUser = Depends(require_roles("HOST")),
 ):
-    connection = connect()
+    try:
+        connection = connect()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Station database is unavailable") from exc
     try:
         with connection:
             with dict_cursor(connection) as cursor:
@@ -164,7 +170,10 @@ def update_host_port_status(
     body: PortStatusPatch,
     user: AuthUser = Depends(require_roles("HOST")),
 ):
-    connection = connect()
+    try:
+        connection = connect()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Station database is unavailable") from exc
     cluster_id = None
     try:
         with connection:
@@ -201,7 +210,10 @@ def get_host_station_schedule(
     station_id: int,
     user: AuthUser = Depends(require_roles("HOST")),
 ):
-    connection = connect()
+    try:
+        connection = connect()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Station database is unavailable") from exc
     try:
         with dict_cursor(connection) as cursor:
             cursor.execute(

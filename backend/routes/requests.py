@@ -157,7 +157,10 @@ def create_booking_request(
     """Persist a pending request, publish its outbox event, then optimize its cluster."""
     if req.user_id != user.user_id:
         raise HTTPException(status_code=403, detail="A user can only create requests for their own account")
-    connection = connect()
+    try:
+        connection = connect()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Request database is unavailable") from exc
     request_id: int
     cluster_id: int
     outbox_event_id: int
@@ -318,7 +321,10 @@ def get_request_schedule(
     user: AuthUser = Depends(require_roles("USER")),
 ):
     """Return the request's active 15-minute Gantt slots."""
-    connection = connect()
+    try:
+        connection = connect()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Request database is unavailable") from exc
     try:
         with dict_cursor(connection) as cursor:
             cursor.execute(

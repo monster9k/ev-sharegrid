@@ -28,7 +28,10 @@ def confirm_request(
     request_id: int,
     user: AuthUser = Depends(require_roles("USER")),
 ):
-    connection = connect()
+    try:
+        connection = connect()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Request database is unavailable") from exc
     try:
         with connection:
             with dict_cursor(connection) as cursor:
@@ -60,7 +63,10 @@ def cancel_request(
     request_id: int,
     user: AuthUser = Depends(require_roles("USER")),
 ):
-    connection = connect()
+    try:
+        connection = connect()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Request database is unavailable") from exc
     cluster_id = None
     try:
         with connection:
@@ -103,7 +109,10 @@ def checkin_request(
     request_id: int,
     user: AuthUser = Depends(require_roles("USER")),
 ):
-    connection = connect()
+    try:
+        connection = connect()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Request database is unavailable") from exc
     session_id = None
     cluster_id = None
     is_late = False
