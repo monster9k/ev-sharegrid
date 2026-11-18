@@ -9,6 +9,9 @@ import 'screens/user/map_screen.dart';
 import 'screens/user/station_detail_screen.dart';
 import 'screens/user/booking_screen.dart';
 import 'screens/user/schedule_result_screen.dart';
+import 'screens/user/sessions_screen.dart';
+import 'screens/user/notifications_screen.dart';
+import 'screens/user/profile_screen.dart';
 import 'theme.dart';
 import 'widgets/mobile_frame.dart';
 
@@ -40,9 +43,9 @@ final _userRoutes = <RouteBase>[
   _page('/station', () => const StationDetailScreen()),
   _page('/booking', () => const BookingScreen()),
   _page('/schedule', () => const ScheduleResultScreen()),
-  _page('/sessions', () => const PlaceholderScreen('Lịch đặt & phiên sạc')),
-  _page('/notifications', () => const PlaceholderScreen('Thông báo')),
-  _page('/profile', () => const PlaceholderScreen('Cá nhân')),
+  _page('/sessions', () => const SessionsScreen()),
+  _page('/notifications', () => const NotificationsScreen()),
+  _page('/profile', () => const ProfileScreen()),
 ];
 
 /// Route web HOST và ADMIN.
