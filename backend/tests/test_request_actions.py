@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from fastapi.testclient import TestClient
 
 from backend.auth import AuthUser, get_current_user
+from backend.ai_contract import AIUpstreamError
 from backend.main import app
 from backend.routes import request_actions
 
@@ -120,6 +121,21 @@ def test_cancel_deactivates_future_schedule_and_reoptimizes(monkeypatch):
     assert response.json()["status"] == "CANCELLED"
     assert calls == [(7, {"trigger_type": "USER_CANCEL"})]
     assert any("slot_start >= CURRENT_TIMESTAMP" in sql for sql, _ in connection.fake_cursor.executed)
+
+
+def test_cancel_ai_failure_does_not_claim_request_is_pending(monkeypatch):
+    setup(monkeypatch)
+    monkeypatch.setattr(
+        request_actions,
+        "trigger_cluster_reoptimize",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AIUpstreamError(503, "AI Engine unavailable")),
+    )
+
+    response = client.post("/api/v1/requests/31/cancel")
+
+    assert response.status_code == 503
+    assert "CANCELLED" not in response.json()["detail"]
+    assert "PENDING" not in response.json()["detail"]
 
 
 def test_late_checkin_creates_in_progress_session_and_reoptimizes(monkeypatch):

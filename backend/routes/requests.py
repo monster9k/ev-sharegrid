@@ -113,7 +113,7 @@ def get_stations(
         cur.close()
         conn.close()
         return {"status": "success", "count": len(stations), "data": stations}
-    except Exception as e:
+    except Exception:
         # Fallback đọc từ file CSV
         csv_path = os.path.join(DATA_DIR, "charging_station_cleaned.csv")
         if os.path.exists(csv_path):
@@ -121,7 +121,7 @@ def get_stations(
             if status:
                 df = df[df["status"] == status]
             return {"status": "success", "count": len(df), "data": df.to_dict("records")}
-        raise HTTPException(status_code=500, detail=f"Lỗi truy vấn trạm sạc: {str(e)}")
+        raise HTTPException(status_code=500, detail="Lỗi truy vấn trạm sạc")
 
 
 @router.get("/stations/{station_id}")
@@ -145,8 +145,8 @@ def get_station_detail(station_id: int):
         return {"status": "success", "data": station}
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Không thể tải chi tiết trạm sạc")
 
 
 @router.post("/requests")
@@ -301,7 +301,10 @@ def create_booking_request(
         )
         picked = pick_request_result(result, request_id)
     except AIUpstreamError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail=f"{exc.detail}; request {request_id} remains PENDING",
+        ) from exc
     except LookupError as exc:
         raise HTTPException(
             status_code=502,

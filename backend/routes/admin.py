@@ -13,7 +13,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from ai_engine.schemas import BenchmarkRequest, BenchmarkResponse
+from ai_engine.schemas import Algorithm, BenchmarkRequest, BenchmarkResponse
 from backend.ai_contract import AIUpstreamError, trigger_cluster_reoptimize
 from backend.auth import AuthUser, require_roles
 from backend.db import connect, dict_cursor
@@ -30,6 +30,11 @@ class ClusterGridLimitPatch(BaseModel):
 
 class StationVerifyPatch(BaseModel):
     verified: bool
+
+
+class AdminBenchmarkRequest(BenchmarkRequest):
+    algorithms: list[Algorithm] = Field(min_length=1, max_length=11)
+    repeats: int = Field(default=1, ge=1, le=5)
 
 
 class TariffWindowInput(BaseModel):
@@ -165,7 +170,10 @@ def replace_cluster_tariffs(
                 cursor.execute("SELECT cluster_id FROM grid_cluster WHERE cluster_id = %s FOR UPDATE", (cluster_id,))
                 if cursor.fetchone() is None:
                     raise HTTPException(status_code=404, detail="Grid cluster not found")
-                cursor.execute("DELETE FROM tariff_window WHERE cluster_id = %s", (cluster_id,))
+                cursor.execute(
+                    "DELETE FROM tariff_window WHERE cluster_id = %s AND valid_to >= CURRENT_DATE",
+                    (cluster_id,),
+                )
                 for tariff in body.tariffs:
                     cursor.execute(
                         """
@@ -223,7 +231,7 @@ def get_benchmark(_admin: AuthUser = Depends(require_roles("ADMIN"))):
 
 @router.post("/benchmark/run")
 def run_benchmark(
-    body: BenchmarkRequest,
+    body: AdminBenchmarkRequest,
     _admin: AuthUser = Depends(require_roles("ADMIN")),
 ):
     if body.snapshot is None and body.scenario_id == "inline":

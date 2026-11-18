@@ -153,6 +153,23 @@ def test_port_fault_is_owner_scoped_and_reoptimizes(monkeypatch):
     assert calls == [(7, {"trigger_type": "PORT_FAULT"})]
 
 
+def test_user_cannot_promote_themselves_to_host_with_role_header(monkeypatch):
+    setup(monkeypatch)
+    monkeypatch.setitem(
+        app.dependency_overrides,
+        get_current_user,
+        lambda: AuthUser(3, "USER", "user1@sharegrid.vn", "User"),
+    )
+
+    response = client.post(
+        "/api/v1/host/stations/10/ports",
+        headers={"X-User-Role": "HOST"},
+        json={"port_code": "P1", "connector_type": "CCS2", "control_type": "CONTINUOUS", "max_power_kw": 11},
+    )
+
+    assert response.status_code == 403
+
+
 def test_host_station_schedule_returns_quarter_hour_slots(monkeypatch):
     setup(monkeypatch)
 

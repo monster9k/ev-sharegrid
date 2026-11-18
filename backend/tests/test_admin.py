@@ -215,6 +215,17 @@ def test_admin_benchmark_run_proxies_validated_ai_result(monkeypatch):
     assert calls[0][1]["timeout"] == 120.0
 
 
+def test_admin_benchmark_requires_a_snapshot_or_real_scenario(monkeypatch):
+    setup(monkeypatch)
+
+    response = client.post(
+        "/api/v1/admin/benchmark/run",
+        json={"scenario_id": "inline", "algorithms": ["LLF"]},
+    )
+
+    assert response.status_code == 422
+
+
 def test_admin_forecast_reads_schema_backed_fields(monkeypatch):
     setup(monkeypatch)
 

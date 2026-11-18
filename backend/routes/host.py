@@ -7,7 +7,7 @@ from datetime import time, timedelta
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from backend.ai_contract import AIUpstreamError, trigger_cluster_reoptimize
 from backend.auth import AuthUser, require_roles
@@ -38,6 +38,14 @@ class HostStationCreate(BaseModel):
     station_power_kw: float = Field(gt=0, le=100_000)
     service_fee_vnd: float = Field(default=0, ge=0, le=10_000_000)
 
+    @field_validator("name", "address", "province")
+    @classmethod
+    def validate_nonblank_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("value must not be blank")
+        return value
+
     @model_validator(mode="after")
     def validate_station_hours_and_location(self):
         if (self.lat is None) != (self.lng is None):
@@ -53,6 +61,14 @@ class HostPortCreate(BaseModel):
     control_type: ControlType
     min_power_kw: float = Field(default=0, ge=0, le=100_000)
     max_power_kw: float = Field(gt=0, le=100_000)
+
+    @field_validator("port_code")
+    @classmethod
+    def validate_port_code(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("port_code must not be blank")
+        return value
 
     @model_validator(mode="after")
     def validate_power(self):

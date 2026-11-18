@@ -277,7 +277,7 @@ def test_ai_timeout_keeps_committed_request_pending(monkeypatch):
     response = CLIENT.post("/api/v1/requests", json=payload)
 
     assert response.status_code == 503
-    assert "request remains PENDING" in response.json()["detail"]
+    assert "request 31 remains PENDING" in response.json()["detail"]
     assert booking_db.commits == 1
     assert calls[0][2] == 15.0
     executed_sql = [sql for sql, _ in optimization_db.fake_cursor.executed]

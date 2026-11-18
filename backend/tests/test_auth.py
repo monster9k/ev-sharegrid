@@ -138,6 +138,17 @@ def test_bad_password_and_unsigned_role_header_are_rejected(monkeypatch):
     assert no_token_response.status_code == 401
 
 
+def test_development_bypass_requires_explicit_environment_setting(monkeypatch):
+    monkeypatch.setenv("DEV_AUTH_BYPASS", "1")
+    monkeypatch.setenv("DEV_AUTH_USER_ID", "3")
+    install_auth_db(monkeypatch)
+
+    response = client.get("/api/v1/auth/me")
+
+    assert response.status_code == 200
+    assert response.json()["user_id"] == 3
+
+
 def test_expired_or_tampered_tokens_are_rejected(monkeypatch):
     set_auth_config(monkeypatch)
     user = AuthUser(3, "USER", "user1@sharegrid.vn", "Test User")
