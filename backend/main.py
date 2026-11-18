@@ -10,6 +10,7 @@ if str(PROJECT_DIR) not in sys.path:
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from backend.routes.auth import router as auth_router
 from backend.routes.requests import router as requests_router
 
 app = FastAPI(title="EV ShareGrid Backend API", version="1.0.0")
@@ -24,6 +25,7 @@ app.add_middleware(
 )
 
 app.include_router(requests_router)
+app.include_router(auth_router)
 
 @app.get("/")
 def root():
