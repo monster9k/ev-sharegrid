@@ -1,19 +1,26 @@
 # backend/routes/requests.py
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+import os
 from datetime import datetime
+from typing import Optional
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 import psycopg2
 from psycopg2.extras import RealDictCursor
+import pandas as pd
 
-router = APIRouter(prefix="/api/v1", tags=["User Requests"])
+router = APIRouter(prefix="/api/v1", tags=["User Requests & Stations"])
 
 DB_CONFIG = {
-    "dbname": "ev_sharegrid",
-    "user": "postgres",
-    "password": "password",
-    "host": "localhost",
-    "port": 5432
+    "dbname": os.environ.get("POSTGRES_DB", "ev_sharegrid"),
+    "user": os.environ.get("POSTGRES_USER", "postgres"),
+    "password": os.environ.get("POSTGRES_PASSWORD", "password"),
+    "host": os.environ.get("POSTGRES_HOST", "localhost"),
+    "port": int(os.environ.get("POSTGRES_PORT", 5432))
 }
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+DATA_DIR = os.path.join(BASE_DIR, "data")
+
 
 class BookingRequestSchema(BaseModel):
     user_id: int
@@ -25,49 +32,133 @@ class BookingRequestSchema(BaseModel):
     soc_target: float
     idempotency_key: str
 
+
+@router.get("/vehicle-models")
+def get_vehicle_models():
+    """Lấy danh mục 19 mẫu xe điện thực tế từ khảo sát của Ánh"""
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT model_id, brand, model_name, vehicle_type, connector_type,
+                   battery_kwh, max_kw, max_ac_kw, max_dc_kw, standard_charger_kw, source_ref, data_note
+            FROM vehicle_model
+            ORDER BY model_id ASC;
+        """)
+        models = cur.fetchall()
+        cur.close()
+        conn.close()
+        return {"status": "success", "count": len(models), "data": models}
+    except Exception:
+        # Fallback đọc từ file CSV đã làm sạch
+        csv_path = os.path.join(DATA_DIR, "vehicle_model_cleaned.csv")
+        if os.path.exists(csv_path):
+            df = pd.read_csv(csv_path)
+            return {"status": "success", "count": len(df), "data": df.to_dict("records")}
+        raise HTTPException(status_code=500, detail="Không thể truy vấn danh mục mẫu xe điện")
+
+
 @router.get("/stations")
-def get_nearby_stations(lat: float, lng: float, radius_km: float = 10.0):
-    """Tìm trạm sạc gần vị trí người dùng bằng hàm không gian PostGIS ST_DWithin"""
-    conn = psycopg2.connect(**DB_CONFIG)
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    
-    query = """
-        SELECT station_id, name, address, lat, lng, station_power_kw, service_fee_vnd,
-               ST_Distance(location, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography) / 1000.0 as distance_km
-        FROM charging_station
-        WHERE status = 'ACTIVE' AND verified = TRUE
-          AND ST_DWithin(location, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography, %s * 1000)
-        ORDER BY distance_km ASC;
-    """
-    cur.execute(query, (lng, lat, lng, lat, radius_km))
-    stations = cur.fetchall()
-    cur.close()
-    conn.close()
-    return {"status": "success", "count": len(stations), "data": stations}
+def get_stations(
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
+    radius_km: float = 25.0,
+    status: Optional[str] = None
+):
+    """Tìm trạm sạc gần vị trí người dùng bằng hàm không gian PostGIS ST_DWithin hoặc lấy toàn bộ trạm"""
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        if lat is not None and lng is not None:
+            # Truy vấn không gian PostGIS
+            query = """
+                SELECT station_id, cluster_id, name, address, province, area_label,
+                       supported_vehicle_type, status, verified, lat, lng,
+                       station_power_kw, service_fee_vnd, rating, listed_network, listed_port_count,
+                       ST_Distance(location, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography) / 1000.0 as distance_km
+                FROM charging_station
+                WHERE location IS NOT NULL
+                  AND (%s IS NULL OR status = %s)
+                  AND ST_DWithin(location, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography, %s * 1000)
+                ORDER BY distance_km ASC;
+            """
+            cur.execute(query, (lng, lat, status, status, lng, lat, radius_km))
+        else:
+            # Lấy danh sách trạm tổng thể
+            query = """
+                SELECT station_id, cluster_id, name, address, province, area_label,
+                       supported_vehicle_type, status, verified, lat, lng,
+                       station_power_kw, service_fee_vnd, rating, listed_network, listed_port_count
+                FROM charging_station
+                WHERE (%s IS NULL OR status = %s)
+                ORDER BY verified DESC, station_id ASC;
+            """
+            cur.execute(query, (status, status))
+
+        stations = cur.fetchall()
+        cur.close()
+        conn.close()
+        return {"status": "success", "count": len(stations), "data": stations}
+    except Exception as e:
+        # Fallback đọc từ file CSV
+        csv_path = os.path.join(DATA_DIR, "charging_station_cleaned.csv")
+        if os.path.exists(csv_path):
+            df = pd.read_csv(csv_path)
+            if status:
+                df = df[df["status"] == status]
+            return {"status": "success", "count": len(df), "data": df.to_dict("records")}
+        raise HTTPException(status_code=500, detail=f"Lỗi truy vấn trạm sạc: {str(e)}")
+
+
+@router.get("/stations/{station_id}")
+def get_station_detail(station_id: int):
+    """Lấy chi tiết trạm sạc và danh sách cổng sạc (port)"""
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM charging_station WHERE station_id = %s;", (station_id,))
+        station = cur.fetchone()
+        if not station:
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=404, detail=f"Không tìm thấy trạm sạc ID {station_id}")
+
+        cur.execute("SELECT * FROM port WHERE station_id = %s ORDER BY port_id ASC;", (station_id,))
+        ports = cur.fetchall()
+        cur.close()
+        conn.close()
+        station["ports"] = ports
+        return {"status": "success", "data": station}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/requests")
 def create_booking_request(req: BookingRequestSchema):
     """Xác thực 4 điều kiện logic và tạo yêu cầu + outbox event trong 1 DB Transaction"""
     # 1. Kiểm tra SOC
-    if req.soc_now >= req.soc_target or req.soc_target > 100:
-        raise HTTPException(status_code=400, detail="Mức pin hiện tại phải nhỏ hơn mức pin mục tiêu và <= 100%")
-    
+    if req.soc_now >= req.soc_target or req.soc_target > 100 or req.soc_now < 0:
+        raise HTTPException(status_code=400, detail="Mức pin hiện tại (soc_now) phải nhỏ hơn mức pin mục tiêu (soc_target) và nằm trong khoảng [0, 100]")
+
     # 2. Kiểm tra cửa sổ thời gian
     try:
         arr_dt = datetime.fromisoformat(req.arrival_time)
         dep_dt = datetime.fromisoformat(req.departure_time)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Định dạng thời gian không hợp lệ: {str(e)}")
-        
+        raise HTTPException(status_code=400, detail=f"Định dạng thời gian ISO 8601 không hợp lệ: {str(e)}")
+
     if dep_dt <= arr_dt:
-        raise HTTPException(status_code=400, detail="Thời gian rời đi phải sau thời gian đến")
+        raise HTTPException(status_code=400, detail="Thời gian rời đi (departure_time) phải sau thời gian đến (arrival_time)")
 
     conn = psycopg2.connect(**DB_CONFIG)
     cur = conn.cursor()
     try:
         # Lấy thông số pin xe snapshot
         cur.execute("""
-            SELECT vm.battery_kwh, vm.max_kw, s.cluster_id 
+            SELECT vm.battery_kwh, vm.max_kw, s.cluster_id
             FROM vehicle v
             JOIN vehicle_model vm ON v.model_id = vm.model_id
             JOIN charging_station s ON s.station_id = %s
@@ -75,8 +166,11 @@ def create_booking_request(req: BookingRequestSchema):
         """, (req.station_id, req.vehicle_id))
         row = cur.fetchone()
         if not row:
-            # Dữ liệu fallback nếu chưa có trong DB
-            battery_kwh, max_kw, cluster_id = 41.9, 11.0, 1
+            # Fallback nếu xe chưa có trong bảng vehicle
+            cur.execute("SELECT cluster_id FROM charging_station WHERE station_id = %s;", (req.station_id,))
+            st_row = cur.fetchone()
+            cluster_id = st_row[0] if st_row else 1
+            battery_kwh, max_kw = 42.0, 60.0
         else:
             battery_kwh, max_kw, cluster_id = row
 
@@ -92,7 +186,7 @@ def create_booking_request(req: BookingRequestSchema):
             RETURNING request_id;
         """, (req.user_id, req.vehicle_id, cluster_id, req.station_id, req.idempotency_key,
               arr_dt, dep_dt, req.soc_now, req.soc_target, battery_kwh, max_kw, energy_needed))
-        
+
         request_id = cur.fetchone()[0]
 
         # INSERT vào outbox_event (Phụ lục C - Chống mất sự kiện)

@@ -242,7 +242,8 @@ class _HostPortsScreenState extends State<HostPortsScreen> {
                 const _Impact(
                   ok: false,
                   id: 'R-5051',
-                  text: ' (13:15–15:00): P3 đã kín và trạm chạm trần 40 kW → dự kiến thiếu 1,2 kWh, gửi thông báo khẩn cho khách.',
+                  text:
+                      ' (13:15–15:00): P3 đã kín và trạm chạm trần 40 kW → dự kiến thiếu 1,2 kWh, gửi thông báo khẩn cho khách.',
                 ),
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -268,8 +269,8 @@ class _HostPortsScreenState extends State<HostPortsScreen> {
                         backgroundColor: AppColors.warning,
                         shape: const StadiumBorder(),
                       ),
-                      onPressed: () => ScaffoldMessenger.of(context)
-                          .showSnackBar(
+                      onPressed: () =>
+                          ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text(
                                 'Đã phát RE_OPTIMIZE · lịch cụm Hải Châu lên v4',
