@@ -7,6 +7,8 @@ import 'screens/user/home_screen.dart';
 import 'screens/user/garage_screen.dart';
 import 'screens/user/map_screen.dart';
 import 'screens/user/station_detail_screen.dart';
+import 'screens/user/booking_screen.dart';
+import 'screens/user/schedule_result_screen.dart';
 import 'theme.dart';
 import 'widgets/mobile_frame.dart';
 
@@ -36,8 +38,8 @@ final _userRoutes = <RouteBase>[
   _page('/garage', () => const GarageScreen()),
   _page('/map', () => const MapScreen()),
   _page('/station', () => const StationDetailScreen()),
-  _page('/booking', () => const PlaceholderScreen('Đặt lịch')),
-  _page('/schedule', () => const PlaceholderScreen('Kết quả lịch')),
+  _page('/booking', () => const BookingScreen()),
+  _page('/schedule', () => const ScheduleResultScreen()),
   _page('/sessions', () => const PlaceholderScreen('Lịch đặt & phiên sạc')),
   _page('/notifications', () => const PlaceholderScreen('Thông báo')),
   _page('/profile', () => const PlaceholderScreen('Cá nhân')),
