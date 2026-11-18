@@ -5,6 +5,8 @@ import 'screens/user/onboarding_screen.dart';
 import 'screens/user/login_screen.dart';
 import 'screens/user/home_screen.dart';
 import 'screens/user/garage_screen.dart';
+import 'screens/user/map_screen.dart';
+import 'screens/user/station_detail_screen.dart';
 import 'theme.dart';
 import 'widgets/mobile_frame.dart';
 
@@ -32,8 +34,8 @@ final _userRoutes = <RouteBase>[
   _page('/login', () => const LoginScreen()),
   _page('/home', () => const HomeScreen()),
   _page('/garage', () => const GarageScreen()),
-  _page('/map', () => const PlaceholderScreen('Bản đồ')),
-  _page('/station', () => const PlaceholderScreen('Chi tiết trạm')),
+  _page('/map', () => const MapScreen()),
+  _page('/station', () => const StationDetailScreen()),
   _page('/booking', () => const PlaceholderScreen('Đặt lịch')),
   _page('/schedule', () => const PlaceholderScreen('Kết quả lịch')),
   _page('/sessions', () => const PlaceholderScreen('Lịch đặt & phiên sạc')),
@@ -56,7 +58,7 @@ final _webRoutes = <RouteBase>[
   _page('/admin/forecast', () => const PlaceholderScreen('Dự báo & Audit')),
 ];
 
-GoRouter buildRouter({String initialLocation = '/'}) => GoRouter(
+GoRouter buildRouter({String? initialLocation}) => GoRouter(
   initialLocation: initialLocation,
   routes: [
     ShellRoute(
