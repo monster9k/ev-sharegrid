@@ -1,3 +1,5 @@
+from collections import defaultdict
+from dataclasses import replace
 from random import Random
 
 import pytest
@@ -6,6 +8,7 @@ from ai_engine.baselines import compute_kpi, solve_llf
 from ai_engine.normalizer import normalize
 from ai_engine.optimizer_milp import solve
 from ai_engine.schemas import OptimizeRequest
+from ai_engine.settings import EPS_KW
 from ai_engine.scripts.acceptance_check import instance
 from ai_engine.tests.test_acceptance import snapshot
 from ai_engine.validator import validate_solution
@@ -55,3 +58,23 @@ def test_random_shortfalls_are_snapped():
         sol = solve(p)
         assert validate_solution(p, sol).ok, i
         assert all(v == 0 or v >= EPS_KWH for v in sol.shortfall.values()), i
+
+
+def test_grid_power_checks_use_eps_kw():
+    """Validator/KPI allow only the configured numerical tolerance at a grid cap."""
+    problem = normalize(OptimizeRequest.model_validate(snapshot()))
+    solution = solve_llf(problem)
+    grid = defaultdict(float)
+    for (_, _, slot), kw in solution.power.items():
+        grid[slot] += kw
+    peak_kw = max(grid.values())
+
+    within_tolerance = replace(problem, grid_limit_kw=peak_kw - EPS_KW / 2)
+    assert validate_solution(within_tolerance, solution).ok
+    assert compute_kpi(within_tolerance, solution).cap_violations == 0
+
+    beyond_tolerance = replace(problem, grid_limit_kw=peak_kw - EPS_KW * 2)
+    report = validate_solution(beyond_tolerance, solution)
+    assert not report.ok
+    assert "GRID_CAP" in {violation.code for violation in report.violations}
+    assert compute_kpi(beyond_tolerance, solution).cap_violations > 0

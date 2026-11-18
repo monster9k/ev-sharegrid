@@ -464,7 +464,7 @@
           "type": "number"
         },
         "time_budget_ms": {
-          "default": 2000,
+          "default": 10000,
           "description": "Ngân sách thời gian giải tối đa, mili giây.",
           "exclusiveMinimum": 0,
           "title": "Time Budget Ms",
@@ -1029,7 +1029,7 @@
               "type": "number"
             },
             "time_budget_ms": {
-              "default": 2000,
+              "default": 10000,
               "description": "Ngân sách thời gian giải tối đa, mili giây.",
               "exclusiveMinimum": 0,
               "title": "Time Budget Ms",
