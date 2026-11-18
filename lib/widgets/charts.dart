@@ -179,6 +179,7 @@ class SlotScheduleChart extends StatelessWidget {
     this.maxKw = 11,
     this.height = 160,
     this.highlightUntil,
+    this.showTariffBands = true,
   });
   final List<ScheduleSlot> slots;
   final double from;
@@ -188,6 +189,7 @@ class SlotScheduleChart extends StatelessWidget {
 
   /// Slot trước mốc này vẽ đậm hơn (đã sạc / bị khoá).
   final double? highlightUntil;
+  final bool showTariffBands;
 
   @override
   Widget build(BuildContext context) => Semantics(
@@ -246,28 +248,30 @@ class _SlotPainter extends CustomPainter {
     }
 
     // Dải giá ở chân biểu đồ.
-    final bandY = top + h + 8;
-    for (final win in Mock.tariff) {
-      final a = math.max(win.start, c.from), b = math.min(win.end, c.to);
-      if (b <= a) continue;
-      final peak = win.band == TariffBand.peak;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTRB(x(a) + .5, bandY, x(b) - .5, bandY + 8),
-          const Radius.circular(2),
-        ),
-        Paint()..color = peak ? const Color(0xFFF3C9A5) : AppColors.border,
-      );
-      if (peak && b - a >= 1.5) {
-        final mid = x((a + b) / 2);
-        _text(canvas, 'không sạc', Offset(mid, y(c.maxKw * .26)));
-        _text(
-          canvas,
-          'Cao điểm',
-          Offset(mid, y(c.maxKw * .12)),
-          weight: FontWeight.w700,
-          color: AppColors.warning,
+    if (c.showTariffBands) {
+      final bandY = top + h + 8;
+      for (final win in Mock.tariff) {
+        final a = math.max(win.start, c.from), b = math.min(win.end, c.to);
+        if (b <= a) continue;
+        final peak = win.band == TariffBand.peak;
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTRB(x(a) + .5, bandY, x(b) - .5, bandY + 8),
+            const Radius.circular(2),
+          ),
+          Paint()..color = peak ? const Color(0xFFF3C9A5) : AppColors.border,
         );
+        if (peak && b - a >= 1.5) {
+          final mid = x((a + b) / 2);
+          _text(canvas, 'không sạc', Offset(mid, y(c.maxKw * .26)));
+          _text(
+            canvas,
+            'Cao điểm',
+            Offset(mid, y(c.maxKw * .12)),
+            weight: FontWeight.w700,
+            color: AppColors.warning,
+          );
+        }
       }
     }
     for (var hr = c.from.ceil(); hr <= c.to; hr += 2) {
