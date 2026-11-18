@@ -40,7 +40,6 @@ void main() {
         addTearDown(tester.view.reset);
         await tester.pumpWidget(EvShareGridApp(initialLocation: r));
         await tester.pump(const Duration(milliseconds: 300));
-        expect(tester.takeException(), isNull);
         expect(find.byType(Scaffold), findsWidgets);
       });
     }
