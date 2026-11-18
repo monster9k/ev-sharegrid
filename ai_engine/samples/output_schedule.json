@@ -1,0 +1,23 @@
+{
+  "status": "FEASIBLE",
+  "algorithm": "LLF",
+  "solve_ms": 0,
+  "kpi": {
+    "total_shortfall_kwh": 0,
+    "total_cost_vnd": 19000,
+    "peak_power_kw": 38,
+    "on_time_rate": 1,
+    "fairness": 1,
+    "cap_violations": 0
+  },
+  "request_results": [
+    {"request_id": "R-01", "allocated_kwh": 5, "shortfall_kwh": 0, "expected_soc": null, "estimated_cost_vnd": 10000, "explanation": "Mẫu minh họa: giữ cổng P-01 đã khóa, cấp thêm 5 kWh trước giờ rời đi; chưa đủ dữ liệu tính SOC."},
+    {"request_id": "R-02", "allocated_kwh": 1.75, "shortfall_kwh": 0, "expected_soc": null, "estimated_cost_vnd": 3500, "explanation": "Mẫu minh họa: bật cổng ON_OFF_SWITCH ở 7 kW trong một slot, đáp ứng đủ nhu cầu."},
+    {"request_id": "R-03", "allocated_kwh": 2.75, "shortfall_kwh": 0, "expected_soc": null, "estimated_cost_vnd": 5500, "explanation": "Mẫu minh họa: cấp 11 kW trong một slot tại trạm ST-02, đáp ứng đủ nhu cầu."}
+  ],
+  "schedules": [
+    {"request_id": "R-01", "port_id": "P-01", "slot_start": "2026-11-18T08:15:00+07:00", "power_kw": 20},
+    {"request_id": "R-02", "port_id": "P-02", "slot_start": "2026-11-18T08:15:00+07:00", "power_kw": 7},
+    {"request_id": "R-03", "port_id": "P-03", "slot_start": "2026-11-18T08:15:00+07:00", "power_kw": 11}
+  ]
+}
