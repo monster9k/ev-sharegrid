@@ -53,3 +53,7 @@ firebase-debug.log
 
 # Công cụ local
 .claude/
+
+# Python
+__pycache__/
+*.pyc
