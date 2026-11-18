@@ -147,12 +147,16 @@ class Pill extends StatelessWidget {
             Icon(icon, size: size + 2, color: fg),
             const Gap(4),
           ],
-          Text(
-            text,
-            style: AppFonts.body(
-              size: size,
-              weight: FontWeight.w700,
-              color: fg,
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppFonts.body(
+                size: size,
+                weight: FontWeight.w700,
+                color: fg,
+              ),
             ),
           ),
         ],
