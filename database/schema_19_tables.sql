@@ -20,7 +20,7 @@ CREATE TABLE vehicle_model (
     brand VARCHAR(50) NOT NULL,
     model_name VARCHAR(50) NOT NULL,
     vehicle_type VARCHAR(20) CHECK (vehicle_type IN ('CAR', 'MOTORBIKE')),
-    connector_type VARCHAR(50) CHECK (connector_type IN ('CCS2', 'Type2', 'AC_HOME', 'CHAdeMO', 'CCS2_DC', 'AC_HOME_VINFAST_ADAPTER')),
+    connector_type VARCHAR(50) CHECK (connector_type IN ('CCS2', 'Type2', 'AC_HOME', 'CHAdeMO')),
     source_type VARCHAR(20) DEFAULT 'REAL',
     source_ref TEXT,
     battery_kwh NUMERIC(10,3) NOT NULL,

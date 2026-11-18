@@ -25,6 +25,19 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 DOCS_DIR = os.path.join(BASE_DIR, "docs")
 DATAOFANH_DIR = os.path.join(DOCS_DIR, "dataofanh")
+CONNECTOR_ALIASES = {
+    "CCS2_DC": "CCS2",
+    "AC_HOME_VINFAST_ADAPTER": "AC_HOME",
+}
+CONNECTOR_TYPES = {"CCS2", "Type2", "CHAdeMO", "AC_HOME"}
+
+
+def normalize_connector_type(value):
+    source_value = "CCS2" if pd.isna(value) else str(value).strip()
+    connector_type = CONNECTOR_ALIASES.get(source_value, source_value)
+    if connector_type not in CONNECTOR_TYPES:
+        raise ValueError(f"Chuẩn đầu nối không được hỗ trợ: {source_value!r}")
+    return connector_type, source_value if source_value != connector_type else None
 
 
 def clean_and_extract_catalogs():
@@ -41,8 +54,14 @@ def clean_and_extract_catalogs():
     cleaned_models = []
     for idx, r in enumerate(v_rows, start=1):
         m = dict(zip(v_headers, r))
-        # Chuẩn hóa connector_type nếu cần
-        connector = m.get("connector_type") or "CCS2"
+        connector, source_connector = normalize_connector_type(m.get("connector_type"))
+        raw_note = m.get("data_note")
+        data_note = "" if pd.isna(raw_note) else str(raw_note).strip()
+        if source_connector:
+            alias_note = (
+                f"Chuẩn đầu nối nguồn {source_connector} được chuẩn hóa thành {connector}."
+            )
+            data_note = " ".join(part for part in (data_note, alias_note) if part)
         # Xử lý các giá trị số
         battery_kwh = float(m["battery_kwh"]) if m.get("battery_kwh") is not None else 40.0
         max_kw = float(m["max_kw"]) if m.get("max_kw") is not None else 60.0
@@ -63,7 +82,7 @@ def clean_and_extract_catalogs():
             "max_ac_kw": max_ac,
             "max_dc_kw": max_dc,
             "standard_charger_kw": std_charger,
-            "data_note": m.get("data_note", "")
+            "data_note": data_note
         })
 
     df_models = pd.DataFrame(cleaned_models)
