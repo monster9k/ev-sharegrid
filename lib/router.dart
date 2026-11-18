@@ -12,6 +12,9 @@ import 'screens/user/schedule_result_screen.dart';
 import 'screens/user/sessions_screen.dart';
 import 'screens/user/notifications_screen.dart';
 import 'screens/user/profile_screen.dart';
+import 'screens/host/host_stations_screen.dart';
+import 'screens/host/host_ports_screen.dart';
+import 'screens/host/host_schedule_screen.dart';
 import 'theme.dart';
 import 'widgets/mobile_frame.dart';
 
@@ -51,9 +54,9 @@ final _userRoutes = <RouteBase>[
 /// Route web HOST và ADMIN.
 final _webRoutes = <RouteBase>[
   GoRoute(path: '/host', redirect: (_, _) => '/host/stations'),
-  _page('/host/stations', () => const PlaceholderScreen('Trạm của tôi')),
-  _page('/host/ports', () => const PlaceholderScreen('Cổng & bảo trì')),
-  _page('/host/schedule', () => const PlaceholderScreen('Lịch & doanh thu')),
+  _page('/host/stations', () => const HostStationsScreen()),
+  _page('/host/ports', () => const HostPortsScreen()),
+  _page('/host/schedule', () => const HostScheduleScreen()),
   GoRoute(path: '/admin', redirect: (_, _) => '/admin/clusters'),
   _page('/admin/clusters', () => const PlaceholderScreen('Cụm điều phối')),
   _page('/admin/review', () => const PlaceholderScreen('Duyệt trạm')),
