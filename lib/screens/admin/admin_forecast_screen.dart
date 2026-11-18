@@ -114,7 +114,8 @@ class _AdminForecastScreenState extends State<AdminForecastScreen> {
           dividerAt: 9,
           dividerLabel: 'Bây giờ',
           height: 230,
-          semantics: 'Số lượt đặt theo giờ: đã đo đến 9h, dự báo đến 24h, đỉnh 70 lượt lúc 19h',
+          semantics:
+              'Số lượt đặt theo giờ: đã đo đến 9h, dự báo đến 24h, đỉnh 70 lượt lúc 19h',
         ),
         const InfoNote(
           'Model phụ chỉ dự báo số lượt yêu cầu mỗi giờ (pred_arrivals), không dự báo kW và không tự cộng vào công suất của bộ lập lịch. Dùng để cảnh báo sớm và chuẩn bị vận hành.',

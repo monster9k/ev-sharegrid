@@ -178,14 +178,16 @@ class _HostStationsScreenState extends State<HostStationsScreen> {
                       ),
                       children: const [
                         TextSpan(
-                          text: 'Trần công suất trạm là giới hạn đường dây thực tế, có thể nhỏ hơn tổng công suất danh định các cổng. Sau khi gửi, trạm ở trạng thái ',
+                          text:
+                              'Trần công suất trạm là giới hạn đường dây thực tế, có thể nhỏ hơn tổng công suất danh định các cổng. Sau khi gửi, trạm ở trạng thái ',
                         ),
                         TextSpan(
                           text: 'PENDING',
                           style: TextStyle(fontWeight: FontWeight.w700),
                         ),
                         TextSpan(
-                          text: ' và chưa nhận đặt lịch cho tới khi ADMIN kiểm chứng.',
+                          text:
+                              ' và chưa nhận đặt lịch cho tới khi ADMIN kiểm chứng.',
                         ),
                       ],
                     ),
@@ -210,14 +212,13 @@ class _HostStationsScreenState extends State<HostStationsScreen> {
                       height: 42,
                       radius: 999,
                       fontSize: 14,
-                      onPressed: () => ScaffoldMessenger.of(context)
-                          .showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Đã gửi · trạm ở trạng thái PENDING chờ ADMIN duyệt',
-                              ),
-                            ),
+                      onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Đã gửi · trạm ở trạng thái PENDING chờ ADMIN duyệt',
                           ),
+                        ),
+                      ),
                     ),
                   ],
                 ),

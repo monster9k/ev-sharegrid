@@ -1,0 +1,5 @@
+cluster_id,name,province,timezone,status,h3_index,centroid_lat,centroid_lng,grid_limit_kw,created_at
+1,Cụm Hải Châu - Trung tâm,Đà Nẵng,Asia/Ho_Chi_Minh,ACTIVE,87652636affffff,16.067780,108.220830,500.000,2026-11-01T00:00:00+07:00
+2,Cụm Sơn Trà - Ven biển,Đà Nẵng,Asia/Ho_Chi_Minh,ACTIVE,87652636bffffff,16.071200,108.235500,350.000,2026-11-01T00:00:00+07:00
+3,Cụm Cầu Giấy,Hà Nội,Asia/Ho_Chi_Minh,ACTIVE,87652004affffff,21.036200,105.790500,800.000,2026-11-01T00:00:00+07:00
+4,Cụm Quận 1,TP. Hồ Chí Minh,Asia/Ho_Chi_Minh,ACTIVE,8765a0c2affffff,10.775600,106.701900,1000.000,2026-11-01T00:00:00+07:00

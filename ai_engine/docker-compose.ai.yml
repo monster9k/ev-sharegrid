@@ -1,0 +1,12 @@
+services:
+  ai-engine:
+    build: .
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./models:/app/ai_engine/models
+    environment:
+      WORKERS: "${WORKERS:-1}"
+      DEFAULT_TIME_BUDGET_MS: "${DEFAULT_TIME_BUDGET_MS:-2000}"
+      DECOMPOSE_THRESHOLD: "${DECOMPOSE_THRESHOLD:-1000}"
+      LOG_LEVEL: "${LOG_LEVEL:-info}"
