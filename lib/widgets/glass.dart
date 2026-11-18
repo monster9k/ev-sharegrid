@@ -129,21 +129,17 @@ class GlassNavBar extends StatelessWidget {
                           ),
                           if (tab == UserTab.bookings && badge > 0)
                             Positioned(
-                              top: 2,
+                              top: 1,
                               left: 0,
                               right: 0,
-                              child: Center(
-                                child: Transform.translate(
-                                  offset: const Offset(14, 0),
+                              child: Transform.translate(
+                                offset: const Offset(13, 0),
+                                child: Center(
                                   child: Container(
-                                    constraints: const BoxConstraints(
-                                      minWidth: 20,
-                                    ),
                                     height: 20,
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 5,
+                                      horizontal: 6,
                                     ),
-                                    alignment: Alignment.center,
                                     decoration: BoxDecoration(
                                       color: AppColors.red,
                                       borderRadius: BorderRadius.circular(999),
@@ -158,6 +154,7 @@ class GlassNavBar extends StatelessWidget {
                                         size: 10,
                                         weight: FontWeight.w700,
                                         color: Colors.white,
+                                        height: 1.4,
                                       ),
                                     ),
                                   ),
