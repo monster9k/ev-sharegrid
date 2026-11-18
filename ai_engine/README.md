@@ -34,7 +34,30 @@ Optimize trả 422 khi payload sai schema. Với payload hợp lệ, đọc `sta
 
 Solver hiện dùng SCIP cho biến nguyên, GLOP khi miền nghiệm tuyến tính chính xác. `LP_MPC` có thể dùng SCIP nếu còn cổng đóng/ngắt, có công suất sàn hoặc hai xe có khả năng tranh cổng. Trường algorithm phản ánh backend thực tế. Slot đã chạy được giữ nguyên khi có previous_schedule. Điện năng còn lại phải bao gồm toàn bộ điện của slot freeze nếu gửi slot đó trong lịch cũ. Bản này chưa tích hợp Master LP với các worker theo trạm.
 
+Ngân sách mặc định là `DEFAULT_TIME_BUDGET_MS=10000` cho snapshot dưới 300 request. Từ 300 request, ngân sách dùng `LARGE_SCENARIO_TIME_BUDGET_MS=2000` và request gửi ngân sách cao hơn bị chặn ở mức này. Khi số request cần giải vượt `DECOMPOSE_THRESHOLD=250`, optimizer chuyển sang LLF trên toàn cụm. Tách MILP theo trạm sẽ làm mất ràng buộc trần cụm giữa các phần; LLF giữ trần đó và kết quả vẫn qua Validator. Vì vậy đây là fallback có kiểm soát, không phải bằng chứng MILP giải được 10.000 request.
+
 Benchmark nhận một trong hai nguồn dữ liệu: snapshot inline hoặc scenario_id tương ứng với `ai_engine/data/scenarios/<id>.json`. Ví dụ demo đã có sẵn. Các lượt chạy tuần tự trên cùng snapshot và cùng seed. Bảng `summary` có KPI trung bình, số lần vượt trần lớn nhất, thời gian trung bình và độ lệch chuẩn tổng thể. `actual_algorithms` cho biết nếu MILP đã rơi về LLF. ASAP được phép vượt giới hạn trạm và cụm để đo tác dụng của điều phối. NSGA_II trả NOT_IMPLEMENTED.
+
+### Số đo trên dữ liệu scenario đã commit
+
+Chạy lại bằng một lệnh:
+
+```sh
+python -m ai_engine.scripts.benchmark_real --dataset-ref 3b4b6c6
+```
+
+Script gọi POST `/ai/benchmark` qua FastAPI TestClient với seed 42. Mỗi cụm được gửi riêng vì snapshot API chỉ nhận một cụm; kết quả gộp bằng tổng shortfall, chi phí, `solve_ms` và số lần vượt trần, tỷ lệ đúng hạn có trọng số theo request, còn đỉnh lấy từ tổng tải hai cụm ở từng slot. Các mốc 100, 500 và 1.000 chạy đủ bảy thuật toán; mốc 10.000 chỉ chạy LLF, EDF, FCFS, EQUAL_SHARE và ASAP. `benchmark_real.json` giữ các KPI và status đầy đủ, không làm tròn.
+
+Scenario được sinh với seed 42 ở commit `9391fe6`; benchmark đọc scenario và catalog cuối ở commit dữ liệu `3b4b6c6`. Tổng nhu cầu/trần cấp trong 24 giờ/tỷ lệ tải/số request đỗ ít nhất 8 giờ:
+
+| Request | Nhu cầu (kWh) | Trần (kWh) | Tỷ lệ tải | Đỗ ≥8 giờ |
+|---:|---:|---:|---:|---:|
+| 100 | 2916.9462000000003 | 20400.0 | 0.14298755882352943 | 60 |
+| 500 | 16319.999999999967 | 20400.0 | 0.7999999999999984 | 300 |
+| 1.000 | 16320.00000000003 | 20400.0 | 0.8000000000000014 | 600 |
+| 10.000 | 16319.999999999905 | 20400.0 | 0.7999999999999954 | 6000 |
+
+Mốc 100 giữ nguyên số dòng và vì vậy chỉ đạt 14.298755882352943% tải. Ở mốc 10.000, hai cụm có 5.882 và 4.118 request. LLF đạt `status=FEASIBLE`; với giá cố định, `solve_ms=669.5902999997543`, `on_time_rate=0.2622`, `total_shortfall_kwh=12428.5622`, `total_cost_vnd=7782875.599999985`, `peak_power_kw=573.9696000000002`, `cap_violations=0`. Với TOU 1.600/2.400/4.000 VND/kWh, `solve_ms=786.8831999999202`, `on_time_rate=0.2622`, `total_shortfall_kwh=12428.5622`, `total_cost_vnd=9925629.200000094`, `peak_power_kw=573.9696000000002`, `cap_violations=0`. Có 1.241 request ở mốc này không khớp đầu nối đang ACTIVE tại trạm; benchmark giữ nguyên chuẩn xe và các request này được tính vào KPI thiếu điện.
 
 ## Huấn luyện dự báo
 
@@ -82,7 +105,9 @@ python -m ai_engine.schemas
 | service.py | Chạy pipeline optimize trong worker và chuyển kết quả sang JSON |
 | main.py | FastAPI, timeout tiến trình, benchmark, forecast và health |
 | scripts/make_fake_history.py | Sinh 3–6 tháng dữ liệu giả có chu kỳ và nhiễu |
+| scripts/benchmark_real.py | Gọi `/ai/benchmark` trên CSV theo Git ref và xuất kết quả đo |
 | data/scenarios/demo.json | Snapshot ví dụ cho benchmark theo ID |
+| benchmark_real.json | KPI đo được trên các scenario CSV 100, 500, 1.000 và 10.000 request |
 | samples/ | Snapshot, lịch và bộ JSON Schema mẫu |
 | tests/ | Test solver, dữ liệu, forecast và HTTP |
 | requirements.txt | Các phụ thuộc chạy service |
@@ -110,7 +135,7 @@ curl -fsS -H "Content-Type: application/json" --data-binary @samples/page20_inpu
 docker compose -f docker-compose.ai.yml down
 ```
 
-Compose gắn thư mục `./models` vào container. Trên Linux, cấp quyền ghi thư mục này cho UID 10001 để lưu mô hình. Có thể đặt `WORKERS` (1), `LOG_LEVEL` (info) và `DEFAULT_TIME_BUDGET_MS` (2000) trước khi khởi động. Ngân sách trong request được ưu tiên. API hiển thị `DECOMPOSE_THRESHOLD` (1000) qua health; bản solver hiện tại chưa triển khai Master LP để sử dụng ngưỡng này. Để kiểm thử ngoài Docker, cài `python -m pip install -r ai_engine/requirements-dev.txt` từ thư mục cha.
+Compose gắn thư mục `./models` vào container. Trên Linux, cấp quyền ghi thư mục này cho UID 10001 để lưu mô hình. Có thể đặt `WORKERS` (1), `LOG_LEVEL` (info), `DEFAULT_TIME_BUDGET_MS` (10000), `LARGE_SCENARIO_TIME_BUDGET_MS` (2000) và `DECOMPOSE_THRESHOLD` (250) trước khi khởi động. `/health` trả các giá trị này cùng ngưỡng request nhỏ 300. Để kiểm thử ngoài Docker, cài `python -m pip install -r ai_engine/requirements-dev.txt` từ thư mục cha.
 
 ## Chạy trên Windows
 
