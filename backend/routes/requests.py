@@ -4,19 +4,14 @@ from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-import psycopg2
-from psycopg2.extras import RealDictCursor
 import pandas as pd
 
-router = APIRouter(prefix="/api/v1", tags=["User Requests & Stations"])
+try:
+    from backend.db import connect, dict_cursor
+except ModuleNotFoundError:  # Support `python backend/main.py` as well as package imports.
+    from db import connect, dict_cursor
 
-DB_CONFIG = {
-    "dbname": os.environ.get("POSTGRES_DB", "ev_sharegrid"),
-    "user": os.environ.get("POSTGRES_USER", "postgres"),
-    "password": os.environ.get("POSTGRES_PASSWORD", "password"),
-    "host": os.environ.get("POSTGRES_HOST", "localhost"),
-    "port": int(os.environ.get("POSTGRES_PORT", 5432))
-}
+router = APIRouter(prefix="/api/v1", tags=["User Requests & Stations"])
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -37,8 +32,8 @@ class BookingRequestSchema(BaseModel):
 def get_vehicle_models():
     """Lấy danh mục 19 mẫu xe điện thực tế từ khảo sát của Ánh"""
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        conn = connect()
+        cur = dict_cursor(conn)
         cur.execute("""
             SELECT model_id, brand, model_name, vehicle_type, connector_type,
                    battery_kwh, max_kw, max_ac_kw, max_dc_kw, standard_charger_kw, source_ref, data_note
@@ -67,8 +62,8 @@ def get_stations(
 ):
     """Tìm trạm sạc gần vị trí người dùng bằng hàm không gian PostGIS ST_DWithin hoặc lấy toàn bộ trạm"""
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        conn = connect()
+        cur = dict_cursor(conn)
 
         if lat is not None and lng is not None:
             # Truy vấn không gian PostGIS
@@ -115,8 +110,8 @@ def get_stations(
 def get_station_detail(station_id: int):
     """Lấy chi tiết trạm sạc và danh sách cổng sạc (port)"""
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        conn = connect()
+        cur = dict_cursor(conn)
         cur.execute("SELECT * FROM charging_station WHERE station_id = %s;", (station_id,))
         station = cur.fetchone()
         if not station:
@@ -153,7 +148,7 @@ def create_booking_request(req: BookingRequestSchema):
     if dep_dt <= arr_dt:
         raise HTTPException(status_code=400, detail="Thời gian rời đi (departure_time) phải sau thời gian đến (arrival_time)")
 
-    conn = psycopg2.connect(**DB_CONFIG)
+    conn = connect()
     cur = conn.cursor()
     try:
         # Lấy thông số pin xe snapshot
