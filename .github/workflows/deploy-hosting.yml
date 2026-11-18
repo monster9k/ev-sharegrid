@@ -1,0 +1,42 @@
+name: Deploy Firebase Hosting
+
+# Build bản web và deploy lên Firebase Hosting khi có commit vào main.
+# Cần cấu hình trên GitHub:
+#   - Secret  FIREBASE_SERVICE_ACCOUNT : JSON service account có quyền Firebase Hosting Admin
+#   - Variable FIREBASE_PROJECT_ID     : ID project Firebase (trùng .firebaserc)
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-hosting
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build web & deploy
+    # Bỏ qua (không báo lỗi) khi repo chưa cấu hình deploy tự động.
+    if: ${{ vars.FIREBASE_PROJECT_ID != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.6'
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+      - run: flutter test
+      - run: flutter build web --release
+
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: ${{ vars.FIREBASE_PROJECT_ID }}
+          channelId: live
