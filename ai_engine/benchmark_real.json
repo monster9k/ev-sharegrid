@@ -1,0 +1,2797 @@
+{
+  "title": "EV ShareGrid AI Engine measured benchmark",
+  "measured_on": "2026-11-18",
+  "seed": 42,
+  "source": {
+    "dataset_ref": "3b4b6c6",
+    "scenario_generation_seed": 42,
+    "benchmark_seed": 42,
+    "request_files": [
+      "data/scenario_100_requests.csv",
+      "data/scenario_500_requests.csv",
+      "data/scenario_1000_requests.csv",
+      "data/scenario_10000_requests.csv"
+    ],
+    "catalog_files": [
+      "data/grid_cluster.csv",
+      "data/charging_station_cleaned.csv",
+      "data/port_cleaned.csv",
+      "data/tariff_window_cleaned.csv",
+      "data/vehicle_100k.csv",
+      "data/vehicle_model_cleaned.csv"
+    ],
+    "scenario_files": [
+      "data/scenario_100_requests.csv",
+      "data/scenario_500_requests.csv",
+      "data/scenario_1000_requests.csv",
+      "data/scenario_10000_requests.csv"
+    ],
+    "sha256": {
+      "data/grid_cluster.csv": "a156f2dca20ad7dda82547275d417123f8eef7346561adc25ac621757f5056db",
+      "data/charging_station_cleaned.csv": "8f6ce382c5b07a076c391297e283c264482f950669b0b12e9b78c7429ec82b52",
+      "data/port_cleaned.csv": "4a426b550fc142cbda2fd3119b6141a8d443e2d20d2dd280633ec9763ae8983d",
+      "data/tariff_window_cleaned.csv": "27062b4443ab9e046aeb983114e4612032226346df289d02907b4995b770491f",
+      "data/vehicle_100k.csv": "04780f46dfd779db7a864c3bcedf5a833154b90e3d25275d49a08cfb43ad2686",
+      "data/vehicle_model_cleaned.csv": "99f72372bbcad8fd5d057f4bbb7a74490f4a3d6d28db095b99a1b06bd8af2fd2",
+      "data/scenario_100_requests.csv": "5a21f3f74ecd62e372db784c875e64c7ca6e9366602b7f1dc57d26a157a35637",
+      "data/scenario_500_requests.csv": "bf75b81b1792845e76560967874ba188c7c6421c5d99b7b063caacdb0e7f2408",
+      "data/scenario_1000_requests.csv": "0e5836377fa8fa249279d6c333d724836dac05c5e366040a168fd4c0a62619cc",
+      "data/scenario_10000_requests.csv": "476818889bbd22cbc9bb6c082cfabbe492052377ef1520cf52ebcd269c43701d"
+    },
+    "assumptions": {
+      "energy_delivered_kwh": 0.0,
+      "priority_weight": 1.0,
+      "station_hours": "Active stations in source catalog are marked 24h.",
+      "connector_mismatch": "Requests retain the vehicle model connector; mismatches remain unmet and are counted in KPI.",
+      "cluster_execution": "Separate POST /ai/benchmark calls per cluster; aggregate cost, shortfall, solve_ms and violations by sum, on-time rate by request count, and peak from combined per-slot schedules."
+    },
+    "endpoint_client": "FastAPI TestClient POST /ai/benchmark"
+  },
+  "tariffs": {
+    "fixed_2000_vnd_kwh": {
+      "price_vnd_kwh": 2000.0
+    },
+    "evn_tou_1600_2400_4000_vnd_kwh": {
+      "source": "data/tariff_window_cleaned.csv",
+      "rates_vnd_kwh": [
+        1600.0,
+        2400.0,
+        4000.0
+      ]
+    }
+  },
+  "algorithms": [
+    "MILP_MPC",
+    "LP_MPC",
+    "LLF",
+    "EDF",
+    "FCFS",
+    "EQUAL_SHARE",
+    "ASAP"
+  ],
+  "algorithms_at_10000_requests": [
+    "LLF",
+    "EDF",
+    "FCFS",
+    "EQUAL_SHARE",
+    "ASAP"
+  ],
+  "milestones": [
+    {
+      "request_count": 100,
+      "requests_by_cluster": {
+        "1": 59,
+        "2": 41
+      },
+      "demand_kwh": 2916.9462000000003,
+      "capacity_kwh": 20400.0,
+      "utilization_ratio": 0.14298755882352943,
+      "demand_kwh_by_cluster": {
+        "1": 1721.2069000000006,
+        "2": 1195.7392999999997
+      },
+      "capacity_kwh_by_cluster": {
+        "1": 12000.0,
+        "2": 8400.0
+      },
+      "utilization_ratio_by_cluster": {
+        "1": 0.1434339083333334,
+        "2": 0.14234991666666663
+      },
+      "long_stay_8h_or_more_count": 60,
+      "active_station_count": 15,
+      "active_port_count_in_catalog": 97,
+      "vehicle_connector_without_matching_active_port_count": 11,
+      "scenario_sha256": "5a21f3f74ecd62e372db784c875e64c7ca6e9366602b7f1dc57d26a157a35637",
+      "horizon_slots": 136,
+      "horizon_end": "2026-11-19T10:00:00+07:00",
+      "tariffs": [
+        {
+          "tariff": "fixed_2000_vnd_kwh",
+          "algorithms": [
+            {
+              "requested_algorithm": "MILP_MPC",
+              "actual_algorithms": [
+                "LLF"
+              ],
+              "status": "FALLBACK",
+              "status_by_cluster": {
+                "1": "FALLBACK",
+                "2": "FALLBACK"
+              },
+              "solve_ms": 5751.440999999886,
+              "kpi": {
+                "on_time_rate": 0.82,
+                "total_shortfall_kwh": 66.5731,
+                "total_cost_vnd": 5700746.2,
+                "peak_power_kw": 758.0332,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FALLBACK",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 2971.3859000000866,
+                  "request_count": 59,
+                  "kpi": {
+                    "total_shortfall_kwh": 19.8358,
+                    "total_cost_vnd": 3402742.1999999997,
+                    "peak_power_kw": 434.0,
+                    "on_time_rate": 0.8813559322033898,
+                    "fairness": 0.9322013589041324,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FALLBACK",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 2780.0550999997995,
+                  "request_count": 41,
+                  "kpi": {
+                    "total_shortfall_kwh": 46.7373,
+                    "total_cost_vnd": 2298004.0000000005,
+                    "peak_power_kw": 350.0,
+                    "on_time_rate": 0.7317073170731707,
+                    "fairness": 0.8292326633806831,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "LP_MPC",
+              "actual_algorithms": [
+                "LLF"
+              ],
+              "status": "FALLBACK",
+              "status_by_cluster": {
+                "1": "FALLBACK",
+                "2": "FALLBACK"
+              },
+              "solve_ms": 5699.405999999954,
+              "kpi": {
+                "on_time_rate": 0.82,
+                "total_shortfall_kwh": 66.5731,
+                "total_cost_vnd": 5700746.2,
+                "peak_power_kw": 758.0332,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FALLBACK",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 2905.033499999945,
+                  "request_count": 59,
+                  "kpi": {
+                    "total_shortfall_kwh": 19.8358,
+                    "total_cost_vnd": 3402742.1999999997,
+                    "peak_power_kw": 434.0,
+                    "on_time_rate": 0.8813559322033898,
+                    "fairness": 0.9322013589041324,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FALLBACK",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 2794.3725000000086,
+                  "request_count": 41,
+                  "kpi": {
+                    "total_shortfall_kwh": 46.7373,
+                    "total_cost_vnd": 2298004.0000000005,
+                    "peak_power_kw": 350.0,
+                    "on_time_rate": 0.7317073170731707,
+                    "fairness": 0.8292326633806831,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "LLF",
+              "actual_algorithms": [
+                "LLF"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 6.907500000124855,
+              "kpi": {
+                "on_time_rate": 0.82,
+                "total_shortfall_kwh": 66.5731,
+                "total_cost_vnd": 5700746.2,
+                "peak_power_kw": 758.0332,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 4.588200000171128,
+                  "request_count": 59,
+                  "kpi": {
+                    "total_shortfall_kwh": 19.8358,
+                    "total_cost_vnd": 3402742.1999999997,
+                    "peak_power_kw": 434.0,
+                    "on_time_rate": 0.8813559322033898,
+                    "fairness": 0.9322013589041324,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 2.319299999953728,
+                  "request_count": 41,
+                  "kpi": {
+                    "total_shortfall_kwh": 46.7373,
+                    "total_cost_vnd": 2298004.0000000005,
+                    "peak_power_kw": 350.0,
+                    "on_time_rate": 0.7317073170731707,
+                    "fairness": 0.8292326633806831,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "EDF",
+              "actual_algorithms": [
+                "EDF"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 9.43579999989197,
+              "kpi": {
+                "on_time_rate": 0.82,
+                "total_shortfall_kwh": 66.5731,
+                "total_cost_vnd": 5700746.199999999,
+                "peak_power_kw": 758.0332,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EDF",
+                  "solve_ms": 5.71999999988293,
+                  "request_count": 59,
+                  "kpi": {
+                    "total_shortfall_kwh": 19.8358,
+                    "total_cost_vnd": 3402742.1999999997,
+                    "peak_power_kw": 434.0,
+                    "on_time_rate": 0.8813559322033898,
+                    "fairness": 0.9322013589041324,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EDF",
+                  "solve_ms": 3.7158000000090396,
+                  "request_count": 41,
+                  "kpi": {
+                    "total_shortfall_kwh": 46.7373,
+                    "total_cost_vnd": 2298004.0,
+                    "peak_power_kw": 350.0,
+                    "on_time_rate": 0.7317073170731707,
+                    "fairness": 0.8292326633806831,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "FCFS",
+              "actual_algorithms": [
+                "FCFS"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 6.726900000103342,
+              "kpi": {
+                "on_time_rate": 0.82,
+                "total_shortfall_kwh": 66.5731,
+                "total_cost_vnd": 5700746.199999999,
+                "peak_power_kw": 758.0332000000001,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "FCFS",
+                  "solve_ms": 3.755299999966155,
+                  "request_count": 59,
+                  "kpi": {
+                    "total_shortfall_kwh": 19.8358,
+                    "total_cost_vnd": 3402742.1999999997,
+                    "peak_power_kw": 434.0,
+                    "on_time_rate": 0.8813559322033898,
+                    "fairness": 0.9322013589041324,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "FCFS",
+                  "solve_ms": 2.9716000001371867,
+                  "request_count": 41,
+                  "kpi": {
+                    "total_shortfall_kwh": 46.7373,
+                    "total_cost_vnd": 2298004.0,
+                    "peak_power_kw": 350.0,
+                    "on_time_rate": 0.7317073170731707,
+                    "fairness": 0.8292326633806831,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "EQUAL_SHARE",
+              "actual_algorithms": [
+                "EQUAL_SHARE"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 6.722399999944173,
+              "kpi": {
+                "on_time_rate": 0.82,
+                "total_shortfall_kwh": 66.5731,
+                "total_cost_vnd": 5700746.199999999,
+                "peak_power_kw": 758.0332,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EQUAL_SHARE",
+                  "solve_ms": 4.116000000067288,
+                  "request_count": 59,
+                  "kpi": {
+                    "total_shortfall_kwh": 19.8358,
+                    "total_cost_vnd": 3402742.1999999997,
+                    "peak_power_kw": 434.0,
+                    "on_time_rate": 0.8813559322033898,
+                    "fairness": 0.9322013589041324,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EQUAL_SHARE",
+                  "solve_ms": 2.606399999876885,
+                  "request_count": 41,
+                  "kpi": {
+                    "total_shortfall_kwh": 46.7373,
+                    "total_cost_vnd": 2298004.0,
+                    "peak_power_kw": 350.0,
+                    "on_time_rate": 0.7317073170731707,
+                    "fairness": 0.8292326633806831,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "ASAP",
+              "actual_algorithms": [
+                "ASAP"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 6.190300000071147,
+              "kpi": {
+                "on_time_rate": 0.82,
+                "total_shortfall_kwh": 66.5731,
+                "total_cost_vnd": 5700746.199999999,
+                "peak_power_kw": 758.0332000000001,
+                "cap_violations": 1
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "ASAP",
+                  "solve_ms": 2.9976999999234977,
+                  "request_count": 59,
+                  "kpi": {
+                    "total_shortfall_kwh": 19.8358,
+                    "total_cost_vnd": 3402742.1999999997,
+                    "peak_power_kw": 434.0,
+                    "on_time_rate": 0.8813559322033898,
+                    "fairness": 0.9322013589041324,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "ASAP",
+                  "solve_ms": 3.1926000001476496,
+                  "request_count": 41,
+                  "kpi": {
+                    "total_shortfall_kwh": 46.7373,
+                    "total_cost_vnd": 2298004.0,
+                    "peak_power_kw": 354.0,
+                    "on_time_rate": 0.7317073170731707,
+                    "fairness": 0.8292326633806831,
+                    "cap_violations": 1
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "tariff": "evn_tou_1600_2400_4000_vnd_kwh",
+          "algorithms": [
+            {
+              "requested_algorithm": "MILP_MPC",
+              "actual_algorithms": [
+                "LLF"
+              ],
+              "status": "FALLBACK",
+              "status_by_cluster": {
+                "1": "FALLBACK",
+                "2": "FALLBACK"
+              },
+              "solve_ms": 5749.125099999901,
+              "kpi": {
+                "on_time_rate": 0.82,
+                "total_shortfall_kwh": 66.5731,
+                "total_cost_vnd": 8469687.44,
+                "peak_power_kw": 758.0332,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FALLBACK",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 2938.158299999941,
+                  "request_count": 59,
+                  "kpi": {
+                    "total_shortfall_kwh": 19.8358,
+                    "total_cost_vnd": 5227646.239999999,
+                    "peak_power_kw": 434.0,
+                    "on_time_rate": 0.8813559322033898,
+                    "fairness": 0.9322013589041324,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FALLBACK",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 2810.96679999996,
+                  "request_count": 41,
+                  "kpi": {
+                    "total_shortfall_kwh": 46.7373,
+                    "total_cost_vnd": 3242041.2,
+                    "peak_power_kw": 350.0,
+                    "on_time_rate": 0.7317073170731707,
+                    "fairness": 0.8292326633806831,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "LP_MPC",
+              "actual_algorithms": [
+                "LLF"
+              ],
+              "status": "FALLBACK",
+              "status_by_cluster": {
+                "1": "FALLBACK",
+                "2": "FALLBACK"
+              },
+              "solve_ms": 5630.1164999999855,
+              "kpi": {
+                "on_time_rate": 0.82,
+                "total_shortfall_kwh": 66.5731,
+                "total_cost_vnd": 8469687.44,
+                "peak_power_kw": 758.0332,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FALLBACK",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 2870.452500000056,
+                  "request_count": 59,
+                  "kpi": {
+                    "total_shortfall_kwh": 19.8358,
+                    "total_cost_vnd": 5227646.239999999,
+                    "peak_power_kw": 434.0,
+                    "on_time_rate": 0.8813559322033898,
+                    "fairness": 0.9322013589041324,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FALLBACK",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 2759.6639999999297,
+                  "request_count": 41,
+                  "kpi": {
+                    "total_shortfall_kwh": 46.7373,
+                    "total_cost_vnd": 3242041.2,
+                    "peak_power_kw": 350.0,
+                    "on_time_rate": 0.7317073170731707,
+                    "fairness": 0.8292326633806831,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "LLF",
+              "actual_algorithms": [
+                "LLF"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 8.774999999786814,
+              "kpi": {
+                "on_time_rate": 0.82,
+                "total_shortfall_kwh": 66.5731,
+                "total_cost_vnd": 8469687.44,
+                "peak_power_kw": 758.0332,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 5.597599999873637,
+                  "request_count": 59,
+                  "kpi": {
+                    "total_shortfall_kwh": 19.8358,
+                    "total_cost_vnd": 5227646.239999999,
+                    "peak_power_kw": 434.0,
+                    "on_time_rate": 0.8813559322033898,
+                    "fairness": 0.9322013589041324,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 3.1773999999131775,
+                  "request_count": 41,
+                  "kpi": {
+                    "total_shortfall_kwh": 46.7373,
+                    "total_cost_vnd": 3242041.2,
+                    "peak_power_kw": 350.0,
+                    "on_time_rate": 0.7317073170731707,
+                    "fairness": 0.8292326633806831,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "EDF",
+              "actual_algorithms": [
+                "EDF"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 8.664200000112032,
+              "kpi": {
+                "on_time_rate": 0.82,
+                "total_shortfall_kwh": 66.5731,
+                "total_cost_vnd": 8469687.44,
+                "peak_power_kw": 758.0332,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EDF",
+                  "solve_ms": 5.1267000001189444,
+                  "request_count": 59,
+                  "kpi": {
+                    "total_shortfall_kwh": 19.8358,
+                    "total_cost_vnd": 5227646.239999999,
+                    "peak_power_kw": 434.0,
+                    "on_time_rate": 0.8813559322033898,
+                    "fairness": 0.9322013589041324,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EDF",
+                  "solve_ms": 3.537499999993088,
+                  "request_count": 41,
+                  "kpi": {
+                    "total_shortfall_kwh": 46.7373,
+                    "total_cost_vnd": 3242041.2,
+                    "peak_power_kw": 350.0,
+                    "on_time_rate": 0.7317073170731707,
+                    "fairness": 0.8292326633806831,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "FCFS",
+              "actual_algorithms": [
+                "FCFS"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 7.7056999998603715,
+              "kpi": {
+                "on_time_rate": 0.82,
+                "total_shortfall_kwh": 66.5731,
+                "total_cost_vnd": 8469687.44,
+                "peak_power_kw": 758.0332000000001,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "FCFS",
+                  "solve_ms": 3.5172000000329717,
+                  "request_count": 59,
+                  "kpi": {
+                    "total_shortfall_kwh": 19.8358,
+                    "total_cost_vnd": 5227646.239999999,
+                    "peak_power_kw": 434.0,
+                    "on_time_rate": 0.8813559322033898,
+                    "fairness": 0.9322013589041324,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "FCFS",
+                  "solve_ms": 4.1884999998274,
+                  "request_count": 41,
+                  "kpi": {
+                    "total_shortfall_kwh": 46.7373,
+                    "total_cost_vnd": 3242041.2,
+                    "peak_power_kw": 350.0,
+                    "on_time_rate": 0.7317073170731707,
+                    "fairness": 0.8292326633806831,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "EQUAL_SHARE",
+              "actual_algorithms": [
+                "EQUAL_SHARE"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 8.468499999935375,
+              "kpi": {
+                "on_time_rate": 0.82,
+                "total_shortfall_kwh": 66.5731,
+                "total_cost_vnd": 8469687.44,
+                "peak_power_kw": 758.0332,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EQUAL_SHARE",
+                  "solve_ms": 3.901799999994182,
+                  "request_count": 59,
+                  "kpi": {
+                    "total_shortfall_kwh": 19.8358,
+                    "total_cost_vnd": 5227646.239999999,
+                    "peak_power_kw": 434.0,
+                    "on_time_rate": 0.8813559322033898,
+                    "fairness": 0.9322013589041324,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EQUAL_SHARE",
+                  "solve_ms": 4.566699999941193,
+                  "request_count": 41,
+                  "kpi": {
+                    "total_shortfall_kwh": 46.7373,
+                    "total_cost_vnd": 3242041.2,
+                    "peak_power_kw": 350.0,
+                    "on_time_rate": 0.7317073170731707,
+                    "fairness": 0.8292326633806831,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "ASAP",
+              "actual_algorithms": [
+                "ASAP"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 7.409400000142341,
+              "kpi": {
+                "on_time_rate": 0.82,
+                "total_shortfall_kwh": 66.5731,
+                "total_cost_vnd": 8469687.44,
+                "peak_power_kw": 758.0332000000001,
+                "cap_violations": 1
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "ASAP",
+                  "solve_ms": 3.768499999978303,
+                  "request_count": 59,
+                  "kpi": {
+                    "total_shortfall_kwh": 19.8358,
+                    "total_cost_vnd": 5227646.239999999,
+                    "peak_power_kw": 434.0,
+                    "on_time_rate": 0.8813559322033898,
+                    "fairness": 0.9322013589041324,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "ASAP",
+                  "solve_ms": 3.640900000164038,
+                  "request_count": 41,
+                  "kpi": {
+                    "total_shortfall_kwh": 46.7373,
+                    "total_cost_vnd": 3242041.2,
+                    "peak_power_kw": 354.0,
+                    "on_time_rate": 0.7317073170731707,
+                    "fairness": 0.8292326633806831,
+                    "cap_violations": 1
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "request_count": 500,
+      "requests_by_cluster": {
+        "1": 294,
+        "2": 206
+      },
+      "demand_kwh": 16319.999999999967,
+      "capacity_kwh": 20400.0,
+      "utilization_ratio": 0.7999999999999984,
+      "demand_kwh_by_cluster": {
+        "1": 9599.999999999978,
+        "2": 6719.99999999999
+      },
+      "capacity_kwh_by_cluster": {
+        "1": 12000.0,
+        "2": 8400.0
+      },
+      "utilization_ratio_by_cluster": {
+        "1": 0.7999999999999982,
+        "2": 0.7999999999999988
+      },
+      "long_stay_8h_or_more_count": 300,
+      "active_station_count": 15,
+      "active_port_count_in_catalog": 97,
+      "vehicle_connector_without_matching_active_port_count": 60,
+      "scenario_sha256": "bf75b81b1792845e76560967874ba188c7c6421c5d99b7b063caacdb0e7f2408",
+      "horizon_slots": 138,
+      "horizon_end": "2026-11-19T10:30:00+07:00",
+      "tariffs": [
+        {
+          "tariff": "fixed_2000_vnd_kwh",
+          "algorithms": [
+            {
+              "requested_algorithm": "MILP_MPC",
+              "actual_algorithms": [
+                "LLF",
+                "MILP_MPC"
+              ],
+              "status": "MIXED",
+              "status_by_cluster": {
+                "1": "FALLBACK",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 3680.5709999998726,
+              "kpi": {
+                "on_time_rate": 0.544,
+                "total_shortfall_kwh": 3835.2927,
+                "total_cost_vnd": 24969414.6,
+                "peak_power_kw": 850.0000000000002,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FALLBACK",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 21.35109999994711,
+                  "request_count": 294,
+                  "kpi": {
+                    "total_shortfall_kwh": 2078.2953,
+                    "total_cost_vnd": 15043409.399999999,
+                    "peak_power_kw": 500.00000000000017,
+                    "on_time_rate": 0.5306122448979592,
+                    "fairness": 0.7712470971221584,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "MILP_MPC",
+                  "solve_ms": 3659.2198999999255,
+                  "request_count": 206,
+                  "kpi": {
+                    "total_shortfall_kwh": 1756.9974,
+                    "total_cost_vnd": 9926005.200000005,
+                    "peak_power_kw": 350.0,
+                    "on_time_rate": 0.5631067961165048,
+                    "fairness": 0.7217355215848109,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "LP_MPC",
+              "actual_algorithms": [
+                "LLF",
+                "MILP_MPC"
+              ],
+              "status": "MIXED",
+              "status_by_cluster": {
+                "1": "FALLBACK",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 3713.3420000000115,
+              "kpi": {
+                "on_time_rate": 0.544,
+                "total_shortfall_kwh": 3835.2927,
+                "total_cost_vnd": 24969414.6,
+                "peak_power_kw": 850.0000000000002,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FALLBACK",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 26.687399999900663,
+                  "request_count": 294,
+                  "kpi": {
+                    "total_shortfall_kwh": 2078.2953,
+                    "total_cost_vnd": 15043409.399999999,
+                    "peak_power_kw": 500.00000000000017,
+                    "on_time_rate": 0.5306122448979592,
+                    "fairness": 0.7712470971221584,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "MILP_MPC",
+                  "solve_ms": 3686.654600000111,
+                  "request_count": 206,
+                  "kpi": {
+                    "total_shortfall_kwh": 1756.9974,
+                    "total_cost_vnd": 9926005.200000005,
+                    "peak_power_kw": 350.0,
+                    "on_time_rate": 0.5631067961165048,
+                    "fairness": 0.7217355215848109,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "LLF",
+              "actual_algorithms": [
+                "LLF"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 40.63349999978527,
+              "kpi": {
+                "on_time_rate": 0.542,
+                "total_shortfall_kwh": 3835.6732,
+                "total_cost_vnd": 24968653.599999998,
+                "peak_power_kw": 850.0000000000002,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 23.643199999924036,
+                  "request_count": 294,
+                  "kpi": {
+                    "total_shortfall_kwh": 2078.2953,
+                    "total_cost_vnd": 15043409.399999999,
+                    "peak_power_kw": 500.00000000000017,
+                    "on_time_rate": 0.5306122448979592,
+                    "fairness": 0.7712470971221584,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 16.990299999861236,
+                  "request_count": 206,
+                  "kpi": {
+                    "total_shortfall_kwh": 1757.3779,
+                    "total_cost_vnd": 9925244.2,
+                    "peak_power_kw": 350.0,
+                    "on_time_rate": 0.558252427184466,
+                    "fairness": 0.7222071455040068,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "EDF",
+              "actual_algorithms": [
+                "EDF"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 35.67750000001979,
+              "kpi": {
+                "on_time_rate": 0.608,
+                "total_shortfall_kwh": 3087.135,
+                "total_cost_vnd": 26465730.000000004,
+                "peak_power_kw": 850.0000000000001,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EDF",
+                  "solve_ms": 17.021800000065923,
+                  "request_count": 294,
+                  "kpi": {
+                    "total_shortfall_kwh": 1696.1622,
+                    "total_cost_vnd": 15807675.600000005,
+                    "peak_power_kw": 500.0000000000001,
+                    "on_time_rate": 0.6054421768707483,
+                    "fairness": 0.76393644723398,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EDF",
+                  "solve_ms": 18.655699999953868,
+                  "request_count": 206,
+                  "kpi": {
+                    "total_shortfall_kwh": 1390.9728,
+                    "total_cost_vnd": 10658054.399999999,
+                    "peak_power_kw": 350.00000000000006,
+                    "on_time_rate": 0.6116504854368932,
+                    "fairness": 0.7362756738202186,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "FCFS",
+              "actual_algorithms": [
+                "FCFS"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 31.68849999997292,
+              "kpi": {
+                "on_time_rate": 0.544,
+                "total_shortfall_kwh": 5504.0725999999995,
+                "total_cost_vnd": 21631854.800000012,
+                "peak_power_kw": 850.0000000000001,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "FCFS",
+                  "solve_ms": 17.651999999998225,
+                  "request_count": 294,
+                  "kpi": {
+                    "total_shortfall_kwh": 3052.4469,
+                    "total_cost_vnd": 13095106.200000007,
+                    "peak_power_kw": 500.00000000000006,
+                    "on_time_rate": 0.5408163265306123,
+                    "fairness": 0.6344264783752901,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "FCFS",
+                  "solve_ms": 14.036499999974694,
+                  "request_count": 206,
+                  "kpi": {
+                    "total_shortfall_kwh": 2451.6257,
+                    "total_cost_vnd": 8536748.600000003,
+                    "peak_power_kw": 350.00000000000006,
+                    "on_time_rate": 0.5485436893203883,
+                    "fairness": 0.6032995489372612,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "EQUAL_SHARE",
+              "actual_algorithms": [
+                "EQUAL_SHARE"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 45.30699999986609,
+              "kpi": {
+                "on_time_rate": 0.494,
+                "total_shortfall_kwh": 5910.726250144142,
+                "total_cost_vnd": 20818547.499711752,
+                "peak_power_kw": 850.0000000000008,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EQUAL_SHARE",
+                  "solve_ms": 30.34170000000813,
+                  "request_count": 294,
+                  "kpi": {
+                    "total_shortfall_kwh": 3216.0341638675986,
+                    "total_cost_vnd": 12767931.672264833,
+                    "peak_power_kw": 500.00000000000034,
+                    "on_time_rate": 0.4897959183673469,
+                    "fairness": 0.6445048441570285,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EQUAL_SHARE",
+                  "solve_ms": 14.965299999857962,
+                  "request_count": 206,
+                  "kpi": {
+                    "total_shortfall_kwh": 2694.6920862765433,
+                    "total_cost_vnd": 8050615.827446921,
+                    "peak_power_kw": 350.0000000000001,
+                    "on_time_rate": 0.5,
+                    "fairness": 0.5855848306585457,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "ASAP",
+              "actual_algorithms": [
+                "ASAP"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 30.121000000235654,
+              "kpi": {
+                "on_time_rate": 0.582,
+                "total_shortfall_kwh": 5126.844999999999,
+                "total_cost_vnd": 22386310.000000007,
+                "peak_power_kw": 2596.5699999999997,
+                "cap_violations": 57
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "ASAP",
+                  "solve_ms": 15.360000000100626,
+                  "request_count": 294,
+                  "kpi": {
+                    "total_shortfall_kwh": 2764.605,
+                    "total_cost_vnd": 13670790.000000004,
+                    "peak_power_kw": 1655.4080000000001,
+                    "on_time_rate": 0.5918367346938775,
+                    "fairness": 0.6592356305217366,
+                    "cap_violations": 37
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "ASAP",
+                  "solve_ms": 14.761000000135027,
+                  "request_count": 206,
+                  "kpi": {
+                    "total_shortfall_kwh": 2362.24,
+                    "total_cost_vnd": 8715520.000000002,
+                    "peak_power_kw": 941.162,
+                    "on_time_rate": 0.5679611650485437,
+                    "fairness": 0.6050967743761089,
+                    "cap_violations": 20
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "tariff": "evn_tou_1600_2400_4000_vnd_kwh",
+          "algorithms": [
+            {
+              "requested_algorithm": "MILP_MPC",
+              "actual_algorithms": [
+                "LLF",
+                "MILP_MPC"
+              ],
+              "status": "MIXED",
+              "status_by_cluster": {
+                "1": "FALLBACK",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 3737.303000000111,
+              "kpi": {
+                "on_time_rate": 0.544,
+                "total_shortfall_kwh": 3835.2927,
+                "total_cost_vnd": 35168296.64000002,
+                "peak_power_kw": 850.0000000000002,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FALLBACK",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 23.343900000099893,
+                  "request_count": 294,
+                  "kpi": {
+                    "total_shortfall_kwh": 2078.2953,
+                    "total_cost_vnd": 21148728.240000024,
+                    "peak_power_kw": 500.00000000000017,
+                    "on_time_rate": 0.5306122448979592,
+                    "fairness": 0.7712470971221584,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "MILP_MPC",
+                  "solve_ms": 3713.959100000011,
+                  "request_count": 206,
+                  "kpi": {
+                    "total_shortfall_kwh": 1756.9974,
+                    "total_cost_vnd": 14019568.399999997,
+                    "peak_power_kw": 350.0,
+                    "on_time_rate": 0.5631067961165048,
+                    "fairness": 0.7217355215848109,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "LP_MPC",
+              "actual_algorithms": [
+                "LLF",
+                "MILP_MPC"
+              ],
+              "status": "MIXED",
+              "status_by_cluster": {
+                "1": "FALLBACK",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 3701.9138999999086,
+              "kpi": {
+                "on_time_rate": 0.544,
+                "total_shortfall_kwh": 3835.2927,
+                "total_cost_vnd": 35168296.64000002,
+                "peak_power_kw": 850.0000000000002,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FALLBACK",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 19.97609999989436,
+                  "request_count": 294,
+                  "kpi": {
+                    "total_shortfall_kwh": 2078.2953,
+                    "total_cost_vnd": 21148728.240000024,
+                    "peak_power_kw": 500.00000000000017,
+                    "on_time_rate": 0.5306122448979592,
+                    "fairness": 0.7712470971221584,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "MILP_MPC",
+                  "solve_ms": 3681.9378000000142,
+                  "request_count": 206,
+                  "kpi": {
+                    "total_shortfall_kwh": 1756.9974,
+                    "total_cost_vnd": 14019568.399999997,
+                    "peak_power_kw": 350.0,
+                    "on_time_rate": 0.5631067961165048,
+                    "fairness": 0.7217355215848109,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "LLF",
+              "actual_algorithms": [
+                "LLF"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 49.86589999998614,
+              "kpi": {
+                "on_time_rate": 0.542,
+                "total_shortfall_kwh": 3835.6732,
+                "total_cost_vnd": 35238328.40000002,
+                "peak_power_kw": 850.0000000000002,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 29.129100000091057,
+                  "request_count": 294,
+                  "kpi": {
+                    "total_shortfall_kwh": 2078.2953,
+                    "total_cost_vnd": 21148728.240000024,
+                    "peak_power_kw": 500.00000000000017,
+                    "on_time_rate": 0.5306122448979592,
+                    "fairness": 0.7712470971221584,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 20.736799999895084,
+                  "request_count": 206,
+                  "kpi": {
+                    "total_shortfall_kwh": 1757.3779,
+                    "total_cost_vnd": 14089600.159999993,
+                    "peak_power_kw": 350.0,
+                    "on_time_rate": 0.558252427184466,
+                    "fairness": 0.7222071455040068,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "EDF",
+              "actual_algorithms": [
+                "EDF"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 32.48829999984082,
+              "kpi": {
+                "on_time_rate": 0.608,
+                "total_shortfall_kwh": 3087.135,
+                "total_cost_vnd": 37306249.36000003,
+                "peak_power_kw": 850.0000000000001,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EDF",
+                  "solve_ms": 19.757099999878847,
+                  "request_count": 294,
+                  "kpi": {
+                    "total_shortfall_kwh": 1696.1622,
+                    "total_cost_vnd": 22124378.16000003,
+                    "peak_power_kw": 500.0000000000001,
+                    "on_time_rate": 0.6054421768707483,
+                    "fairness": 0.76393644723398,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EDF",
+                  "solve_ms": 12.731199999961973,
+                  "request_count": 206,
+                  "kpi": {
+                    "total_shortfall_kwh": 1390.9728,
+                    "total_cost_vnd": 15181871.199999997,
+                    "peak_power_kw": 350.00000000000006,
+                    "on_time_rate": 0.6116504854368932,
+                    "fairness": 0.7362756738202186,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "FCFS",
+              "actual_algorithms": [
+                "FCFS"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 39.34479999998075,
+              "kpi": {
+                "on_time_rate": 0.544,
+                "total_shortfall_kwh": 5504.0725999999995,
+                "total_cost_vnd": 30741592.319999993,
+                "peak_power_kw": 850.0000000000001,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "FCFS",
+                  "solve_ms": 27.59169999990263,
+                  "request_count": 294,
+                  "kpi": {
+                    "total_shortfall_kwh": 3052.4469,
+                    "total_cost_vnd": 18608700.16,
+                    "peak_power_kw": 500.00000000000006,
+                    "on_time_rate": 0.5408163265306123,
+                    "fairness": 0.6344264783752901,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "FCFS",
+                  "solve_ms": 11.75310000007812,
+                  "request_count": 206,
+                  "kpi": {
+                    "total_shortfall_kwh": 2451.6257,
+                    "total_cost_vnd": 12132892.15999999,
+                    "peak_power_kw": 350.00000000000006,
+                    "on_time_rate": 0.5485436893203883,
+                    "fairness": 0.6032995489372612,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "EQUAL_SHARE",
+              "actual_algorithms": [
+                "EQUAL_SHARE"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 42.942999999922904,
+              "kpi": {
+                "on_time_rate": 0.494,
+                "total_shortfall_kwh": 5910.726250144142,
+                "total_cost_vnd": 30124684.651817694,
+                "peak_power_kw": 850.0000000000008,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EQUAL_SHARE",
+                  "solve_ms": 26.603900000054637,
+                  "request_count": 294,
+                  "kpi": {
+                    "total_shortfall_kwh": 3216.0341638675986,
+                    "total_cost_vnd": 18499785.75665918,
+                    "peak_power_kw": 500.00000000000034,
+                    "on_time_rate": 0.4897959183673469,
+                    "fairness": 0.6445048441570285,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EQUAL_SHARE",
+                  "solve_ms": 16.339099999868267,
+                  "request_count": 206,
+                  "kpi": {
+                    "total_shortfall_kwh": 2694.6920862765433,
+                    "total_cost_vnd": 11624898.895158514,
+                    "peak_power_kw": 350.0000000000001,
+                    "on_time_rate": 0.5,
+                    "fairness": 0.5855848306585457,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "ASAP",
+              "actual_algorithms": [
+                "ASAP"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 29.304500000080225,
+              "kpi": {
+                "on_time_rate": 0.582,
+                "total_shortfall_kwh": 5126.844999999999,
+                "total_cost_vnd": 31200641.120000016,
+                "peak_power_kw": 2596.5699999999997,
+                "cap_violations": 57
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "ASAP",
+                  "solve_ms": 20.826599999963946,
+                  "request_count": 294,
+                  "kpi": {
+                    "total_shortfall_kwh": 2764.605,
+                    "total_cost_vnd": 19003884.24000002,
+                    "peak_power_kw": 1655.4080000000001,
+                    "on_time_rate": 0.5918367346938775,
+                    "fairness": 0.6592356305217366,
+                    "cap_violations": 37
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "ASAP",
+                  "solve_ms": 8.477900000116279,
+                  "request_count": 206,
+                  "kpi": {
+                    "total_shortfall_kwh": 2362.24,
+                    "total_cost_vnd": 12196756.879999995,
+                    "peak_power_kw": 941.162,
+                    "on_time_rate": 0.5679611650485437,
+                    "fairness": 0.6050967743761089,
+                    "cap_violations": 20
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "request_count": 1000,
+      "requests_by_cluster": {
+        "1": 588,
+        "2": 412
+      },
+      "demand_kwh": 16320.00000000003,
+      "capacity_kwh": 20400.0,
+      "utilization_ratio": 0.8000000000000014,
+      "demand_kwh_by_cluster": {
+        "1": 9600.000000000027,
+        "2": 6720.000000000002
+      },
+      "capacity_kwh_by_cluster": {
+        "1": 12000.0,
+        "2": 8400.0
+      },
+      "utilization_ratio_by_cluster": {
+        "1": 0.8000000000000023,
+        "2": 0.8000000000000003
+      },
+      "long_stay_8h_or_more_count": 600,
+      "active_station_count": 15,
+      "active_port_count_in_catalog": 97,
+      "vehicle_connector_without_matching_active_port_count": 129,
+      "scenario_sha256": "0e5836377fa8fa249279d6c333d724836dac05c5e366040a168fd4c0a62619cc",
+      "horizon_slots": 138,
+      "horizon_end": "2026-11-19T10:30:00+07:00",
+      "tariffs": [
+        {
+          "tariff": "fixed_2000_vnd_kwh",
+          "algorithms": [
+            {
+              "requested_algorithm": "MILP_MPC",
+              "actual_algorithms": [
+                "LLF"
+              ],
+              "status": "FALLBACK",
+              "status_by_cluster": {
+                "1": "FALLBACK",
+                "2": "FALLBACK"
+              },
+              "solve_ms": 69.93699999998171,
+              "kpi": {
+                "on_time_rate": 0.536,
+                "total_shortfall_kwh": 4667.3876,
+                "total_cost_vnd": 23305224.799999986,
+                "peak_power_kw": 850.0000000000001,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FALLBACK",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 50.70870000008654,
+                  "request_count": 588,
+                  "kpi": {
+                    "total_shortfall_kwh": 2442.6629000000003,
+                    "total_cost_vnd": 14314674.199999996,
+                    "peak_power_kw": 500.0000000000001,
+                    "on_time_rate": 0.5714285714285714,
+                    "fairness": 0.7209600168795236,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FALLBACK",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 19.22829999989517,
+                  "request_count": 412,
+                  "kpi": {
+                    "total_shortfall_kwh": 2224.7246999999998,
+                    "total_cost_vnd": 8990550.59999999,
+                    "peak_power_kw": 350.0000000000001,
+                    "on_time_rate": 0.4854368932038835,
+                    "fairness": 0.6545182619621147,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "LP_MPC",
+              "actual_algorithms": [
+                "LLF"
+              ],
+              "status": "FALLBACK",
+              "status_by_cluster": {
+                "1": "FALLBACK",
+                "2": "FALLBACK"
+              },
+              "solve_ms": 71.27429999991364,
+              "kpi": {
+                "on_time_rate": 0.536,
+                "total_shortfall_kwh": 4667.3876,
+                "total_cost_vnd": 23305224.799999986,
+                "peak_power_kw": 850.0000000000001,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FALLBACK",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 49.43709999997736,
+                  "request_count": 588,
+                  "kpi": {
+                    "total_shortfall_kwh": 2442.6629000000003,
+                    "total_cost_vnd": 14314674.199999996,
+                    "peak_power_kw": 500.0000000000001,
+                    "on_time_rate": 0.5714285714285714,
+                    "fairness": 0.7209600168795236,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FALLBACK",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 21.837199999936274,
+                  "request_count": 412,
+                  "kpi": {
+                    "total_shortfall_kwh": 2224.7246999999998,
+                    "total_cost_vnd": 8990550.59999999,
+                    "peak_power_kw": 350.0000000000001,
+                    "on_time_rate": 0.4854368932038835,
+                    "fairness": 0.6545182619621147,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "LLF",
+              "actual_algorithms": [
+                "LLF"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 80.35620000009658,
+              "kpi": {
+                "on_time_rate": 0.536,
+                "total_shortfall_kwh": 4667.3876,
+                "total_cost_vnd": 23305224.799999986,
+                "peak_power_kw": 850.0000000000001,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 43.94410000008975,
+                  "request_count": 588,
+                  "kpi": {
+                    "total_shortfall_kwh": 2442.6629000000003,
+                    "total_cost_vnd": 14314674.199999996,
+                    "peak_power_kw": 500.0000000000001,
+                    "on_time_rate": 0.5714285714285714,
+                    "fairness": 0.7209600168795236,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 36.41210000000683,
+                  "request_count": 412,
+                  "kpi": {
+                    "total_shortfall_kwh": 2224.7246999999998,
+                    "total_cost_vnd": 8990550.59999999,
+                    "peak_power_kw": 350.0000000000001,
+                    "on_time_rate": 0.4854368932038835,
+                    "fairness": 0.6545182619621147,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "EDF",
+              "actual_algorithms": [
+                "EDF"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 74.0966999999273,
+              "kpi": {
+                "on_time_rate": 0.609,
+                "total_shortfall_kwh": 4298.9076,
+                "total_cost_vnd": 24042184.799999997,
+                "peak_power_kw": 850.0000000000001,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EDF",
+                  "solve_ms": 55.06209999998646,
+                  "request_count": 588,
+                  "kpi": {
+                    "total_shortfall_kwh": 2323.5917,
+                    "total_cost_vnd": 14552816.600000001,
+                    "peak_power_kw": 500.0000000000001,
+                    "on_time_rate": 0.641156462585034,
+                    "fairness": 0.6871130857818483,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EDF",
+                  "solve_ms": 19.034599999940838,
+                  "request_count": 412,
+                  "kpi": {
+                    "total_shortfall_kwh": 1975.3158999999998,
+                    "total_cost_vnd": 9489368.199999994,
+                    "peak_power_kw": 350.0000000000001,
+                    "on_time_rate": 0.5631067961165048,
+                    "fairness": 0.6398658982450054,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "FCFS",
+              "actual_algorithms": [
+                "FCFS"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 55.75110000017958,
+              "kpi": {
+                "on_time_rate": 0.493,
+                "total_shortfall_kwh": 7091.9838,
+                "total_cost_vnd": 18456032.399999987,
+                "peak_power_kw": 850.0000000000001,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "FCFS",
+                  "solve_ms": 27.240200000051118,
+                  "request_count": 588,
+                  "kpi": {
+                    "total_shortfall_kwh": 3975.5401,
+                    "total_cost_vnd": 11248919.799999991,
+                    "peak_power_kw": 500.0000000000001,
+                    "on_time_rate": 0.5272108843537415,
+                    "fairness": 0.5455570600454316,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "FCFS",
+                  "solve_ms": 28.51090000012846,
+                  "request_count": 412,
+                  "kpi": {
+                    "total_shortfall_kwh": 3116.4437,
+                    "total_cost_vnd": 7207112.599999995,
+                    "peak_power_kw": 350.00000000000006,
+                    "on_time_rate": 0.4441747572815534,
+                    "fairness": 0.48291692395157154,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "EQUAL_SHARE",
+              "actual_algorithms": [
+                "EQUAL_SHARE"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 47.26699999991979,
+              "kpi": {
+                "on_time_rate": 0.398,
+                "total_shortfall_kwh": 8574.504097024022,
+                "total_cost_vnd": 15490991.805951945,
+                "peak_power_kw": 850.0000000000011,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EQUAL_SHARE",
+                  "solve_ms": 27.741899999909947,
+                  "request_count": 588,
+                  "kpi": {
+                    "total_shortfall_kwh": 4767.136781309738,
+                    "total_cost_vnd": 9665726.437380522,
+                    "peak_power_kw": 500.0000000000003,
+                    "on_time_rate": 0.43537414965986393,
+                    "fairness": 0.4598754694047282,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EQUAL_SHARE",
+                  "solve_ms": 19.525100000009843,
+                  "request_count": 412,
+                  "kpi": {
+                    "total_shortfall_kwh": 3807.3673157142857,
+                    "total_cost_vnd": 5825265.368571424,
+                    "peak_power_kw": 350.00000000000017,
+                    "on_time_rate": 0.3446601941747573,
+                    "fairness": 0.38985141863267225,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "ASAP",
+              "actual_algorithms": [
+                "ASAP"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 52.850799999760056,
+              "kpi": {
+                "on_time_rate": 0.423,
+                "total_shortfall_kwh": 8448.8688,
+                "total_cost_vnd": 15742262.39999999,
+                "peak_power_kw": 2873.7044,
+                "cap_violations": 38
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "ASAP",
+                  "solve_ms": 36.106699999891134,
+                  "request_count": 588,
+                  "kpi": {
+                    "total_shortfall_kwh": 4732.8746,
+                    "total_cost_vnd": 9734250.799999993,
+                    "peak_power_kw": 1811.3824,
+                    "on_time_rate": 0.4574829931972789,
+                    "fairness": 0.4607076876357765,
+                    "cap_violations": 24
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "ASAP",
+                  "solve_ms": 16.744099999868922,
+                  "request_count": 412,
+                  "kpi": {
+                    "total_shortfall_kwh": 3715.9942,
+                    "total_cost_vnd": 6008011.599999996,
+                    "peak_power_kw": 1062.3220000000001,
+                    "on_time_rate": 0.3737864077669903,
+                    "fairness": 0.39320376242832017,
+                    "cap_violations": 14
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "tariff": "evn_tou_1600_2400_4000_vnd_kwh",
+          "algorithms": [
+            {
+              "requested_algorithm": "MILP_MPC",
+              "actual_algorithms": [
+                "LLF"
+              ],
+              "status": "FALLBACK",
+              "status_by_cluster": {
+                "1": "FALLBACK",
+                "2": "FALLBACK"
+              },
+              "solve_ms": 76.60869999995157,
+              "kpi": {
+                "on_time_rate": 0.536,
+                "total_shortfall_kwh": 4667.3876,
+                "total_cost_vnd": 31671896.640000008,
+                "peak_power_kw": 850.0000000000001,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FALLBACK",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 54.72239999994599,
+                  "request_count": 588,
+                  "kpi": {
+                    "total_shortfall_kwh": 2442.6629000000003,
+                    "total_cost_vnd": 19271167.599999998,
+                    "peak_power_kw": 500.0000000000001,
+                    "on_time_rate": 0.5714285714285714,
+                    "fairness": 0.7209600168795236,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FALLBACK",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 21.886300000005576,
+                  "request_count": 412,
+                  "kpi": {
+                    "total_shortfall_kwh": 2224.7246999999998,
+                    "total_cost_vnd": 12400729.040000008,
+                    "peak_power_kw": 350.0000000000001,
+                    "on_time_rate": 0.4854368932038835,
+                    "fairness": 0.6545182619621147,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "LP_MPC",
+              "actual_algorithms": [
+                "LLF"
+              ],
+              "status": "FALLBACK",
+              "status_by_cluster": {
+                "1": "FALLBACK",
+                "2": "FALLBACK"
+              },
+              "solve_ms": 69.5491999999831,
+              "kpi": {
+                "on_time_rate": 0.536,
+                "total_shortfall_kwh": 4667.3876,
+                "total_cost_vnd": 31671896.640000008,
+                "peak_power_kw": 850.0000000000001,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FALLBACK",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 45.8889999999883,
+                  "request_count": 588,
+                  "kpi": {
+                    "total_shortfall_kwh": 2442.6629000000003,
+                    "total_cost_vnd": 19271167.599999998,
+                    "peak_power_kw": 500.0000000000001,
+                    "on_time_rate": 0.5714285714285714,
+                    "fairness": 0.7209600168795236,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FALLBACK",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 23.660199999994802,
+                  "request_count": 412,
+                  "kpi": {
+                    "total_shortfall_kwh": 2224.7246999999998,
+                    "total_cost_vnd": 12400729.040000008,
+                    "peak_power_kw": 350.0000000000001,
+                    "on_time_rate": 0.4854368932038835,
+                    "fairness": 0.6545182619621147,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "LLF",
+              "actual_algorithms": [
+                "LLF"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 72.48310000022684,
+              "kpi": {
+                "on_time_rate": 0.536,
+                "total_shortfall_kwh": 4667.3876,
+                "total_cost_vnd": 31671896.640000008,
+                "peak_power_kw": 850.0000000000001,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 43.62140000012005,
+                  "request_count": 588,
+                  "kpi": {
+                    "total_shortfall_kwh": 2442.6629000000003,
+                    "total_cost_vnd": 19271167.599999998,
+                    "peak_power_kw": 500.0000000000001,
+                    "on_time_rate": 0.5714285714285714,
+                    "fairness": 0.7209600168795236,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 28.861700000106794,
+                  "request_count": 412,
+                  "kpi": {
+                    "total_shortfall_kwh": 2224.7246999999998,
+                    "total_cost_vnd": 12400729.040000008,
+                    "peak_power_kw": 350.0000000000001,
+                    "on_time_rate": 0.4854368932038835,
+                    "fairness": 0.6545182619621147,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "EDF",
+              "actual_algorithms": [
+                "EDF"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 73.52280000009159,
+              "kpi": {
+                "on_time_rate": 0.609,
+                "total_shortfall_kwh": 4298.9076,
+                "total_cost_vnd": 32668321.839999996,
+                "peak_power_kw": 850.0000000000001,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EDF",
+                  "solve_ms": 47.14850000004844,
+                  "request_count": 588,
+                  "kpi": {
+                    "total_shortfall_kwh": 2323.5917,
+                    "total_cost_vnd": 19593299.2,
+                    "peak_power_kw": 500.0000000000001,
+                    "on_time_rate": 0.641156462585034,
+                    "fairness": 0.6871130857818483,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EDF",
+                  "solve_ms": 26.37430000004315,
+                  "request_count": 412,
+                  "kpi": {
+                    "total_shortfall_kwh": 1975.3158999999998,
+                    "total_cost_vnd": 13075022.639999999,
+                    "peak_power_kw": 350.0000000000001,
+                    "on_time_rate": 0.5631067961165048,
+                    "fairness": 0.6398658982450054,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "FCFS",
+              "actual_algorithms": [
+                "FCFS"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 51.99540000012348,
+              "kpi": {
+                "on_time_rate": 0.493,
+                "total_shortfall_kwh": 7091.9838,
+                "total_cost_vnd": 25998927.679999992,
+                "peak_power_kw": 850.0000000000001,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "FCFS",
+                  "solve_ms": 33.02220000000489,
+                  "request_count": 588,
+                  "kpi": {
+                    "total_shortfall_kwh": 3975.5401,
+                    "total_cost_vnd": 15737034.879999997,
+                    "peak_power_kw": 500.0000000000001,
+                    "on_time_rate": 0.5272108843537415,
+                    "fairness": 0.5455570600454316,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "FCFS",
+                  "solve_ms": 18.973200000118595,
+                  "request_count": 412,
+                  "kpi": {
+                    "total_shortfall_kwh": 3116.4437,
+                    "total_cost_vnd": 10261892.799999995,
+                    "peak_power_kw": 350.00000000000006,
+                    "on_time_rate": 0.4441747572815534,
+                    "fairness": 0.48291692395157154,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "EQUAL_SHARE",
+              "actual_algorithms": [
+                "EQUAL_SHARE"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 67.4008999999387,
+              "kpi": {
+                "on_time_rate": 0.398,
+                "total_shortfall_kwh": 8574.504097024022,
+                "total_cost_vnd": 21790615.460034918,
+                "peak_power_kw": 850.0000000000011,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EQUAL_SHARE",
+                  "solve_ms": 38.52469999992536,
+                  "request_count": 588,
+                  "kpi": {
+                    "total_shortfall_kwh": 4767.136781309738,
+                    "total_cost_vnd": 13500053.737749202,
+                    "peak_power_kw": 500.0000000000003,
+                    "on_time_rate": 0.43537414965986393,
+                    "fairness": 0.4598754694047282,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EQUAL_SHARE",
+                  "solve_ms": 28.87620000001334,
+                  "request_count": 412,
+                  "kpi": {
+                    "total_shortfall_kwh": 3807.3673157142857,
+                    "total_cost_vnd": 8290561.722285715,
+                    "peak_power_kw": 350.00000000000017,
+                    "on_time_rate": 0.3446601941747573,
+                    "fairness": 0.38985141863267225,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "ASAP",
+              "actual_algorithms": [
+                "ASAP"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 73.02479999998468,
+              "kpi": {
+                "on_time_rate": 0.423,
+                "total_shortfall_kwh": 8448.8688,
+                "total_cost_vnd": 22229100.48000001,
+                "peak_power_kw": 2873.7044,
+                "cap_violations": 38
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "ASAP",
+                  "solve_ms": 44.98179999995955,
+                  "request_count": 588,
+                  "kpi": {
+                    "total_shortfall_kwh": 4732.8746,
+                    "total_cost_vnd": 13636042.720000012,
+                    "peak_power_kw": 1811.3824,
+                    "on_time_rate": 0.4574829931972789,
+                    "fairness": 0.4607076876357765,
+                    "cap_violations": 24
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "ASAP",
+                  "solve_ms": 28.04300000002513,
+                  "request_count": 412,
+                  "kpi": {
+                    "total_shortfall_kwh": 3715.9942,
+                    "total_cost_vnd": 8593057.76,
+                    "peak_power_kw": 1062.3220000000001,
+                    "on_time_rate": 0.3737864077669903,
+                    "fairness": 0.39320376242832017,
+                    "cap_violations": 14
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "request_count": 10000,
+      "requests_by_cluster": {
+        "1": 5882,
+        "2": 4118
+      },
+      "demand_kwh": 16319.999999999905,
+      "capacity_kwh": 20400.0,
+      "utilization_ratio": 0.7999999999999954,
+      "demand_kwh_by_cluster": {
+        "1": 9599.999999999958,
+        "2": 6719.999999999948
+      },
+      "capacity_kwh_by_cluster": {
+        "1": 12000.0,
+        "2": 8400.0
+      },
+      "utilization_ratio_by_cluster": {
+        "1": 0.7999999999999965,
+        "2": 0.7999999999999938
+      },
+      "long_stay_8h_or_more_count": 6000,
+      "active_station_count": 15,
+      "active_port_count_in_catalog": 97,
+      "vehicle_connector_without_matching_active_port_count": 1241,
+      "scenario_sha256": "476818889bbd22cbc9bb6c082cfabbe492052377ef1520cf52ebcd269c43701d",
+      "horizon_slots": 138,
+      "horizon_end": "2026-11-19T10:30:00+07:00",
+      "tariffs": [
+        {
+          "tariff": "fixed_2000_vnd_kwh",
+          "algorithms": [
+            {
+              "requested_algorithm": "LLF",
+              "actual_algorithms": [
+                "LLF"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 669.5902999997543,
+              "kpi": {
+                "on_time_rate": 0.2622,
+                "total_shortfall_kwh": 12428.5622,
+                "total_cost_vnd": 7782875.599999985,
+                "peak_power_kw": 573.9696000000002,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 388.19539999985864,
+                  "request_count": 5882,
+                  "kpi": {
+                    "total_shortfall_kwh": 7093.3669,
+                    "total_cost_vnd": 5013266.1999999685,
+                    "peak_power_kw": 386.1796,
+                    "on_time_rate": 0.28034682080924855,
+                    "fairness": 0.28034682080924855,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 281.39489999989564,
+                  "request_count": 4118,
+                  "kpi": {
+                    "total_shortfall_kwh": 5335.1953,
+                    "total_cost_vnd": 2769609.400000016,
+                    "peak_power_kw": 237.936,
+                    "on_time_rate": 0.23627974745021854,
+                    "fairness": 0.23627974745021854,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "EDF",
+              "actual_algorithms": [
+                "EDF"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 613.3511000002727,
+              "kpi": {
+                "on_time_rate": 0.2622,
+                "total_shortfall_kwh": 11783.6359,
+                "total_cost_vnd": 9072728.19999996,
+                "peak_power_kw": 680.6511999999997,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EDF",
+                  "solve_ms": 381.1334000001807,
+                  "request_count": 5882,
+                  "kpi": {
+                    "total_shortfall_kwh": 6783.0052,
+                    "total_cost_vnd": 5633989.599999965,
+                    "peak_power_kw": 418.5844,
+                    "on_time_rate": 0.28034682080924855,
+                    "fairness": 0.28034682080924855,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EDF",
+                  "solve_ms": 232.217700000092,
+                  "request_count": 4118,
+                  "kpi": {
+                    "total_shortfall_kwh": 5000.6307,
+                    "total_cost_vnd": 3438738.5999999945,
+                    "peak_power_kw": 282.85599999999994,
+                    "on_time_rate": 0.23627974745021854,
+                    "fairness": 0.23627974745021854,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "FCFS",
+              "actual_algorithms": [
+                "FCFS"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 531.6331000003629,
+              "kpi": {
+                "on_time_rate": 0.1329,
+                "total_shortfall_kwh": 14044.023,
+                "total_cost_vnd": 4551953.99999999,
+                "peak_power_kw": 646.1935999999997,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "FCFS",
+                  "solve_ms": 298.9177000001746,
+                  "request_count": 5882,
+                  "kpi": {
+                    "total_shortfall_kwh": 8200.1336,
+                    "total_cost_vnd": 2799732.7999999835,
+                    "peak_power_kw": 420.47199999999987,
+                    "on_time_rate": 0.14008840530431826,
+                    "fairness": 0.14008840530431826,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "FCFS",
+                  "solve_ms": 232.7154000001883,
+                  "request_count": 4118,
+                  "kpi": {
+                    "total_shortfall_kwh": 5843.8894,
+                    "total_cost_vnd": 1752221.2000000062,
+                    "peak_power_kw": 249.7512,
+                    "on_time_rate": 0.12263234579893152,
+                    "fairness": 0.12263234579893152,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "EQUAL_SHARE",
+              "actual_algorithms": [
+                "EQUAL_SHARE"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 683.6246000002575,
+              "kpi": {
+                "on_time_rate": 0.062,
+                "total_shortfall_kwh": 15168.7418,
+                "total_cost_vnd": 2302516.400000002,
+                "peak_power_kw": 646.1935999999996,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EQUAL_SHARE",
+                  "solve_ms": 421.4857000001757,
+                  "request_count": 5882,
+                  "kpi": {
+                    "total_shortfall_kwh": 8860.3254,
+                    "total_cost_vnd": 1479349.200000002,
+                    "peak_power_kw": 413.49279999999993,
+                    "on_time_rate": 0.06817409044542673,
+                    "fairness": 0.06817409044542673,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EQUAL_SHARE",
+                  "solve_ms": 262.1389000000818,
+                  "request_count": 4118,
+                  "kpi": {
+                    "total_shortfall_kwh": 6308.4164,
+                    "total_cost_vnd": 823167.1999999997,
+                    "peak_power_kw": 232.70080000000002,
+                    "on_time_rate": 0.053181155900922775,
+                    "fairness": 0.053181155900922775,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "ASAP",
+              "actual_algorithms": [
+                "ASAP"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 533.5758999999598,
+              "kpi": {
+                "on_time_rate": 0.062,
+                "total_shortfall_kwh": 15168.7418,
+                "total_cost_vnd": 2302516.400000002,
+                "peak_power_kw": 646.1935999999997,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "ASAP",
+                  "solve_ms": 268.7822000000324,
+                  "request_count": 5882,
+                  "kpi": {
+                    "total_shortfall_kwh": 8860.3254,
+                    "total_cost_vnd": 1479349.200000002,
+                    "peak_power_kw": 413.4927999999999,
+                    "on_time_rate": 0.06817409044542673,
+                    "fairness": 0.06817409044542673,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "ASAP",
+                  "solve_ms": 264.7936999999274,
+                  "request_count": 4118,
+                  "kpi": {
+                    "total_shortfall_kwh": 6308.4164,
+                    "total_cost_vnd": 823167.1999999997,
+                    "peak_power_kw": 232.7008,
+                    "on_time_rate": 0.053181155900922775,
+                    "fairness": 0.053181155900922775,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "tariff": "evn_tou_1600_2400_4000_vnd_kwh",
+          "algorithms": [
+            {
+              "requested_algorithm": "LLF",
+              "actual_algorithms": [
+                "LLF"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 786.8831999999202,
+              "kpi": {
+                "on_time_rate": 0.2622,
+                "total_shortfall_kwh": 12428.5622,
+                "total_cost_vnd": 9925629.200000094,
+                "peak_power_kw": 573.9696000000002,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 461.6209999999228,
+                  "request_count": 5882,
+                  "kpi": {
+                    "total_shortfall_kwh": 7093.3669,
+                    "total_cost_vnd": 6401951.040000073,
+                    "peak_power_kw": 386.1796,
+                    "on_time_rate": 0.28034682080924855,
+                    "fairness": 0.28034682080924855,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 325.2621999999974,
+                  "request_count": 4118,
+                  "kpi": {
+                    "total_shortfall_kwh": 5335.1953,
+                    "total_cost_vnd": 3523678.160000021,
+                    "peak_power_kw": 237.936,
+                    "on_time_rate": 0.23627974745021854,
+                    "fairness": 0.23627974745021854,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "EDF",
+              "actual_algorithms": [
+                "EDF"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 634.3879999999444,
+              "kpi": {
+                "on_time_rate": 0.2622,
+                "total_shortfall_kwh": 11783.6359,
+                "total_cost_vnd": 11796890.560000049,
+                "peak_power_kw": 680.6511999999997,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EDF",
+                  "solve_ms": 343.27349999989565,
+                  "request_count": 5882,
+                  "kpi": {
+                    "total_shortfall_kwh": 6783.0052,
+                    "total_cost_vnd": 7302392.560000037,
+                    "peak_power_kw": 418.5844,
+                    "on_time_rate": 0.28034682080924855,
+                    "fairness": 0.28034682080924855,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EDF",
+                  "solve_ms": 291.1145000000488,
+                  "request_count": 4118,
+                  "kpi": {
+                    "total_shortfall_kwh": 5000.6307,
+                    "total_cost_vnd": 4494498.000000012,
+                    "peak_power_kw": 282.85599999999994,
+                    "on_time_rate": 0.23627974745021854,
+                    "fairness": 0.23627974745021854,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "FCFS",
+              "actual_algorithms": [
+                "FCFS"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 551.5227999999297,
+              "kpi": {
+                "on_time_rate": 0.1329,
+                "total_shortfall_kwh": 14044.023,
+                "total_cost_vnd": 6869847.120000002,
+                "peak_power_kw": 646.1935999999997,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "FCFS",
+                  "solve_ms": 349.4811999999001,
+                  "request_count": 5882,
+                  "kpi": {
+                    "total_shortfall_kwh": 8200.1336,
+                    "total_cost_vnd": 4203369.439999994,
+                    "peak_power_kw": 420.47199999999987,
+                    "on_time_rate": 0.14008840530431826,
+                    "fairness": 0.14008840530431826,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "FCFS",
+                  "solve_ms": 202.04160000002958,
+                  "request_count": 4118,
+                  "kpi": {
+                    "total_shortfall_kwh": 5843.8894,
+                    "total_cost_vnd": 2666477.680000008,
+                    "peak_power_kw": 249.7512,
+                    "on_time_rate": 0.12263234579893152,
+                    "fairness": 0.12263234579893152,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "EQUAL_SHARE",
+              "actual_algorithms": [
+                "EQUAL_SHARE"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 603.5080999999991,
+              "kpi": {
+                "on_time_rate": 0.062,
+                "total_shortfall_kwh": 15168.7418,
+                "total_cost_vnd": 3260778.7200000053,
+                "peak_power_kw": 646.1935999999996,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EQUAL_SHARE",
+                  "solve_ms": 315.23409999999785,
+                  "request_count": 5882,
+                  "kpi": {
+                    "total_shortfall_kwh": 8860.3254,
+                    "total_cost_vnd": 2072158.880000005,
+                    "peak_power_kw": 413.49279999999993,
+                    "on_time_rate": 0.06817409044542673,
+                    "fairness": 0.06817409044542673,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "EQUAL_SHARE",
+                  "solve_ms": 288.27400000000125,
+                  "request_count": 4118,
+                  "kpi": {
+                    "total_shortfall_kwh": 6308.4164,
+                    "total_cost_vnd": 1188619.8400000003,
+                    "peak_power_kw": 232.70080000000002,
+                    "on_time_rate": 0.053181155900922775,
+                    "fairness": 0.053181155900922775,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
+              "requested_algorithm": "ASAP",
+              "actual_algorithms": [
+                "ASAP"
+              ],
+              "status": "FEASIBLE",
+              "status_by_cluster": {
+                "1": "FEASIBLE",
+                "2": "FEASIBLE"
+              },
+              "solve_ms": 617.2715000000153,
+              "kpi": {
+                "on_time_rate": 0.062,
+                "total_shortfall_kwh": 15168.7418,
+                "total_cost_vnd": 3260778.7200000053,
+                "peak_power_kw": 646.1935999999997,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "ASAP",
+                  "solve_ms": 367.86189999997987,
+                  "request_count": 5882,
+                  "kpi": {
+                    "total_shortfall_kwh": 8860.3254,
+                    "total_cost_vnd": 2072158.8800000052,
+                    "peak_power_kw": 413.4927999999999,
+                    "on_time_rate": 0.06817409044542673,
+                    "fairness": 0.06817409044542673,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FEASIBLE",
+                  "actual_algorithm": "ASAP",
+                  "solve_ms": 249.40960000003543,
+                  "request_count": 4118,
+                  "kpi": {
+                    "total_shortfall_kwh": 6308.4164,
+                    "total_cost_vnd": 1188619.8400000003,
+                    "peak_power_kw": 232.7008,
+                    "on_time_rate": 0.053181155900922775,
+                    "fairness": 0.053181155900922775,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

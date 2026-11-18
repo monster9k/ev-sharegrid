@@ -40,7 +40,24 @@ Benchmark nhận một trong hai nguồn dữ liệu: snapshot inline hoặc sce
 
 ### Số đo trên dữ liệu scenario đã commit
 
-`benchmark_real.json` ghi kết quả POST `/ai/benchmark` trên CSV scenario seed 42 và catalog trạm/cổng/biểu giá đã commit. Do mỗi snapshot chỉ nhận một cụm, từng mốc được chạy riêng theo cụm rồi tổng hợp: cộng shortfall, chi phí và `solve_ms`; tính tỷ lệ đúng hạn và fairness trên toàn bộ request; đỉnh công suất lấy từ tổng tải hai cụm theo từng slot. Ở mốc 10.000 request (6.001 cụm 1, 3.999 cụm 2), LLF đo được `solve_ms=379.93359996471554` ms: 244.6334999985993 ms và 135.30009996611625 ms theo cụm. Kết quả LLF có `on_time_rate=0.0059` và `total_shortfall_kwh=249167.97340000002`. `solve_ms` đo chuẩn hóa, giải, kiểm tra và tạo kết quả trong AI Engine; không gồm thời gian truyền HTTP.
+Chạy lại bằng một lệnh:
+
+```sh
+python -m ai_engine.scripts.benchmark_real --dataset-ref 3b4b6c6
+```
+
+Script gọi POST `/ai/benchmark` qua FastAPI TestClient với seed 42. Mỗi cụm được gửi riêng vì snapshot API chỉ nhận một cụm; kết quả gộp bằng tổng shortfall, chi phí, `solve_ms` và số lần vượt trần, tỷ lệ đúng hạn có trọng số theo request, còn đỉnh lấy từ tổng tải hai cụm ở từng slot. Các mốc 100, 500 và 1.000 chạy đủ bảy thuật toán; mốc 10.000 chỉ chạy LLF, EDF, FCFS, EQUAL_SHARE và ASAP. `benchmark_real.json` giữ các KPI và status đầy đủ, không làm tròn.
+
+Scenario được sinh với seed 42 ở commit `9391fe6`; benchmark đọc scenario và catalog cuối ở commit dữ liệu `3b4b6c6`. Tổng nhu cầu/trần cấp trong 24 giờ/tỷ lệ tải/số request đỗ ít nhất 8 giờ:
+
+| Request | Nhu cầu (kWh) | Trần (kWh) | Tỷ lệ tải | Đỗ ≥8 giờ |
+|---:|---:|---:|---:|---:|
+| 100 | 2916.9462000000003 | 20400.0 | 0.14298755882352943 | 60 |
+| 500 | 16319.999999999967 | 20400.0 | 0.7999999999999984 | 300 |
+| 1.000 | 16320.00000000003 | 20400.0 | 0.8000000000000014 | 600 |
+| 10.000 | 16319.999999999905 | 20400.0 | 0.7999999999999954 | 6000 |
+
+Mốc 100 giữ nguyên số dòng và vì vậy chỉ đạt 14.298755882352943% tải. Ở mốc 10.000, hai cụm có 5.882 và 4.118 request. LLF đạt `status=FEASIBLE`; với giá cố định, `solve_ms=669.5902999997543`, `on_time_rate=0.2622`, `total_shortfall_kwh=12428.5622`, `total_cost_vnd=7782875.599999985`, `peak_power_kw=573.9696000000002`, `cap_violations=0`. Với TOU 1.600/2.400/4.000 VND/kWh, `solve_ms=786.8831999999202`, `on_time_rate=0.2622`, `total_shortfall_kwh=12428.5622`, `total_cost_vnd=9925629.200000094`, `peak_power_kw=573.9696000000002`, `cap_violations=0`. Có 1.241 request ở mốc này không khớp đầu nối đang ACTIVE tại trạm; benchmark giữ nguyên chuẩn xe và các request này được tính vào KPI thiếu điện.
 
 ## Huấn luyện dự báo
 
@@ -88,6 +105,7 @@ python -m ai_engine.schemas
 | service.py | Chạy pipeline optimize trong worker và chuyển kết quả sang JSON |
 | main.py | FastAPI, timeout tiến trình, benchmark, forecast và health |
 | scripts/make_fake_history.py | Sinh 3–6 tháng dữ liệu giả có chu kỳ và nhiễu |
+| scripts/benchmark_real.py | Gọi `/ai/benchmark` trên CSV theo Git ref và xuất kết quả đo |
 | data/scenarios/demo.json | Snapshot ví dụ cho benchmark theo ID |
 | benchmark_real.json | KPI đo được trên các scenario CSV 100, 500, 1.000 và 10.000 request |
 | samples/ | Snapshot, lịch và bộ JSON Schema mẫu |
