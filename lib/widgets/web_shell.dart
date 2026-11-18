@@ -136,21 +136,23 @@ class _Sidebar extends StatelessWidget {
                     children: [
                       const BrandMark(size: 38),
                       const Gap(10),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'EV ShareGrid',
-                            style: AppFonts.display(size: 17),
-                          ),
-                          MutedText(
-                            portal == Portal.host
-                                ? 'Cổng chủ trạm (HOST)'
-                                : 'Bảng quản trị (ADMIN)',
-                            size: 11,
-                            weight: FontWeight.w600,
-                          ),
-                        ],
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'EV ShareGrid',
+                              style: AppFonts.display(size: 17),
+                            ),
+                            MutedText(
+                              portal == Portal.host
+                                  ? 'Cổng chủ trạm (HOST)'
+                                  : 'Bảng quản trị (ADMIN)',
+                              size: 11,
+                              weight: FontWeight.w600,
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -381,23 +383,29 @@ class WebCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(24),
               border: Border.all(color: Colors.white.withValues(alpha: .85)),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (title != null)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(title!, style: AppFonts.display(size: 19)),
-                      ),
-                      ?trailing,
-                    ],
-                  ),
-                for (var i = 0; i < children.length; i++) ...[
-                  if (i > 0 || title != null) SizedBox(height: gap),
-                  children[i],
+            child: Material(
+              type: MaterialType.transparency,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (title != null)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title!,
+                            style: AppFonts.display(size: 19),
+                          ),
+                        ),
+                        ?trailing,
+                      ],
+                    ),
+                  for (var i = 0; i < children.length; i++) ...[
+                    if (i > 0 || title != null) SizedBox(height: gap),
+                    children[i],
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
