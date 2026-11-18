@@ -18,6 +18,9 @@ import 'screens/host/host_schedule_screen.dart';
 import 'screens/admin/admin_clusters_screen.dart';
 import 'screens/admin/admin_review_screen.dart';
 import 'screens/admin/admin_tariff_screen.dart';
+import 'screens/admin/admin_solver_screen.dart';
+import 'screens/admin/admin_benchmark_screen.dart';
+import 'screens/admin/admin_forecast_screen.dart';
 import 'theme.dart';
 import 'widgets/mobile_frame.dart';
 
@@ -64,9 +67,9 @@ final _webRoutes = <RouteBase>[
   _page('/admin/clusters', () => const AdminClustersScreen()),
   _page('/admin/review', () => const AdminReviewScreen()),
   _page('/admin/tariff', () => const AdminTariffScreen()),
-  _page('/admin/solver', () => const PlaceholderScreen('Giám sát solver')),
-  _page('/admin/benchmark', () => const PlaceholderScreen('Benchmark Lab')),
-  _page('/admin/forecast', () => const PlaceholderScreen('Dự báo & Audit')),
+  _page('/admin/solver', () => const AdminSolverScreen()),
+  _page('/admin/benchmark', () => const AdminBenchmarkScreen()),
+  _page('/admin/forecast', () => const AdminForecastScreen()),
 ];
 
 GoRouter buildRouter({String? initialLocation}) => GoRouter(
