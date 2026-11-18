@@ -34,7 +34,13 @@ Optimize trả 422 khi payload sai schema. Với payload hợp lệ, đọc `sta
 
 Solver hiện dùng SCIP cho biến nguyên, GLOP khi miền nghiệm tuyến tính chính xác. `LP_MPC` có thể dùng SCIP nếu còn cổng đóng/ngắt, có công suất sàn hoặc hai xe có khả năng tranh cổng. Trường algorithm phản ánh backend thực tế. Slot đã chạy được giữ nguyên khi có previous_schedule. Điện năng còn lại phải bao gồm toàn bộ điện của slot freeze nếu gửi slot đó trong lịch cũ. Bản này chưa tích hợp Master LP với các worker theo trạm.
 
+Ngân sách mặc định là `DEFAULT_TIME_BUDGET_MS=10000` cho snapshot dưới 300 request. Từ 300 request, ngân sách dùng `LARGE_SCENARIO_TIME_BUDGET_MS=2000` và request gửi ngân sách cao hơn bị chặn ở mức này. Khi số request cần giải vượt `DECOMPOSE_THRESHOLD=250`, optimizer chuyển sang LLF trên toàn cụm. Tách MILP theo trạm sẽ làm mất ràng buộc trần cụm giữa các phần; LLF giữ trần đó và kết quả vẫn qua Validator. Vì vậy đây là fallback có kiểm soát, không phải bằng chứng MILP giải được 10.000 request.
+
 Benchmark nhận một trong hai nguồn dữ liệu: snapshot inline hoặc scenario_id tương ứng với `ai_engine/data/scenarios/<id>.json`. Ví dụ demo đã có sẵn. Các lượt chạy tuần tự trên cùng snapshot và cùng seed. Bảng `summary` có KPI trung bình, số lần vượt trần lớn nhất, thời gian trung bình và độ lệch chuẩn tổng thể. `actual_algorithms` cho biết nếu MILP đã rơi về LLF. ASAP được phép vượt giới hạn trạm và cụm để đo tác dụng của điều phối. NSGA_II trả NOT_IMPLEMENTED.
+
+### Số đo trên dữ liệu scenario đã commit
+
+`benchmark_real.json` ghi kết quả POST `/ai/benchmark` trên CSV scenario seed 42 và catalog trạm/cổng/biểu giá đã commit. Do mỗi snapshot chỉ nhận một cụm, từng mốc được chạy riêng theo cụm rồi tổng hợp: cộng shortfall, chi phí và `solve_ms`; tính tỷ lệ đúng hạn và fairness trên toàn bộ request; đỉnh công suất lấy từ tổng tải hai cụm theo từng slot. Ở mốc 10.000 request (6.001 cụm 1, 3.999 cụm 2), LLF đo được `solve_ms=379.93359996471554` ms: 244.6334999985993 ms và 135.30009996611625 ms theo cụm. Kết quả LLF có `on_time_rate=0.0059` và `total_shortfall_kwh=249167.97340000002`. `solve_ms` đo chuẩn hóa, giải, kiểm tra và tạo kết quả trong AI Engine; không gồm thời gian truyền HTTP.
 
 ## Huấn luyện dự báo
 
@@ -83,6 +89,7 @@ python -m ai_engine.schemas
 | main.py | FastAPI, timeout tiến trình, benchmark, forecast và health |
 | scripts/make_fake_history.py | Sinh 3–6 tháng dữ liệu giả có chu kỳ và nhiễu |
 | data/scenarios/demo.json | Snapshot ví dụ cho benchmark theo ID |
+| benchmark_real.json | KPI đo được trên các scenario CSV 100, 500, 1.000 và 10.000 request |
 | samples/ | Snapshot, lịch và bộ JSON Schema mẫu |
 | tests/ | Test solver, dữ liệu, forecast và HTTP |
 | requirements.txt | Các phụ thuộc chạy service |
@@ -110,7 +117,7 @@ curl -fsS -H "Content-Type: application/json" --data-binary @samples/page20_inpu
 docker compose -f docker-compose.ai.yml down
 ```
 
-Compose gắn thư mục `./models` vào container. Trên Linux, cấp quyền ghi thư mục này cho UID 10001 để lưu mô hình. Có thể đặt `WORKERS` (1), `LOG_LEVEL` (info) và `DEFAULT_TIME_BUDGET_MS` (2000) trước khi khởi động. Ngân sách trong request được ưu tiên. API hiển thị `DECOMPOSE_THRESHOLD` (1000) qua health; bản solver hiện tại chưa triển khai Master LP để sử dụng ngưỡng này. Để kiểm thử ngoài Docker, cài `python -m pip install -r ai_engine/requirements-dev.txt` từ thư mục cha.
+Compose gắn thư mục `./models` vào container. Trên Linux, cấp quyền ghi thư mục này cho UID 10001 để lưu mô hình. Có thể đặt `WORKERS` (1), `LOG_LEVEL` (info), `DEFAULT_TIME_BUDGET_MS` (10000), `LARGE_SCENARIO_TIME_BUDGET_MS` (2000) và `DECOMPOSE_THRESHOLD` (250) trước khi khởi động. `/health` trả các giá trị này cùng ngưỡng request nhỏ 300. Để kiểm thử ngoài Docker, cài `python -m pip install -r ai_engine/requirements-dev.txt` từ thư mục cha.
 
 ## Chạy trên Windows
 

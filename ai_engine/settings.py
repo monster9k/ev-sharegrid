@@ -29,7 +29,7 @@ WORKERS = positive("WORKERS", 1)
 DEFAULT_TIME_BUDGET_MS = positive("DEFAULT_TIME_BUDGET_MS", 10000)
 LARGE_SCENARIO_TIME_BUDGET_MS = positive("LARGE_SCENARIO_TIME_BUDGET_MS", 2000)
 SMALL_SCENARIO_REQUEST_LIMIT = 300
-DECOMPOSE_THRESHOLD = positive("DECOMPOSE_THRESHOLD", 1000)
+DECOMPOSE_THRESHOLD = positive("DECOMPOSE_THRESHOLD", 250)
 LOG_LEVEL = os.getenv("LOG_LEVEL", "info").lower()
 if LOG_LEVEL not in {"critical", "error", "warning", "info", "debug", "trace"}:
     raise ValueError("LOG_LEVEL không hợp lệ")

@@ -13,7 +13,7 @@ from time import perf_counter
 from .baselines import solve_llf
 from .normalizer import NormProblem, Solution
 from .schemas import Algorithm, SolverStatus
-from .settings import EPS_KW, is_leq, is_zero, snap
+from .settings import DECOMPOSE_THRESHOLD, EPS_KW, is_leq, is_zero, snap
 from .validator import validate_solution
 
 
@@ -186,12 +186,31 @@ def _optimize(p: NormProblem, prefer_lp: bool) -> Solution:
 
 def solve_milp(problem: NormProblem, time_budget_ms: int | None = None) -> Solution:
     """Giải MILP bằng SCIP trong ngân sách được cấp."""
-    return _optimize(problem if time_budget_ms is None else replace(problem,time_budget_ms=time_budget_ms),False)
+    p = problem if time_budget_ms is None else replace(problem,time_budget_ms=time_budget_ms)
+    if len(p.requests) > DECOMPOSE_THRESHOLD:
+        return _large_problem_llf(p)
+    return _optimize(p,False)
 
 
 def solve_lp(problem: NormProblem, time_budget_ms: int | None = None) -> Solution:
     """Dùng GLOP khi không còn lựa chọn rời rạc, dùng SCIP khi cần."""
-    return _optimize(problem if time_budget_ms is None else replace(problem,time_budget_ms=time_budget_ms),True)
+    p = problem if time_budget_ms is None else replace(problem,time_budget_ms=time_budget_ms)
+    if len(p.requests) > DECOMPOSE_THRESHOLD:
+        return _large_problem_llf(p)
+    return _optimize(p,True)
+
+
+def _large_problem_llf(problem: NormProblem) -> Solution:
+    """Dùng LLF trên toàn cụm khi MILP vượt ngưỡng.
+
+    Tách theo trạm sẽ làm mất ràng buộc công suất cụm giữa các phần; một lượt LLF
+    giữ nguyên trần toàn cục và ổn định hơn cho tải lớn.
+    """
+    logging.getLogger(__name__).info(
+        "Có %d request, vượt DECOMPOSE_THRESHOLD=%d; chuyển sang LLF để giữ trần cụm",
+        len(problem.requests), DECOMPOSE_THRESHOLD,
+    )
+    return replace(solve_llf(problem), status=SolverStatus.FALLBACK, algorithm=Algorithm.LLF)
 
 
 def solve(problem: NormProblem) -> Solution:
@@ -209,6 +228,8 @@ def solve(problem: NormProblem) -> Solution:
     p = replace(problem,requests=problem.requests | changed) if changed else problem
     start = perf_counter()
     try:
+        if len(p.requests) > DECOMPOSE_THRESHOLD:
+            return _large_problem_llf(p)
         if p.time_budget_ms <= 1:
             raise TimeoutError("Ngân sách quá nhỏ để khởi tạo solver")
         return solve_lp(p)

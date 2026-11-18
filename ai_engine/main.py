@@ -16,7 +16,14 @@ from fastapi.responses import JSONResponse
 from .schemas import (BenchmarkRequest, BenchmarkResponse, BenchmarkRun, BenchmarkSummary,
                       ForecastRequest, ForecastResponse, KPI, OptimizeRequest, OptimizeResponse)
 from .optimizer_milp import BENCHMARK_SEED
-from .settings import WORKERS, DEFAULT_TIME_BUDGET_MS, DECOMPOSE_THRESHOLD, LOG_LEVEL
+from .settings import (
+    WORKERS,
+    DEFAULT_TIME_BUDGET_MS,
+    LARGE_SCENARIO_TIME_BUDGET_MS,
+    SMALL_SCENARIO_REQUEST_LIMIT,
+    DECOMPOSE_THRESHOLD,
+    LOG_LEVEL,
+)
 from .service import ENGINES, evaluate, failure
 
 VERSION = "0.1.0"
@@ -150,4 +157,8 @@ def health() -> dict[str, Any]:
     for module,name in (("sklearn","RANDOM_FOREST"),("xgboost","XGBOOST")):
         if importlib.util.find_spec(module):
             models.append(name)
-    return dict(version=VERSION,algorithms=names,forecast_models=models, workers=WORKERS, default_time_budget_ms=DEFAULT_TIME_BUDGET_MS, decompose_threshold=DECOMPOSE_THRESHOLD)
+    return dict(version=VERSION,algorithms=names,forecast_models=models, workers=WORKERS,
+                default_time_budget_ms=DEFAULT_TIME_BUDGET_MS,
+                large_scenario_time_budget_ms=LARGE_SCENARIO_TIME_BUDGET_MS,
+                small_scenario_request_limit=SMALL_SCENARIO_REQUEST_LIMIT,
+                decompose_threshold=DECOMPOSE_THRESHOLD)
