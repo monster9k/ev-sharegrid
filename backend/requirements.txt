@@ -1,0 +1,5 @@
+fastapi
+httpx
+pandas
+psycopg2-binary
+uvicorn[standard]
