@@ -15,6 +15,9 @@ import 'screens/user/profile_screen.dart';
 import 'screens/host/host_stations_screen.dart';
 import 'screens/host/host_ports_screen.dart';
 import 'screens/host/host_schedule_screen.dart';
+import 'screens/admin/admin_clusters_screen.dart';
+import 'screens/admin/admin_review_screen.dart';
+import 'screens/admin/admin_tariff_screen.dart';
 import 'theme.dart';
 import 'widgets/mobile_frame.dart';
 
@@ -58,9 +61,9 @@ final _webRoutes = <RouteBase>[
   _page('/host/ports', () => const HostPortsScreen()),
   _page('/host/schedule', () => const HostScheduleScreen()),
   GoRoute(path: '/admin', redirect: (_, _) => '/admin/clusters'),
-  _page('/admin/clusters', () => const PlaceholderScreen('Cụm điều phối')),
-  _page('/admin/review', () => const PlaceholderScreen('Duyệt trạm')),
-  _page('/admin/tariff', () => const PlaceholderScreen('Biểu giá')),
+  _page('/admin/clusters', () => const AdminClustersScreen()),
+  _page('/admin/review', () => const AdminReviewScreen()),
+  _page('/admin/tariff', () => const AdminTariffScreen()),
   _page('/admin/solver', () => const PlaceholderScreen('Giám sát solver')),
   _page('/admin/benchmark', () => const PlaceholderScreen('Benchmark Lab')),
   _page('/admin/forecast', () => const PlaceholderScreen('Dự báo & Audit')),
