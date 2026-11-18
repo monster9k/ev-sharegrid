@@ -20,7 +20,7 @@ CREATE TABLE vehicle_model (
     brand VARCHAR(50) NOT NULL,
     model_name VARCHAR(50) NOT NULL,
     vehicle_type VARCHAR(20) CHECK (vehicle_type IN ('CAR', 'MOTORBIKE')),
-    connector_type VARCHAR(50) CHECK (connector_type IN ('CCS2', 'Type2', 'AC_HOME', 'CHAdeMO', 'CCS2_DC', 'AC_HOME_VINFAST_ADAPTER')),
+    connector_type VARCHAR(50) CHECK (connector_type IN ('CCS2', 'Type2', 'AC_HOME', 'CHAdeMO')),
     source_type VARCHAR(20) DEFAULT 'REAL',
     source_ref TEXT,
     battery_kwh NUMERIC(10,3) NOT NULL,
@@ -84,7 +84,7 @@ CREATE TABLE charging_station (
     service_fee_vnd NUMERIC(14,2) DEFAULT 0.00,
     price_override_vnd_kwh NUMERIC(14,2),
     max_session_minutes INTEGER DEFAULT 360,
-    rating NUMERIC(3,2) DEFAULT 5.00,
+    rating NUMERIC(3,2),
     listed_network VARCHAR(50),
     listed_port_count INTEGER,
     listed_max_port_kw NUMERIC(10,3),
@@ -106,6 +106,8 @@ CREATE TABLE port (
 );
 
 -- 7. tariff_window
+-- TODO: source_ref must contain the verified EVN decision number and date.
+-- Leave it NULL until the official document is supplied; do not infer an identifier.
 CREATE TABLE tariff_window (
     tariff_id BIGSERIAL PRIMARY KEY,
     cluster_id BIGINT REFERENCES grid_cluster(cluster_id),
