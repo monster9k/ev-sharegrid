@@ -8,9 +8,19 @@ if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from routes.requests import router as requests_router
 
 app = FastAPI(title="EV ShareGrid Backend API", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://ev-sharegrid.web.app"],
+    allow_origin_regex=r"^http://localhost(?::\d+)?$",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(requests_router)
 
