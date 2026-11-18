@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 import argparse
 import json
 from collections import Counter
@@ -11,9 +12,19 @@ from time import perf_counter
 from typing import Any
 from urllib.request import Request, urlopen
 
+if __name__ == "__main__":
+    if not __package__:
+        # Allow direct invocation from PowerShell as well as python -m.
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from ai_engine.console import configure_console
+
+    configure_console()
+
+
 from ai_engine.baselines import SOLVERS
 from ai_engine.normalizer import normalize
 from ai_engine.optimizer_milp import solve
+from ai_engine.settings import is_leq
 from ai_engine.schemas import OptimizeRequest, OptimizeResponse
 from ai_engine.validator import validate_solution
 
@@ -23,7 +34,7 @@ SEED = 16520
 
 def instance(rng: Random, i: int, hard: bool = False) -> dict[str, Any]:
     """Sinh snapshot tái lập với hai loại cổng, nhu cầu và cửa sổ đỗ khác nhau."""
-    d=json.loads(SAMPLE.read_bytes())
+    d=json.loads(SAMPLE.read_text(encoding="utf-8"))
     d["input_version"]=f"accept-{i}"
     d["time_budget_ms"]=2000 if hard else 100
     count=rng.randint(1000,2000) if hard else rng.choice((4,8,16,32,64))
@@ -79,11 +90,10 @@ def check(url: str | None = None) -> int:
                               if p.ports[j].control_type=="ON_OFF_SWITCH")
                 r=p.requests["r0"]
                 rows=[(j,t,v) for (rid,j,t),v in s.power.items() if rid==r.request_id]
-                locked_ok=(r.energy_delivered_kwh>0 if hasattr(r,"energy_delivered_kwh")
-                           else p.source_requests[r.request_id].energy_delivered_kwh>0)
+                locked_ok=not is_leq(p.source_requests[r.request_id].energy_delivered_kwh, 0)
                 locked_ok &= (s.assign.get(r.request_id,r.locked_port_id)==r.locked_port_id and
                               all(j==r.locked_port_id and t>=p.first_mutable_slot for j,t,_ in rows) and
-                              sum(v for _,_,v in rows)*p.dt<=r.remaining_kwh+1e-6)
+                              is_leq(sum(v for _,_,v in rows)*p.dt, r.remaining_kwh))
                 for k,good in enumerate((report.ok and s.status in {"OPTIMAL","FEASIBLE","FALLBACK"},
                                          switch_ok,locked_ok)):
                     counts[k]+=int(good)
@@ -103,7 +113,7 @@ def check(url: str | None = None) -> int:
             client=TestClient(app)
         for i in range(20):
             payload=instance(rng,i,True)
-            encoded=json.dumps(payload).encode()
+            encoded=json.dumps(payload, ensure_ascii=False).encode()
             start=perf_counter()
             try:
                 if url:

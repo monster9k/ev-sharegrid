@@ -2,10 +2,21 @@
 
 from copy import deepcopy
 import json
+import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
 
+if __name__ == "__main__":
+    if not __package__:
+        # Allow direct invocation from PowerShell as well as python -m.
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from ai_engine.console import configure_console
+
+    configure_console()
+
+
+from ai_engine.settings import is_leq
 from ai_engine.schemas import OptimizeRequest, OptimizeResponse
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -54,8 +65,8 @@ def export(directory: Path = ROOT / "handover") -> None:
                     raise ValueError("Mẫu CHARGING chưa giữ đúng cổng 101")
             if suffix == "_fallback" and (sol.status != "FALLBACK" or sol.algorithm != "LLF"):
                 raise ValueError("Mẫu ngân sách nhỏ chưa trả FALLBACK/LLF")
-            if suffix == "_shortfall" and not (sol.kpi.total_shortfall_kwh > 0 and
-                    any(r.shortfall_kwh > 0 and r.explanation for r in sol.request_results)):
+            if suffix == "_shortfall" and (is_leq(sol.kpi.total_shortfall_kwh, 0) or
+                    not any(not is_leq(r.shortfall_kwh, 0) and r.explanation for r in sol.request_results)):
                 raise ValueError("Mẫu thiếu điện chưa có xe bị thiếu và lời giải thích")
             files[f"sample_request{suffix}.json"] = req_bytes
             files[f"sample_response{suffix}.json"] = reply.content

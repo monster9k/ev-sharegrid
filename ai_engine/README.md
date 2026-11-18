@@ -111,3 +111,7 @@ docker compose -f docker-compose.ai.yml down
 ```
 
 Compose gắn thư mục `./models` vào container. Trên Linux, cấp quyền ghi thư mục này cho UID 10001 để lưu mô hình. Có thể đặt `WORKERS` (1), `LOG_LEVEL` (info) và `DEFAULT_TIME_BUDGET_MS` (2000) trước khi khởi động. Ngân sách trong request được ưu tiên. API hiển thị `DECOMPOSE_THRESHOLD` (1000) qua health; bản solver hiện tại chưa triển khai Master LP để sử dụng ngưỡng này. Để kiểm thử ngoài Docker, cài `python -m pip install -r ai_engine/requirements-dev.txt` từ thư mục cha.
+
+## Chạy trên Windows
+
+Các script và pytest tự cấu hình đầu ra UTF-8. Có thể chạy từ thư mục gốc bằng `python -m ai_engine.scripts.acceptance_check`. Trong PowerShell, khuyến nghị đặt `$env:PYTHONUTF8 = "1"` để các công cụ Python khác cũng dùng UTF-8. Biến này là tùy chọn.

@@ -51,3 +51,5 @@ BE tạo optimization_run.run_id rồi dùng khóa này cho toàn bộ run_reque
 | schedules[].request_id, port_id, slot_start, power_kw | schedule.request_id, port_id, slot_start, power_kw. Chỉ lưu dòng công suất dương. BE cấp run_id, version và is_active. |
 
 **Nhãn SOC trên FE.** Response chỉ có expected_soc. Nếu request gửi đủ current_soc_pct và battery_capacity_kwh, engine tính min(100, current_soc_pct + 100 × allocated_kwh / battery_capacity_kwh), giả định hiệu suất nạp thêm 100%. Nếu thiếu một trong hai, hiển thị **“Đáp ứng nhu cầu (%)”**: min(100, 100 × (energy_delivered_kwh + allocated_kwh) / energy_needed_kwh); nhu cầu bằng 0 thì trả 100%. Giữ snapshot input để FE/BE biết công thức nào đã dùng.
+
+energy_needed_kwh phải được tính ở MỘT chỗ duy nhất và truyền nguyên giá trị sang AI, không làm tròn giữa chừng (nếu buộc phải làm tròn thì >= 4 chữ số thập phân và Backend dùng đúng giá trị đó cho cả lưu DB lẫn gửi AI).

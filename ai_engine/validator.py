@@ -10,7 +10,7 @@ from .baselines import solve_llf
 from .normalizer import NormProblem, Solution
 from .schemas import Algorithm, SolverStatus
 
-EPS = 1e-6
+from .settings import EPS_KW, is_leq, is_zero
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,10 +68,10 @@ def validate_solution(problem: NormProblem, solution: Solution) -> ValidationRep
         if not isfinite(kw):
             add("NONFINITE_POWER", "Công suất không hữu hạn.", rid, pid, t)
             continue
-        if kw < 0:
+        if not is_leq(0, kw, EPS_KW):
             add("NEGATIVE_POWER", "Công suất âm.", rid, pid, t)
             continue
-        if kw == 0:
+        if is_zero(kw, EPS_KW):
             continue
         check_pair(rid, pid, t)
         if solution.assign.get(rid) != pid:
@@ -85,7 +85,7 @@ def validate_solution(problem: NormProblem, solution: Solution) -> ValidationRep
         if type(t) is not int or not 0 <= t < problem.T:
             add("HORIZON", "Slot nằm ngoài horizon hoặc sai kiểu.", rid, pid, t)
             continue
-        if t < problem.first_mutable_slot and abs(kw - problem.previous_schedule.get((rid, pid, t), 0)) > EPS:
+        if t < problem.first_mutable_slot and not is_zero(kw - problem.previous_schedule.get((rid, pid, t), 0), EPS_KW):
             add("FROZEN_SLOT", "Slot đã bắt đầu và phải được giữ nguyên.", rid, pid, t)
         grid[t] += kw
         energy[rid] += kw * problem.dt
@@ -93,7 +93,7 @@ def validate_solution(problem: NormProblem, solution: Solution) -> ValidationRep
         if r:
             if not r.arrival_slot <= t < r.departure_slot:
                 add("PARKING_WINDOW", "Slot nằm ngoài thời gian đỗ xe.", rid, pid, t)
-            if kw > r.vehicle_max_kw + EPS:
+            if not is_leq(kw, r.vehicle_max_kw, EPS_KW):
                 add("VEHICLE_MAX", "Vượt công suất tối đa của xe.", rid, pid, t)
         if port:
             sid = port.station_id
@@ -101,27 +101,27 @@ def validate_solution(problem: NormProblem, solution: Solution) -> ValidationRep
             if t not in problem.stations[sid].open_slots:
                 add("STATION_CLOSED", "Trạm không mở cửa trọn slot.", rid, pid, t)
             if port.control_type == "ON_OFF_SWITCH":
-                if abs(kw - port.max_power_kw) > EPS:
+                if not is_zero(kw - port.max_power_kw, EPS_KW):
                     add("ON_OFF_POWER", "Cổng đóng/ngắt phải bật đúng công suất định mức.", rid, pid, t)
-            elif not port.min_power_kw - EPS <= kw <= port.max_power_kw + EPS:
+            elif not (is_leq(port.min_power_kw, kw, EPS_KW) and is_leq(kw, port.max_power_kw, EPS_KW)):
                 add("CONTINUOUS_POWER", "Công suất ngoài dải điều chỉnh của cổng.", rid, pid, t)
     for (rid, pid, t), kw in problem.previous_schedule.items():
-        if t < problem.first_mutable_slot and abs(solution.power.get((rid, pid, t), 0) - kw) > EPS:
+        if t < problem.first_mutable_slot and not is_zero(solution.power.get((rid, pid, t), 0) - kw, EPS_KW):
             add("FROZEN_SLOT", "Nghiệm bỏ hoặc sửa công suất đã khóa.", rid, pid, t)
     for t, total in grid.items():
-        if total > problem.grid_limit_kw + EPS:
+        if not is_leq(total, problem.grid_limit_kw, EPS_KW):
             add("GRID_CAP", f"Cụm dùng {total:g} kW, vượt trần {problem.grid_limit_kw:g} kW.", t=t)
     for (sid, t), total in stations.items():
-        if total > problem.stations[sid].station_power_kw + EPS:
+        if not is_leq(total, problem.stations[sid].station_power_kw, EPS_KW):
             add("STATION_CAP", f"Trạm {sid} dùng {total:g} kW, vượt trần trạm.", t=t)
     for rid, r in problem.requests.items():
-        if energy[rid] > r.remaining_kwh + EPS:
+        if not is_leq(energy[rid], r.remaining_kwh):
             add("OVERALLOCATED", "Điện năng cấp vượt nhu cầu còn lại.", rid)
         missing = solution.shortfall.get(rid)
-        if missing is None or not isfinite(missing) or missing < 0 or abs(energy[rid] + missing - r.remaining_kwh) > EPS:
+        if missing is None or not isfinite(missing) or not is_leq(0, missing) or not is_zero(energy[rid] + missing - r.remaining_kwh):
             add("ENERGY_BALANCE", "Điện đã cấp và phần thiếu khai báo không khớp nhu cầu.", rid)
     for rid, missing in solution.shortfall.items():
-        if rid not in problem.requests and (rid not in problem.skipped_results or missing != 0):
+        if rid not in problem.requests and (rid not in problem.skipped_results or not is_zero(missing)):
             add("UNEXPECTED_SHORTFALL", "Phần thiếu không thuộc yêu cầu cần giải.", rid)
     return ValidationReport(not errors, errors)
 
