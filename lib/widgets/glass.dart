@@ -230,6 +230,11 @@ class UserScaffold extends StatelessWidget {
               child: ListView(
                 padding: padding.copyWith(bottom: bottomSpace),
                 children: [
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: SimTag(text: 'Dữ liệu mô phỏng'),
+                  ),
+                  const SizedBox(height: 8),
                   for (var i = 0; i < children.length; i++) ...[
                     if (i > 0) SizedBox(height: gap),
                     children[i],

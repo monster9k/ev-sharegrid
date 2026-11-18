@@ -68,7 +68,19 @@ class WebShell extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                MutedText(eyebrow, weight: FontWeight.w600),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    MutedText(eyebrow, weight: FontWeight.w600),
+                    SimTag(
+                      text: route == '/admin/benchmark'
+                          ? 'Chưa có benchmark thật'
+                          : 'Dữ liệu mô phỏng',
+                    ),
+                  ],
+                ),
                 const Gap(4),
                 Text(title, style: AppFonts.display(size: wide ? 30 : 24)),
               ],
