@@ -434,6 +434,7 @@ def save_schedule_version(
     snapshot: Mapping[str, Any],
     ai_response: Mapping[str, Any] | OptimizeResponse,
     snapshot_time: datetime,
+    trigger_type: str = "NEW_BOOKING",
     new_request_ids: Iterable[int] = (),
 ) -> int:
     """Persist one AI run, its request KPIs, and only future schedule slots."""
@@ -536,13 +537,14 @@ def save_schedule_version(
         INSERT INTO optimization_run (
             cluster_id, job_id, algorithm, trigger_type, status, solve_ms,
             seed, slot_minutes, n_requests, input_json, kpi_json
-        ) VALUES (%s, %s, %s, 'NEW_BOOKING', %s, %s, 42, 15, %s, %s::jsonb, %s::jsonb)
+        ) VALUES (%s, %s, %s, %s, %s, %s, 42, 15, %s, %s::jsonb, %s::jsonb)
         RETURNING run_id
         """,
         (
             cluster_id,
             job_id,
             str(algorithm),
+            trigger_type,
             status,
             int(_decimal(response["solve_ms"]).quantize(Decimal("1"), rounding=ROUND_HALF_UP)),
             len(snapshot["requests"]),
@@ -674,6 +676,7 @@ def trigger_cluster_reoptimize(
     new_request_ids: Iterable[int] = (),
     trigger_event_id: int | None = None,
     snapshot_time: datetime | None = None,
+    trigger_type: str = "NEW_BOOKING",
 ) -> OptimizeResponse:
     """Serialize one cluster run, keeping a failed booking PENDING for retry."""
     connection = connect()
@@ -708,7 +711,12 @@ def trigger_cluster_reoptimize(
                 (
                     int(cluster_id),
                     job_id,
-                    _json({"job_id": job_id, "cluster_id": int(cluster_id), "input_version": input_version}),
+                    _json({
+                        "job_id": job_id,
+                        "cluster_id": int(cluster_id),
+                        "input_version": input_version,
+                        "trigger_type": trigger_type,
+                    }),
                     f"optimization:{cluster_id}:{input_version}",
                 ),
             )
@@ -731,6 +739,7 @@ def trigger_cluster_reoptimize(
                     snapshot=snapshot,
                     ai_response=result,
                     snapshot_time=now,
+                    trigger_type=trigger_type,
                     new_request_ids=new_request_ids,
                 )
                 cursor.execute(
