@@ -38,6 +38,17 @@ class ConnectorType(str, Enum):
     AC_HOME = "AC_HOME"
 
 
+def _canonical_connector(value: Any) -> Any:
+    """Map catalog connector spellings to the AI Engine's canonical names."""
+    return {
+        "CCS2_DC": ConnectorType.CCS2.value,
+        "AC_HOME_VINFAST_ADAPTER": ConnectorType.AC_HOME.value,
+    }.get(value, value) if isinstance(value, str) else value
+
+
+ConnectorInput = Annotated[ConnectorType, BeforeValidator(_canonical_connector)]
+
+
 class ControlType(str, Enum):
     """Khả năng điều khiển công suất của cổng."""
 
@@ -161,7 +172,7 @@ class Port(APIModel):
     """Thông số và trạng thái một cổng sạc."""
 
     port_id: Identifier = Field(description="Mã cổng duy nhất trong toàn cụm.")
-    connector_type: ConnectorType = Field(description="Chuẩn đầu nối của cổng.")
+    connector_type: ConnectorInput = Field(description="Chuẩn đầu nối của cổng.")
     control_type: ControlType = Field(description="Kiểu điều khiển công suất.")
     min_power_kw: NonNegativeFloat = Field(description="Công suất nhỏ nhất khi bật, kW.")
     max_power_kw: PositiveFloat = Field(description="Công suất định mức lớn nhất, kW.")
@@ -227,7 +238,7 @@ class ChargingRequestIn(APIModel):
 
     request_id: Identifier = Field(description="Mã yêu cầu sạc duy nhất trong snapshot.")
     station_id: Identifier = Field(description="Mã trạm xe đăng ký sạc.")
-    connector_type: ConnectorType = Field(description="Chuẩn đầu nối xe yêu cầu.")
+    connector_type: ConnectorInput = Field(description="Chuẩn đầu nối xe yêu cầu.")
     battery_capacity_kwh: PositiveFloat | None = Field(default=None, description="Dung lượng pin sử dụng được, kWh.")
     current_soc_pct: float | None = Field(default=None, ge=0, le=100, description="SOC tại thời điểm snapshot, phần trăm.")
     previous_port_id: Identifier | None = Field(default=None, description="Cổng trước khi Backend chuyển phiên sang cổng hiện tại.")
