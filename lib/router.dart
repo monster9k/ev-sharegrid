@@ -21,18 +21,7 @@ import 'screens/admin/admin_tariff_screen.dart';
 import 'screens/admin/admin_solver_screen.dart';
 import 'screens/admin/admin_benchmark_screen.dart';
 import 'screens/admin/admin_forecast_screen.dart';
-import 'theme.dart';
 import 'widgets/mobile_frame.dart';
-
-/// Màn tạm cho route chưa dựng.
-class PlaceholderScreen extends StatelessWidget {
-  const PlaceholderScreen(this.name, {super.key});
-  final String name;
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    body: Center(child: Text(name, style: AppFonts.display(size: 20))),
-  );
-}
 
 GoRoute _page(String path, Widget Function() build) => GoRoute(
   path: path,
