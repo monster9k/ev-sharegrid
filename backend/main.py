@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.routes.auth import router as auth_router
 from backend.routes.admin import router as admin_router
 from backend.routes.host import router as host_router
+from backend.routes.notifications import router as notifications_router
 from backend.routes.request_actions import router as request_actions_router
 from backend.routes.requests import router as requests_router
 
@@ -32,6 +33,7 @@ app.include_router(request_actions_router)
 app.include_router(auth_router)
 app.include_router(host_router)
 app.include_router(admin_router)
+app.include_router(notifications_router)
 
 @app.get("/")
 def root():
