@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 
 import 'screens/user/onboarding_screen.dart';
 import 'screens/user/login_screen.dart';
+import 'screens/user/home_screen.dart';
+import 'screens/user/garage_screen.dart';
 import 'theme.dart';
 import 'widgets/mobile_frame.dart';
 
@@ -28,8 +30,8 @@ final _userRoutes = <RouteBase>[
   _page('/onboarding/2', () => const OnboardingScreen(step: 2)),
   _page('/onboarding/3', () => const OnboardingScreen(step: 3)),
   _page('/login', () => const LoginScreen()),
-  _page('/home', () => const PlaceholderScreen('Trang chủ')),
-  _page('/garage', () => const PlaceholderScreen('Garage')),
+  _page('/home', () => const HomeScreen()),
+  _page('/garage', () => const GarageScreen()),
   _page('/map', () => const PlaceholderScreen('Bản đồ')),
   _page('/station', () => const PlaceholderScreen('Chi tiết trạm')),
   _page('/booking', () => const PlaceholderScreen('Đặt lịch')),
