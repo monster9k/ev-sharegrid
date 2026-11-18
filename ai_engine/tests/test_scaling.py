@@ -9,8 +9,9 @@ from typing import Any
 import pytest
 
 from ai_engine.normalizer import normalize
-from ai_engine.optimizer_milp import solve
+from ai_engine.optimizer_milp import solve, solve_lp, solve_milp
 from ai_engine.schemas import OptimizeRequest
+from ai_engine.settings import DECOMPOSE_THRESHOLD
 from ai_engine.validator import validate_solution
 
 
@@ -76,4 +77,16 @@ def test_61_requests_finish_without_fallback() -> None:
 
     assert solution.status in {"OPTIMAL", "FEASIBLE"}
     assert solution.status != "FALLBACK"
+    assert validate_solution(problem, solution).ok
+
+
+@pytest.mark.parametrize("solver", [solve, solve_lp, solve_milp])
+def test_large_problem_uses_llf_and_validator_accepts(solver) -> None:
+    """Trên ngưỡng, LLF giữ trần cụm mà không giải MILP nguyên khối."""
+    request = OptimizeRequest.model_validate(request_snapshot(DECOMPOSE_THRESHOLD + 1))
+    problem = normalize(request)
+    solution = solver(problem)
+
+    assert solution.algorithm == "LLF"
+    assert solution.status == "FALLBACK"
     assert validate_solution(problem, solution).ok
