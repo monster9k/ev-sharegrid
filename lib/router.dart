@@ -40,7 +40,17 @@ final _userRoutes = <RouteBase>[
   _page('/map', () => const MapScreen()),
   _page('/station', () => const StationDetailScreen()),
   _page('/booking', () => const BookingScreen()),
-  _page('/schedule', () => const ScheduleResultScreen()),
+  GoRoute(
+    path: '/schedule',
+    pageBuilder: (context, state) => NoTransitionPage(
+      key: state.pageKey,
+      child: ScheduleResultScreen(
+        bookingResult: state.extra is Map<String, dynamic>
+            ? state.extra as Map<String, dynamic>
+            : null,
+      ),
+    ),
+  ),
   _page('/sessions', () => const SessionsScreen()),
   _page('/notifications', () => const NotificationsScreen()),
   _page('/profile', () => const ProfileScreen()),
