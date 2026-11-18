@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'screens/user/onboarding_screen.dart';
+import 'screens/user/login_screen.dart';
 import 'theme.dart';
 import 'widgets/mobile_frame.dart';
 
@@ -22,10 +24,10 @@ GoRoute _page(String path, Widget Function() build) => GoRoute(
 
 /// Route app USER (bọc trong khung điện thoại khi mở trên màn rộng).
 final _userRoutes = <RouteBase>[
-  _page('/', () => const PlaceholderScreen('Onboarding 1')),
-  _page('/onboarding/2', () => const PlaceholderScreen('Onboarding 2')),
-  _page('/onboarding/3', () => const PlaceholderScreen('Onboarding 3')),
-  _page('/login', () => const PlaceholderScreen('Đăng nhập')),
+  _page('/', () => const OnboardingScreen(step: 1)),
+  _page('/onboarding/2', () => const OnboardingScreen(step: 2)),
+  _page('/onboarding/3', () => const OnboardingScreen(step: 3)),
+  _page('/login', () => const LoginScreen()),
   _page('/home', () => const PlaceholderScreen('Trang chủ')),
   _page('/garage', () => const PlaceholderScreen('Garage')),
   _page('/map', () => const PlaceholderScreen('Bản đồ')),
