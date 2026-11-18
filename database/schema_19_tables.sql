@@ -84,7 +84,7 @@ CREATE TABLE charging_station (
     service_fee_vnd NUMERIC(14,2) DEFAULT 0.00,
     price_override_vnd_kwh NUMERIC(14,2),
     max_session_minutes INTEGER DEFAULT 360,
-    rating NUMERIC(3,2) DEFAULT 5.00,
+    rating NUMERIC(3,2),
     listed_network VARCHAR(50),
     listed_port_count INTEGER,
     listed_max_port_kw NUMERIC(10,3),
@@ -106,6 +106,8 @@ CREATE TABLE port (
 );
 
 -- 7. tariff_window
+-- TODO: source_ref must contain the verified EVN decision number and date.
+-- Leave it NULL until the official document is supplied; do not infer an identifier.
 CREATE TABLE tariff_window (
     tariff_id BIGSERIAL PRIMARY KEY,
     cluster_id BIGINT REFERENCES grid_cluster(cluster_id),

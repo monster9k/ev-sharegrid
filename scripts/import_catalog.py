@@ -7,6 +7,7 @@ Từ dữ liệu khảo sát thực tế của Ánh:
 Tác giả: Thắng (thangchien1607@gmail.com)
 """
 
+import math
 import os
 import openpyxl
 import pandas as pd
@@ -30,6 +31,8 @@ CONNECTOR_ALIASES = {
     "AC_HOME_VINFAST_ADAPTER": "AC_HOME",
 }
 CONNECTOR_TYPES = {"CCS2", "Type2", "CHAdeMO", "AC_HOME"}
+# TODO: bổ sung số và ngày Quyết định EVN sau khi có văn bản được xác nhận.
+EVN_TARIFF_SOURCE_REF = None
 
 
 def normalize_connector_type(value):
@@ -106,8 +109,8 @@ def clean_and_extract_catalogs():
         name = str(st.get("name") or f"Trạm sạc #{station_id}")
         address = str(st.get("address") or "")
         province = str(st.get("province") or "Đà Nẵng")
-        lat = float(st["lat"]) if st.get("lat") is not None else None
-        lng = float(st["lng"]) if st.get("lng") is not None else None
+        lat = float(st["lat"]) if pd.notnull(st.get("lat")) else None
+        lng = float(st["lng"]) if pd.notnull(st.get("lng")) else None
 
         # Gán cụm lưới điện cluster_id dựa theo vị trí & tỉnh thành
         if province == "Hà Nội":
@@ -124,13 +127,26 @@ def clean_and_extract_catalogs():
             cluster_id = 1  # Mặc định cụm 1 cho các trạm vệ tinh
 
         # Trạng thái xác minh: 15 trạm có tọa độ GPS là ACTIVE & verified = True
-        has_coords = (lat is not None and lng is not None)
+        has_coords = (
+            lat is not None
+            and lng is not None
+            and math.isfinite(lat)
+            and math.isfinite(lng)
+        )
         status = "ACTIVE" if has_coords else "PENDING"
         verified = True if has_coords else False
 
         # Xác định trần công suất station_power_kw
-        listed_max_port_kw = float(st["listed_max_port_kw"]) if st.get("listed_max_port_kw") is not None else None
-        listed_port_count = int(st["listed_port_count"]) if st.get("listed_port_count") is not None else None
+        listed_max_port_kw = (
+            float(st["listed_max_port_kw"])
+            if pd.notnull(st.get("listed_max_port_kw"))
+            else None
+        )
+        listed_port_count = (
+            int(st["listed_port_count"])
+            if pd.notnull(st.get("listed_port_count"))
+            else None
+        )
         supported_type = st.get("supported_vehicle_type") or "ALL"
 
         if listed_max_port_kw is not None:
@@ -142,13 +158,32 @@ def clean_and_extract_catalogs():
                 station_power_kw = 120.0
             else:
                 station_power_kw = 44.0
+            station_power_note = (
+                f"station_power_kw={station_power_kw} suy ra từ "
+                f"listed_max_port_kw={listed_max_port_kw} kW theo ngưỡng công suất."
+            )
         elif supported_type == "MOTORBIKE" or "xe máy" in name.lower():
             station_power_kw = 22.0
             supported_type = "MOTORBIKE"
+            station_power_note = (
+                "station_power_kw=22 kW là giá trị suy ra theo loại MOTORBIKE "
+                "do thiếu listed_max_port_kw."
+            )
         else:
             station_power_kw = 60.0
+            station_power_note = (
+                "station_power_kw=60 kW là giả định mặc định do thiếu listed_max_port_kw."
+            )
 
         service_fee = 10000.00 if (listed_max_port_kw and listed_max_port_kw >= 60) else 5000.00
+        raw_qa_notes = st.get("qa_notes")
+        qa_notes = "" if pd.isna(raw_qa_notes) else str(raw_qa_notes).strip()
+        derived_note = (
+            f"derived_fields: cluster_id từ province/address; owner_id=2 là HOST demo; "
+            f"status/verified từ GPS; open_time/close_time/is_24h là giả định; "
+            f"{station_power_note} service_fee_vnd={service_fee:.0f} suy ra từ listed_max_port_kw."
+        )
+        qa_notes = " ".join(part for part in (qa_notes, derived_note) if part)
 
         cleaned_stations.append({
             "station_id": station_id,
@@ -175,11 +210,11 @@ def clean_and_extract_catalogs():
             "service_fee_vnd": service_fee,
             "price_override_vnd_kwh": None,
             "max_session_minutes": 360,
-            "rating": 4.90 if verified else 5.00,
+            "rating": None,
             "listed_network": st.get("listed_network") or "VinFast",
             "listed_port_count": listed_port_count,
             "listed_max_port_kw": listed_max_port_kw,
-            "qa_notes": st.get("qa_notes") or ""
+            "qa_notes": qa_notes
         })
 
         # Tạo cấu hình cổng sạc vật lý (port) cho từng trạm
@@ -252,6 +287,24 @@ def clean_and_extract_catalogs():
     df_stations = pd.DataFrame(cleaned_stations)
     df_stations.to_csv(os.path.join(DATA_DIR, "charging_station_cleaned.csv"), index=False, encoding="utf-8")
     print(f"✅ Đã làm sạch & xuất 107 trạm sạc thực tế -> {os.path.join(DATA_DIR, 'charging_station_cleaned.csv')}")
+    missing_coordinates = df_stations[
+        df_stations[["lat", "lng"]].isna().any(axis=1)
+    ][["station_id", "name", "province", "address", "lat", "lng"]].copy()
+    missing_coordinates["missing_fields"] = missing_coordinates.apply(
+        lambda row: ",".join(
+            field for field in ("lat", "lng") if pd.isna(row[field])
+        ),
+        axis=1,
+    )
+    missing_coordinates = missing_coordinates[
+        ["station_id", "name", "province", "address", "missing_fields"]
+    ]
+    missing_coordinates_path = os.path.join(DATA_DIR, "stations_missing_coordinates.csv")
+    missing_coordinates.to_csv(missing_coordinates_path, index=False, encoding="utf-8")
+    print(
+        f"ℹ️ {len(missing_coordinates)} trạm thiếu tọa độ; danh sách: "
+        f"{missing_coordinates_path}"
+    )
 
     df_ports = pd.DataFrame(cleaned_ports)
     df_ports.to_csv(os.path.join(DATA_DIR, "port_cleaned.csv"), index=False, encoding="utf-8")
@@ -279,7 +332,7 @@ def clean_and_extract_catalogs():
                 "start_time": start,
                 "end_time": end,
                 "price_vnd_kwh": price,
-                "source_ref": "EVN_2026_TOU"
+                "source_ref": EVN_TARIFF_SOURCE_REF
             })
             t_id += 1
             tariffs.append({
@@ -290,7 +343,7 @@ def clean_and_extract_catalogs():
                 "start_time": start,
                 "end_time": end,
                 "price_vnd_kwh": price,
-                "source_ref": "EVN_2026_TOU"
+                "source_ref": EVN_TARIFF_SOURCE_REF
             })
             t_id += 1
 
@@ -359,7 +412,12 @@ def seed_postgres_database(df_models, df_stations, df_ports, df_tariff):
 
         # 4. Nạp charging_station (107 trạm thực tế)
         for _, s in df_stations.iterrows():
-            has_coords = pd.notnull(s["lat"]) and pd.notnull(s["lng"])
+            has_coords = (
+                pd.notnull(s["lat"])
+                and pd.notnull(s["lng"])
+                and math.isfinite(float(s["lat"]))
+                and math.isfinite(float(s["lng"]))
+            )
             loc_sql = "ST_SetSRID(ST_MakePoint(%s, %s), 4326)" if has_coords else "NULL"
 
             sql = f"""
@@ -377,7 +435,9 @@ def seed_postgres_database(df_models, df_stations, df_ports, df_tariff):
                 ON CONFLICT (station_id) DO UPDATE SET
                     status = EXCLUDED.status,
                     verified = EXCLUDED.verified,
-                    station_power_kw = EXCLUDED.station_power_kw;
+                    station_power_kw = EXCLUDED.station_power_kw,
+                    rating = EXCLUDED.rating,
+                    qa_notes = EXCLUDED.qa_notes;
             """
             params = [
                 int(s["station_id"]), int(s["cluster_id"]), int(s["owner_id"]), s["name"], s["address"], s["province"], s["area_label"],
@@ -389,7 +449,8 @@ def seed_postgres_database(df_models, df_stations, df_ports, df_tariff):
                 params.extend([float(s["lng"]), float(s["lat"])])
             params.extend([
                 s["open_time"], s["close_time"], bool(s["is_24h"]), bool(s["verified"]),
-                float(s["station_power_kw"]), float(s["service_fee_vnd"]), float(s["rating"]),
+                float(s["station_power_kw"]), float(s["service_fee_vnd"]),
+                float(s["rating"]) if pd.notnull(s["rating"]) else None,
                 s["listed_network"],
                 int(s["listed_port_count"]) if pd.notnull(s["listed_port_count"]) else None,
                 float(s["listed_max_port_kw"]) if pd.notnull(s["listed_max_port_kw"]) else None,
