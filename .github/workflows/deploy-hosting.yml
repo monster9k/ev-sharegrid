@@ -16,6 +16,8 @@ concurrency:
 jobs:
   deploy:
     name: Build web & deploy
+    # Bỏ qua (không báo lỗi) khi repo chưa cấu hình deploy tự động.
+    if: ${{ vars.FIREBASE_PROJECT_ID != '' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
