@@ -9,7 +9,14 @@ from enum import Enum
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from .settings import DEFAULT_TIME_BUDGET_MS, EPS_KW, is_leq, is_zero
+from .settings import (
+    DEFAULT_TIME_BUDGET_MS,
+    LARGE_SCENARIO_TIME_BUDGET_MS,
+    SMALL_SCENARIO_REQUEST_LIMIT,
+    EPS_KW,
+    is_leq,
+    is_zero,
+)
 
 from pydantic import (
     AfterValidator, AliasChoices,
@@ -286,6 +293,24 @@ class OptimizeRequest(APIModel):
     stations: list[Station] = Field(description="Danh sách trạm và cổng thuộc cụm.")
     tariffs: list[Tariff] = Field(description="Các khoảng giá điện không chồng lấn; phủ thời gian cần tính phí.")
     requests: list[ChargingRequestIn] = Field(description="Các yêu cầu sạc trong snapshot, mã không trùng.")
+
+    @model_validator(mode="before")
+    @classmethod
+    def apply_scale_time_budget(cls, value: Any) -> Any:
+        """Dùng mặc định 10 giây cho snapshot nhỏ và chặn ngân sách mặc định ở tải lớn."""
+        if not isinstance(value, dict):
+            return value
+        payload = dict(value)
+        requests = payload.get("requests")
+        count = len(requests) if isinstance(requests, list) else 0
+        if count >= SMALL_SCENARIO_REQUEST_LIMIT:
+            if "time_budget_ms" not in payload:
+                payload["time_budget_ms"] = LARGE_SCENARIO_TIME_BUDGET_MS
+            else:
+                budget = payload["time_budget_ms"]
+                if isinstance(budget, int) and not isinstance(budget, bool):
+                    payload["time_budget_ms"] = min(budget, LARGE_SCENARIO_TIME_BUDGET_MS)
+        return payload
 
     @model_validator(mode="after")
     def validate_references(self) -> OptimizeRequest:
