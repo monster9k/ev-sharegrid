@@ -6,7 +6,7 @@ from itertools import groupby
 
 from .normalizer import STEP, NormProblem, NormRequest, Solution
 from .schemas import RequestResult
-from .validator import EPS
+from .settings import EPS_KW, is_leq, is_zero, snap
 
 
 @dataclass(slots=True)
@@ -22,7 +22,7 @@ def _index(problem: NormProblem, solution: Solution) -> _Usage:
     """Lập chỉ mục lịch thưa đã qua validator."""
     usage = _Usage()
     for (rid, pid, t), kw in solution.power.items():
-        if kw > 0:
+        if not is_leq(kw, 0, EPS_KW):
             usage.rows[rid][t] = kw
             usage.occupied.add((pid, t))
             usage.grid[t] += kw
@@ -57,25 +57,25 @@ def _reason(p: NormProblem, r: NormRequest, use: _Usage, slots: range, pid: str 
         return "không còn slot 15 phút trọn vẹn trong giờ đỗ và giờ mở cửa của kỳ lập lịch"
     limit = min(r.vehicle_max_kw, p.ports[pid].max_power_kw) if pid else r.feasible_max_kw
     candidates = (pid,) if pid else r.candidate_ports
-    compatible = [p.ports[port] for port in candidates if p.ports[port].min_power_kw <= r.vehicle_max_kw]
+    compatible = [p.ports[port] for port in candidates if is_leq(p.ports[port].min_power_kw, r.vehicle_max_kw, EPS_KW)]
     if not compatible:
         return f"công suất tối thiểu của cổng vượt mức xe nhận được ({_number(r.vehicle_max_kw)} kW)"
     quantum = min(port.min_power_kw for port in compatible) * p.dt
     gap = r.remaining_kwh - sum(use.rows[r.request_id].values()) * p.dt
-    if not use.rows[r.request_id] and gap + EPS < quantum:
+    if not use.rows[r.request_id] and not is_leq(quantum, gap):
         return f"một slot cần ít nhất {_number(quantum)} kWh, vượt nhu cầu còn lại"
     if not use.rows[r.request_id] and all((port.port_id,t) in use.occupied for port in compatible for t in slots):
         return "các cổng tương thích đều đang cấp điện cho xe khác trong toàn bộ thời gian khả dụng"
     local = p.stations[r.station_id].station_power_kw
     for label, cap, loads in (("cụm", p.grid_limit_kw, use.grid), ("trạm", local, None)):
         for t in slots:
-            if use.rows[r.request_id].get(t, 0) >= limit - EPS:
+            if is_leq(limit, use.rows[r.request_id].get(t, 0), EPS_KW):
                 continue
             load = loads.get(t, 0) if loads is not None else use.station.get((r.station_id, t), 0)
-            if load >= cap - EPS:
+            if is_leq(cap, load, EPS_KW):
                 at = p.t0_time + t*STEP
                 return f"{label} chạm trần {_number(cap)} kW lúc {at:%H:%M} trước giờ rời"
-    if r.remaining_kwh > len(slots)*p.dt*limit + EPS:
+    if not is_leq(r.remaining_kwh, len(slots)*p.dt*limit):
         return f"chỉ có {len(slots)} slot có thể sạc trong kỳ với công suất tối đa {_number(limit)} kW"
     return "lịch hiện tại chưa phân bổ đủ điện trong các slot khả dụng"
 
@@ -85,16 +85,16 @@ def _result(p: NormProblem, sol: Solution, rid: str, use: _Usage) -> RequestResu
     src = p.source_requests.get(rid)
     delivered = src.energy_delivered_kwh if src else 0.0
     rows = use.rows.get(rid, {})
-    allocated = sum(rows.values())*p.dt
+    allocated = snap(sum(rows.values())*p.dt)
     cost = sum(kw*p.dt*p.price[t] for t, kw in rows.items())
     if rid in p.skipped_results:
         allocated, missing = p.skipped_results[rid]
         text = (f"Xe đã nạp {_number(delivered)} kWh và không cần sạc thêm."
-                if src and delivered >= src.energy_needed_kwh else
+                if src and is_leq(src.energy_needed_kwh, delivered) else
                 f"Phiên {src.status.value if src else rid} đã đóng, lịch cấp thêm 0 kWh.")
     else:
         r = p.requests[rid]
-        missing = max(0.0, r.remaining_kwh - allocated)
+        missing = snap(sol.shortfall.get(rid, max(0.0, r.remaining_kwh - allocated)))
         pid = sol.assign.get(rid)
         slots = range(max(r.active_slots.start, p.first_mutable_slot), min(p.T, r.active_slots.stop))
         if rows:
@@ -112,9 +112,9 @@ def _result(p: NormProblem, sol: Solution, rid: str, use: _Usage) -> RequestResu
                 text += f", giá {'thấp nhất ' if variable else ''}{_number(cheapest)}đ/kWh"
         else:
             text = "Xe được cấp 0 kWh trong kỳ này"
-        if delivered:
+        if not is_zero(delivered):
             text += f", giữ nguyên {_number(delivered)} kWh đã nạp"
-        if missing > EPS:
+        if not is_zero(missing):
             text += f". Còn thiếu {_number(missing)} kWh; {_reason(p, r, use, slots, pid)}."
         else:
             text += f", đủ nhu cầu trước giờ rời {r.departure_time:%H:%M}."
@@ -122,7 +122,7 @@ def _result(p: NormProblem, sol: Solution, rid: str, use: _Usage) -> RequestResu
         soc = min(100.0, src.current_soc_pct + 100 * (allocated/src.battery_capacity_kwh))
     else:
         need = src.energy_needed_kwh if src else (p.requests[rid].remaining_kwh if rid in p.requests else 0)
-        soc = min(100.0, 100*((allocated + delivered)/need)) if need else 100.0
+        soc = min(100.0, 100*((allocated + delivered)/need)) if not is_zero(need) else 100.0
     return RequestResult(request_id=rid, allocated_kwh=allocated, shortfall_kwh=missing,
                          expected_soc=soc, estimated_cost_vnd=cost, explanation=text)
 

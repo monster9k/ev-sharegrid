@@ -9,7 +9,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from .settings import DEFAULT_TIME_BUDGET_MS
+from .settings import DEFAULT_TIME_BUDGET_MS, EPS_KW, is_leq, is_zero
 
 from pydantic import (
     AfterValidator, AliasChoices,
@@ -163,10 +163,12 @@ class Port(APIModel):
     @model_validator(mode="after")
     def validate_power(self) -> Port:
         """Kiểm tra miền công suất và quy tắc cổng đóng/ngắt."""
-        if self.min_power_kw > self.max_power_kw:
+        if not is_leq(self.min_power_kw, self.max_power_kw, EPS_KW):
             raise ValueError("min_power_kw phải <= max_power_kw")
-        if self.control_type == ControlType.ON_OFF_SWITCH and self.min_power_kw != self.max_power_kw:
+        if self.control_type == ControlType.ON_OFF_SWITCH and not is_zero(self.min_power_kw - self.max_power_kw, EPS_KW):
             raise ValueError("ON_OFF_SWITCH yêu cầu min_power_kw == max_power_kw")
+        self.min_power_kw = (self.max_power_kw if self.control_type == ControlType.ON_OFF_SWITCH
+                             else min(self.min_power_kw, self.max_power_kw))
         return self
 
 
@@ -458,4 +460,7 @@ def export_json_schemas(destination: Path | None = None) -> Path:
 
 
 if __name__ == "__main__":
+    from .console import configure_console
+
+    configure_console()
     export_json_schemas()

@@ -10,13 +10,14 @@ from time import perf_counter
 from typing import Callable
 
 from .normalizer import NormProblem, NormRequest, Solution
+from .settings import EPS_KW, is_leq, snap
 from .schemas import Algorithm, ControlType, KPI, SolverStatus
 
 
 def _fill(bounds: list[tuple[float, float]], budget: float) -> list[float]:
     """Nâng mực công suất chung giữa các mức sàn và trần đã nhận."""
     maxima = [hi for _, hi in bounds]
-    if sum(maxima) <= budget:
+    if is_leq(sum(maxima), budget, EPS_KW):
         return maxima
     # Tại mỗi điểm gãy, số xe còn có thể tăng công suất thay đổi.
     events = sorted((level, change) for lo, hi in bounds
@@ -26,8 +27,8 @@ def _fill(bounds: list[tuple[float, float]], budget: float) -> list[float]:
     slope = 0
     for point, change in events:
         step = (point - level) * slope
-        if slope and step >= left:
-            level += left / slope
+        if slope and is_leq(left, step, EPS_KW):
+            level += min(left, step) / slope
             break
         left -= step
         level = point
@@ -114,7 +115,7 @@ def _solve(p: NormProblem, algorithm: Algorithm) -> Solution:
             active = []
             for r in available:
                 check()
-                if t in r.active_slots and r.request_id not in blocked and remaining[r.request_id] > 0:
+                if t in r.active_slots and r.request_id not in blocked and not is_leq(remaining[r.request_id], 0):
                     active.append(r)
             if algorithm == Algorithm.LLF:
                 # Trừ t*dt giống nhau cho mọi xe nên thứ tự slack được bảo toàn.
@@ -131,7 +132,7 @@ def _solve(p: NormProblem, algorithm: Algorithm) -> Solution:
                 sid, rid = r.station_id, r.request_id
                 local = station_left.get(sid, inf if asap else p.stations[sid].station_power_kw)
                 cap = min(local, grid, remaining[rid] / p.dt, r.vehicle_max_kw)
-                if cap <= 0:
+                if is_leq(cap, 0, EPS_KW):
                     continue
                 fixed = sol.assign.get(rid)
                 group = id(r.candidate_ports)
@@ -156,8 +157,9 @@ def _solve(p: NormProblem, algorithm: Algorithm) -> Solution:
                     spec = p.ports[port]
                     hi = min(cap, spec.max_power_kw)
                     lo = spec.max_power_kw if spec.control_type == ControlType.ON_OFF_SWITCH else spec.min_power_kw
-                    if hi < lo:
+                    if not is_leq(lo, hi, EPS_KW):
                         continue
+                    hi = max(lo, hi)
                     used = lo if equal else hi
                     if equal:
                         pending[sid].append((r, port, lo, hi))
@@ -182,19 +184,19 @@ def _solve(p: NormProblem, algorithm: Algorithm) -> Solution:
                     bounds.extend((entry[2], limit) for entry, limit in zip(entries, limits))
                 for (r, port, _, _), kw in zip(rows, _fill(bounds, p.grid_limit_kw)):
                     check()
-                    if kw > 0:
+                    if not is_leq(kw, 0, EPS_KW):
                         record(r, port, t, kw)
         check()
     except TimeoutError:
         sol.status = SolverStatus.FALLBACK
-    sol.shortfall = {rid: remaining.get(rid, r.remaining_kwh) for rid, r in p.requests.items()}
+    sol.shortfall = {rid: snap(remaining.get(rid, r.remaining_kwh)) for rid, r in p.requests.items()}
     return sol
 
 
 def solve_llf(problem: NormProblem) -> Solution:
     """Ưu tiên xe có thời gian dự phòng nhỏ nhất tại từng slot."""
     frozen = {k:v for k,v in problem.previous_schedule.items()
-              if k[2] < problem.first_mutable_slot and v > 0}
+              if k[2] < problem.first_mutable_slot and not is_leq(v, 0, EPS_KW)}
     if not frozen:
         return _solve(problem, Algorithm.LLF)
     reqs = problem.requests.copy()
@@ -244,6 +246,7 @@ def compute_kpi(problem: NormProblem, solution: Solution) -> KPI:
     grid: dict[int, float] = defaultdict(float)
     cost = 0.0
     for (rid, port, t), kw in solution.power.items():
+        kw = snap(kw, EPS_KW)
         energy = kw * problem.dt
         allocated[rid] += energy
         cost += energy * problem.price[t]
@@ -253,13 +256,13 @@ def compute_kpi(problem: NormProblem, solution: Solution) -> KPI:
     missing = []
     for rid, r in problem.requests.items():
         fractions.append(min(1.0, allocated[rid] / r.remaining_kwh))
-        missing.append(max(0.0, r.remaining_kwh - allocated[rid]))
+        missing.append(snap(solution.shortfall.get(rid, max(0.0, r.remaining_kwh - allocated[rid]))))
     n = len(fractions)
     squares = fsum(x*x for x in fractions)
     fairness = min(1.0, fsum(fractions)**2 / (n*squares)) if squares else float(not n)
-    violations = sum(v > problem.grid_limit_kw + 1e-9 for v in grid.values())
-    violations += sum(v > problem.stations[s].station_power_kw + 1e-9 for (s, _), v in stations.items())
+    violations = sum(not is_leq(v, problem.grid_limit_kw, EPS_KW) for v in grid.values())
+    violations += sum(not is_leq(v, problem.stations[s].station_power_kw, EPS_KW) for (s, _), v in stations.items())
     return KPI(total_shortfall_kwh=fsum(missing), total_cost_vnd=cost,
                peak_power_kw=max(grid.values(), default=0.0), fairness=fairness,
-               on_time_rate=sum(x <= 1e-9 for x in missing) / n if n else 1.0,
+               on_time_rate=sum(is_leq(x, 0) for x in missing) / n if n else 1.0,
                cap_violations=violations)
