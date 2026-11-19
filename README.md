@@ -90,7 +90,32 @@ Có thể tái sinh các CSV kịch bản tổng hợp với seed cố định 4
 python scripts/generate_100k_data.py --scenarios-only
 ```
 
-Kịch bản giữ nguyên số dòng yêu cầu. Với tổng giới hạn cụm hiện khai báo là 850 kW, 24 giờ tương ứng 20.400 kWh; kịch bản 100 request đạt 2.916,946 kWh (14,2987549%), còn các mốc 500, 1.000, 2.500, 5.000 và 10.000 đạt 16.320 kWh (80%). Đây là tải đầu vào tổng hợp, không phải kết quả benchmark của solver.
+Mỗi request được sinh từ SOC đến, SOC mục tiêu, dung lượng pin và hiệu suất sạc; năng lượng nằm trong dải 15–40 kWh. Generator chỉ ghép xe với trạm có cổng `ACTIVE` cùng đầu nối và dừng nếu tìm thấy sai khớp. Chạy lại benchmark LLF riêng cho bài thông lượng 10.000 request bằng:
+
+```sh
+python scripts/measure_llf_throughput.py
+```
+
+Các CSV được sinh bằng seed 42. Hiện chỉ cụm 1 (500 kW) và cụm 2 (350 kW) có trạm ACTIVE; tổng khả năng cấp 24 giờ là 20.400 kWh. Số liệu đọc từ các file CSV hiện tại:
+
+| Requests | Nhãn trong CSV | Tổng nhu cầu (kWh) | Tỷ lệ tải 24h | TB/xe (kWh) | Min/xe | Max/xe | Sai đầu nối |
+|---:|---|---:|---:|---:|---:|---:|---:|
+| 100 | `CAPACITY_LIMITED_SAMPLE` | 2.472,3167 | 12,1192% | 24,7232 | 15,1339 | 39,8866 | 0 |
+| 500 | `LOAD_CONTROLLED_QUALITY` | 16.319,9998 | 80,0000% | 32,6400 | 16,5614 | 39,9870 | 0 |
+| 1.000 | `LOAD_CONTROLLED_QUALITY` | 16.319,9993 | 80,0000% | 16,3200 | 15,0005 | 18,4094 | 0 |
+| 2.500 | `THROUGHPUT_OVERLOAD` | 61.459,9220 | 301,2741% | 24,5840 | 15,0041 | 39,9919 | 0 |
+| 5.000 | `THROUGHPUT_OVERLOAD` | 122.688,3395 | 601,4134% | 24,5377 | 15,0013 | 39,9671 | 0 |
+| 10.000 | `LLF_THROUGHPUT_ONLY` | 245.363,5609 | 1.202,7626% | 24,5364 | 15,0005 | 39,9884 | 0 |
+
+Mốc 100 không thể đạt tải 60% với 100 request: ngay cả mức trần 40 kWh mỗi xe chỉ tương đương 4.000/20.400 kWh (19,6078%); còn giới hạn pin/SOC của mẫu hiện sinh đạt tối đa 3.477,8 kWh. Các mốc 500 và 1.000 được hiệu chỉnh theo từng xe trong giới hạn pin để mỗi cụm nằm ở 80%. Các mốc 2.500 trở lên là tải quá trần; không dùng để kết luận chất lượng điều phối.
+
+Mốc 10.000 được gắn `LLF_THROUGHPUT_ONLY` trong mọi dòng CSV. Đo thật bằng AI Engine `POST /ai/benchmark`, chỉ chạy LLF với biểu giá cố định 2.000 đ/kWh, trên máy Windows/Python 3.12 ngày 19/11/2026; kết quả lưu tại `data/scenario_10000_llf_measurement.json`:
+
+| Thuật toán | Status | solve_ms | Đúng hạn | Thiếu điện (kWh) | Đỉnh (kW) | Số lần vượt trần |
+|---|---|---:|---:|---:|---:|---:|
+| LLF | FEASIBLE | 823,9341000007698 | 0,0174 | 224.282,57789999997 | 850,0000000000002 | 0 |
+
+Thời gian giải phụ thuộc máy; AI Engine ghi nhận 0 lần vượt trần trong lịch LLF, trong khi đầu vào yêu cầu 245.363,5609 kWh (1.202,7626% khả năng cấp 24 giờ). Đây là bài test thông lượng LLF, không phải phép đo chất lượng điều phối; tỷ lệ đúng hạn thấp và thiếu điện lớn là hệ quả của tải đầu vào quá mức.
 
 ## Đóng góp vào liên kết WEFE (trụ cột Năng lượng xanh và Giao thông thông minh)
 

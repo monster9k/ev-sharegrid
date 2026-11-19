@@ -26,12 +26,11 @@ DB_CONFIG = {
 
 SEED = 42
 TARGET_CLUSTER_UTILIZATION = 0.80
-PEAK_WINDOW_MAX_LOAD_RATIO = 0.90
-PEAK_WINDOW_START_HOUR = 17
-PEAK_WINDOW_END_HOUR = 20
-PEAK_WINDOW_HOURS = PEAK_WINDOW_END_HOUR - PEAK_WINDOW_START_HOUR
 CHARGING_EFFICIENCY = 0.90
+MIN_REQUEST_ENERGY_KWH = 15.0
+MAX_REQUEST_ENERGY_KWH = 40.0
 SCENARIOS = [100, 500, 1000, 2500, 5000, 10000]
+QUALITY_CONTROLLED_SCENARIOS = {500, 1000}
 BEHAVIOR_RATIOS = {"short_stay": 0.40, "workplace": 0.35, "overnight": 0.25}
 
 np.random.seed(SEED)
@@ -49,24 +48,40 @@ def allocate_counts(total, weights):
     return counts
 
 
-def distribute_energy(target_kwh, max_energy_by_request):
-    """Distribute energy up to each request's battery-derived physical limit."""
-    capacities = np.floor(np.asarray(max_energy_by_request, dtype=float) * 10000) / 10000
-    total_capacity = float(capacities.sum())
-    allocated_total = min(max(float(target_kwh), 0.0), total_capacity)
-    if allocated_total <= 0 or total_capacity <= 0:
-        return np.zeros(len(capacities), dtype=float)
+def fit_cluster_energy_budget(requests, target_kwh):
+    """Scale randomized per-vehicle demands within SOC-derived 15–40 kWh bounds."""
+    lower = np.full(len(requests), MIN_REQUEST_ENERGY_KWH, dtype=float)
+    upper = np.asarray([row["_max_energy_kwh"] for row in requests], dtype=float)
+    sampled = np.asarray([row["_sampled_energy_kwh"] for row in requests], dtype=float)
+    minimum = float(lower.sum())
+    maximum = float(upper.sum())
+    if target_kwh < minimum or target_kwh > maximum:
+        raise ValueError(
+            f"Không thể đạt tải mục tiêu {target_kwh:.1f} kWh với {len(requests)} xe "
+            f"trong dải {MIN_REQUEST_ENERGY_KWH:g}–{MAX_REQUEST_ENERGY_KWH:g} kWh; "
+            f"giới hạn khả thi là {minimum:.1f}–{maximum:.1f} kWh."
+        )
 
-    values = np.floor((allocated_total * capacities / total_capacity) * 10000) / 10000
-    remaining = round(allocated_total - float(values.sum()), 4)
-    for index in np.argsort(-capacities):
-        room = round(float(capacities[index] - values[index]), 4)
-        addition = min(room, remaining)
-        values[index] = round(float(values[index] + addition), 4)
-        remaining = round(remaining - addition, 4)
-        if remaining <= 0:
-            break
-    return values
+    sampled_total = float(sampled.sum())
+    if target_kwh <= sampled_total:
+        sampled_room = sampled - lower
+        factor = (target_kwh - minimum) / max(float(sampled_room.sum()), 1e-12)
+        values = lower + sampled_room * factor
+    else:
+        upper_room = upper - sampled
+        factor = (maximum - target_kwh) / max(float(upper_room.sum()), 1e-12)
+        values = upper - upper_room * factor
+    return np.round(values, 4)
+
+
+def scenario_type(request_count):
+    if request_count == 100:
+        return "CAPACITY_LIMITED_SAMPLE"
+    if request_count in QUALITY_CONTROLLED_SCENARIOS:
+        return "LOAD_CONTROLLED_QUALITY"
+    if request_count == 10000:
+        return "LLF_THROUGHPUT_ONLY"
+    return "THROUGHPUT_OVERLOAD"
 
 
 def _profile_arrival_and_duration(profile, rng):
@@ -180,19 +195,20 @@ def generate_scenario_files():
             compatible_station_ids = station_pools[cluster_id][connector]
             station_id = int(rng.choice(compatible_station_ids))
             arrival, departure, dwell_hours = _profile_arrival_and_duration(profile, rng)
-            preferred_soc_now = float(rng.integers(10, 40))
-            preferred_soc_target = float(rng.integers(75, 95))
             battery_kwh = float(model["battery_kwh"])
-            preferred_energy_kwh = round(
-                ((preferred_soc_target - preferred_soc_now) / 100.0)
-                * battery_kwh
-                / CHARGING_EFFICIENCY,
-                4,
+            soc_now = float(rng.uniform(5.0, 20.0))
+            max_energy_kwh = min(
+                MAX_REQUEST_ENERGY_KWH,
+                battery_kwh * (100.0 - soc_now) / 100.0 / CHARGING_EFFICIENCY
+                - 0.001,
             )
-            # Conservatively charge the full requested energy against the peak
-            # budget when a request arrives during 17:00–20:00.
-            arrives_in_peak = (
-                PEAK_WINDOW_START_HOUR <= arrival.hour < PEAK_WINDOW_END_HOUR
+            if max_energy_kwh < MIN_REQUEST_ENERGY_KWH:
+                raise ValueError(
+                    f"Xe {vehicle['vehicle_id']} không thể xin ít nhất "
+                    f"{MIN_REQUEST_ENERGY_KWH:g} kWh từ SOC {soc_now:.2f}%"
+                )
+            sampled_energy_kwh = float(
+                rng.uniform(MIN_REQUEST_ENERGY_KWH, max_energy_kwh)
             )
             requests.append({
                 "request_id": index,
@@ -203,96 +219,64 @@ def generate_scenario_files():
                 "scenario_id": scenario_id,
                 "arrival_time": arrival.isoformat(timespec="seconds"),
                 "departure_time": departure.isoformat(timespec="seconds"),
-                "soc_now": preferred_soc_now,
-                "soc_target": preferred_soc_target,
+                "soc_now": None,
+                "soc_target": None,
                 "battery_kwh_snapshot": battery_kwh,
                 "max_kw_snapshot": float(model["max_kw"]),
                 "connector_type": connector,
                 "energy_needed_kwh": None,
                 "status": "PENDING",
-                "_behavior": profile,
-                "_dwell_hours": dwell_hours,
-                "_arrives_in_peak": arrives_in_peak,
-                "_preferred_energy_kwh": preferred_energy_kwh,
-                "_preferred_soc_now": preferred_soc_now,
+                "behavior_profile": profile,
+                "scenario_type": scenario_type(request_count),
+                "_soc_now": soc_now,
+                "_max_energy_kwh": max_energy_kwh,
+                "_sampled_energy_kwh": sampled_energy_kwh,
             })
 
         physical_max_by_cluster = {}
         for cluster_id in active_clusters:
             cluster_rows = [row for row in requests if row["cluster_id"] == cluster_id]
-            peak_rows = [row for row in cluster_rows if row["_arrives_in_peak"]]
-            off_peak_rows = [row for row in cluster_rows if not row["_arrives_in_peak"]]
-
-            physical_peak_caps = np.floor(
-                np.asarray([row["battery_kwh_snapshot"] for row in peak_rows])
-                / CHARGING_EFFICIENCY * 10000
-            ) / 10000
-            physical_off_peak_caps = np.floor(
-                np.asarray([row["battery_kwh_snapshot"] for row in off_peak_rows])
-                / CHARGING_EFFICIENCY * 10000
-            ) / 10000
-            grid_limit_kw = limits_kw[cluster_id]
-            target_kwh = (
-                TARGET_CLUSTER_UTILIZATION * grid_limit_kw * 24.0
+            physical_max_by_cluster[cluster_id] = sum(
+                row["_max_energy_kwh"] for row in cluster_rows
             )
-            peak_budget_kwh = (
-                PEAK_WINDOW_MAX_LOAD_RATIO * grid_limit_kw * PEAK_WINDOW_HOURS - 0.1
-            )
-            physical_max_kwh = (
-                min(float(physical_peak_caps.sum()), peak_budget_kwh)
-                + float(physical_off_peak_caps.sum())
-            )
-            physical_max_by_cluster[cluster_id] = physical_max_kwh
-            if physical_max_kwh < target_kwh:
-                # Preserve ordinary 10–39% to 75–94% SOC requests when this
-                # fixed row count cannot meet the utilization target even at
-                # full battery capacity.
-                peak_caps = np.asarray(
-                    [row["_preferred_energy_kwh"] for row in peak_rows], dtype=float
+            if request_count in QUALITY_CONTROLLED_SCENARIOS:
+                target_kwh = (
+                    TARGET_CLUSTER_UTILIZATION * limits_kw[cluster_id] * 24.0
                 )
-                off_peak_caps = np.asarray(
-                    [row["_preferred_energy_kwh"] for row in off_peak_rows], dtype=float
+                energies = fit_cluster_energy_budget(cluster_rows, target_kwh)
+            else:
+                energies = np.asarray(
+                    [row["_sampled_energy_kwh"] for row in cluster_rows], dtype=float
                 )
-            else:
-                peak_caps = physical_peak_caps
-                off_peak_caps = physical_off_peak_caps
-            peak_possible = min(float(peak_caps.sum()), peak_budget_kwh)
-            off_peak_capacity = float(off_peak_caps.sum())
-            achievable_kwh = min(target_kwh, peak_possible + off_peak_capacity)
-            if cluster_rows and peak_rows:
-                desired_peak = achievable_kwh * len(peak_rows) / len(cluster_rows)
-            else:
-                desired_peak = 0.0
-            peak_target_kwh = min(peak_possible, desired_peak)
-            peak_target_kwh = max(peak_target_kwh, achievable_kwh - off_peak_capacity)
-            peak_target_kwh = min(peak_target_kwh, peak_possible)
-            peak_allocations = distribute_energy(peak_target_kwh, peak_caps)
-            off_peak_target_kwh = max(
-                0.0, achievable_kwh - float(peak_allocations.sum())
-            )
-            off_peak_allocations = distribute_energy(off_peak_target_kwh, off_peak_caps)
-
-            for row, energy_kwh in zip(peak_rows, peak_allocations):
-                row["_allocated_energy_kwh"] = float(energy_kwh)
-            for row, energy_kwh in zip(off_peak_rows, off_peak_allocations):
+            for row, energy_kwh in zip(cluster_rows, energies):
                 row["_allocated_energy_kwh"] = float(energy_kwh)
 
         for row in requests:
             battery_kwh = row["battery_kwh_snapshot"]
             energy_kwh = row["_allocated_energy_kwh"]
-            soc_delta = min(100.0, energy_kwh * CHARGING_EFFICIENCY / battery_kwh * 100.0)
-            max_soc_now = max(0.0, 100.0 - soc_delta)
-            soc_now = round(min(row["_preferred_soc_now"], max_soc_now), 6)
-            soc_target = round(min(100.0, soc_now + soc_delta), 6)
+            soc_now = round(row["_soc_now"], 6)
+            soc_target = round(
+                soc_now + energy_kwh * CHARGING_EFFICIENCY / battery_kwh * 100.0,
+                6,
+            )
+            if soc_target > 100.0:
+                raise ValueError(
+                    f"Request {row['request_id']} có SOC mục tiêu vượt 100%: {soc_target}"
+                )
             row["soc_now"] = soc_now
             row["soc_target"] = soc_target
             row["energy_needed_kwh"] = round(
                 ((soc_target - soc_now) / 100.0) * battery_kwh / CHARGING_EFFICIENCY,
                 4,
             )
+            if not MIN_REQUEST_ENERGY_KWH <= row["energy_needed_kwh"] <= MAX_REQUEST_ENERGY_KWH:
+                raise ValueError(
+                    f"Request {row['request_id']} nằm ngoài dải năng lượng "
+                    f"{MIN_REQUEST_ENERGY_KWH:g}–{MAX_REQUEST_ENERGY_KWH:g} kWh: "
+                    f"{row['energy_needed_kwh']} kWh"
+                )
             for internal_key in (
-                "_behavior", "_dwell_hours", "_arrives_in_peak", "_allocated_energy_kwh",
-                "_preferred_energy_kwh", "_preferred_soc_now",
+                "_soc_now", "_max_energy_kwh", "_sampled_energy_kwh", "_allocated_energy_kwh"
             ):
                 row.pop(internal_key, None)
 
@@ -310,47 +294,59 @@ def generate_scenario_files():
         pd.DataFrame(requests).to_csv(sc_file, index=False, encoding="utf-8")
 
         total_kwh = sum(float(row["energy_needed_kwh"]) for row in requests)
+        request_energies = [float(row["energy_needed_kwh"]) for row in requests]
         cluster_metrics = {}
         for cluster_id in active_clusters:
             rows = [row for row in requests if int(row["cluster_id"]) == cluster_id]
             energy_kwh = sum(float(row["energy_needed_kwh"]) for row in rows)
             capacity_kwh = limits_kw[cluster_id] * 24.0
-            peak_energy_kwh = sum(
-                float(row["energy_needed_kwh"])
-                for row in rows
-                if PEAK_WINDOW_START_HOUR
-                <= datetime.fromisoformat(row["arrival_time"]).hour
-                < PEAK_WINDOW_END_HOUR
-            )
-            peak_capacity_kwh = limits_kw[cluster_id] * PEAK_WINDOW_HOURS
             cluster_metrics[cluster_id] = {
                 "energy_kwh": energy_kwh,
                 "capacity_kwh": capacity_kwh,
                 "utilization": energy_kwh / capacity_kwh,
-                "peak_ratio": peak_energy_kwh / peak_capacity_kwh,
             }
-            if cluster_metrics[cluster_id]["peak_ratio"] > PEAK_WINDOW_MAX_LOAD_RATIO:
+            if (
+                request_count in QUALITY_CONTROLLED_SCENARIOS
+                and not 0.60 <= cluster_metrics[cluster_id]["utilization"] <= 0.90
+            ):
                 raise ValueError(
-                    f"Scenario {request_count}, cụm {cluster_id} vượt giới hạn tải cao điểm: "
-                    f"{cluster_metrics[cluster_id]['peak_ratio']:.4f}"
+                    f"Scenario {request_count}, cụm {cluster_id} ngoài dải tải mục tiêu 60–90%: "
+                    f"{cluster_metrics[cluster_id]['utilization']:.4%}"
                 )
+        if request_count >= 2500 and total_kwh <= sum(
+            value["capacity_kwh"] for value in cluster_metrics.values()
+        ):
+            raise ValueError(
+                f"Scenario {request_count} được gắn nhãn quá tải nhưng nhu cầu không vượt trần 24h."
+            )
         scenario_summaries.append(
             (
                 request_count,
+                scenario_type(request_count),
                 total_kwh,
                 cluster_metrics,
                 physical_max_by_cluster,
                 connector_mismatch_count,
+                float(np.mean(request_energies)),
+                min(request_energies),
+                max(request_energies),
             )
         )
 
-    print("Kịch bản | Requests | Tổng kWh | Tỷ lệ tải 24h | Sai đầu nối | Tải theo cụm / tỷ lệ cao điểm")
+    print(
+        "Kịch bản | Loại | Requests | Tổng kWh | Tải 24h | TB/xe | Min/xe | Max/xe | "
+        "Sai đầu nối | Tải theo cụm"
+    )
     for (
         request_count,
+        scenario_label,
         total_kwh,
         metrics,
         physical_limits,
         connector_mismatch_count,
+        mean_kwh,
+        min_kwh,
+        max_kwh,
     ) in scenario_summaries:
         total_capacity = sum(value["capacity_kwh"] for value in metrics.values())
         utilization = total_kwh / total_capacity if total_capacity else 0.0
@@ -361,18 +357,29 @@ def generate_scenario_files():
         physical_max_total = sum(physical_limits.values())
         per_cluster = "; ".join(
             f"C{cluster_id}: {value['energy_kwh']:.1f}/{value['capacity_kwh']:.0f} kWh "
-            f"({value['utilization']:.1%}), peak {value['peak_ratio']:.1%}"
+            f"({value['utilization']:.1%})"
             for cluster_id, value in metrics.items()
         )
         print(
-            f"{request_count:>5} | {request_count:>8} | {total_kwh:>9.1f} | "
-            f"{utilization:>10.1%} | {connector_mismatch_count:>11} | {per_cluster}"
+            f"{request_count:>5} | {scenario_label:<25} | {request_count:>8} | "
+            f"{total_kwh:>9.1f} | {utilization:>7.1%} | {mean_kwh:>6.2f} | "
+            f"{min_kwh:>6.2f} | {max_kwh:>6.2f} | {connector_mismatch_count:>11} | {per_cluster}"
         )
-        if physical_max_total < target_total:
+        if request_count == 100 and physical_max_total < 0.60 * total_capacity:
             print(
-                f"  Giới hạn vật lý của {request_count} requests: "
+                f"  Giới hạn vật lý của {request_count} requests tối đa: "
                 f"{physical_max_total:.1f}/{total_capacity:.0f} kWh "
-                f"({physical_max_total / total_capacity:.1%}); không đạt target 80% với số dòng này."
+                f"({physical_max_total / total_capacity:.1%}); dưới 60% ngay cả khi mỗi xe đạt mức tối đa."
+            )
+        if request_count in QUALITY_CONTROLLED_SCENARIOS:
+            print(
+                f"  Nhu cầu được lấy độc lập theo xe rồi hiệu chỉnh theo cụm về "
+                f"{TARGET_CLUSTER_UTILIZATION:.0%} tải 24h (giữ biến thiên cá nhân)."
+            )
+        if request_count == 10000:
+            print(
+                "  LLF_THROUGHPUT_ONLY: bài test thông lượng trong kịch bản quá tải, "
+                "không dùng để đánh giá chất lượng điều phối."
             )
     inactive_clusters = sorted(set(limits_kw) - set(active_clusters))
     if inactive_clusters:
