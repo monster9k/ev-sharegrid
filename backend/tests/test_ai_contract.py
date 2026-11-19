@@ -141,10 +141,30 @@ def test_build_cluster_snapshot_matches_ai_contract_and_only_freezes_elapsed_slo
     assert [slot["slot_start"] for slot in snapshot["previous_schedule"]] == [
         "2026-11-18T16:45:00+07:00"
     ]
-    assert snapshot["tariffs"][0]["start_time"] == "2026-11-18T17:07:00+07:00"
+    assert snapshot["snapshot_time"] == "2026-11-18T17:00:00+07:00"
+    assert snapshot["tariffs"][0]["start_time"] == "2026-11-18T17:00:00+07:00"
     assert snapshot["tariffs"][-1]["end_time"] == (
-        now + timedelta(hours=24)
+        datetime(2026, 11, 19, 17, 0, tzinfo=TZ)
     ).isoformat(timespec="seconds")
+
+
+@pytest.mark.parametrize(
+    ("provided", "expected"),
+    [
+        (datetime(2026, 11, 18, 16, 23, 48, tzinfo=TZ), datetime(2026, 11, 18, 16, 15, tzinfo=TZ)),
+        (datetime(2026, 11, 18, 16, 15, 0, tzinfo=TZ), datetime(2026, 11, 18, 16, 15, tzinfo=TZ)),
+        (datetime(2026, 11, 18, 23, 59, 59, tzinfo=TZ), datetime(2026, 11, 18, 23, 45, tzinfo=TZ)),
+    ],
+)
+def test_snapshot_floors_to_quarter_hour_and_tariffs_cover_slot_zero(provided, expected):
+    snapshot = build_cluster_snapshot(SnapshotCursor(), 7, 42, snapshot_time=provided)
+
+    expected_start = expected.isoformat(timespec="seconds")
+    expected_end = (expected + timedelta(hours=24)).isoformat(timespec="seconds")
+    assert snapshot["snapshot_time"] == expected_start
+    assert snapshot["stations"][0]["open_time"] == expected_start
+    assert snapshot["tariffs"][0]["start_time"] == expected_start
+    assert snapshot["tariffs"][-1]["end_time"] == expected_end
 
 
 def test_pick_request_result_matches_numeric_and_string_ids():
