@@ -61,6 +61,40 @@ MILP được yêu cầu ở mốc 100 và 500 theo ngân sách chuẩn và vẫ
 
 `data/scenario_10000_llf_measurement.json` ghi một lần đo LLF riêng với giá cố định. CSV trong Git dùng LF (SHA-256 bắt đầu bằng `4539c0b7`). Đổi dấu xuống dòng sang CRLF cho đúng SHA-256 của lần đo riêng (`472f4cb5`). Benchmark này đo lại LLF ở cả hai biểu giá. Bộ 10.000 mang nhãn `LLF_THROUGHPUT_ONLY` vì nhu cầu vượt khả năng cấp 24 giờ.
 
+### MILP so với LLF trên cùng request
+
+Ở mốc 100, cả hai cụm đều trả nghiệm MILP ở trạng thái `FEASIBLE`. Ở mốc 500, cụm 1 (294 request) vượt ngưỡng 250 nên dùng LLF với `FALLBACK / THRESHOLD_EXCEEDED`. Cụm 2 (206 request) trả nghiệm MILP với `FEASIBLE / NONE`. Bảng so sánh chỉ tính những cụm có nghiệm MILP. Phần trăm giảm dùng LLF làm mẫu số. Chênh lệch đúng hạn tính bằng điểm phần trăm.
+
+| Mốc và phạm vi | Giá (đ/kWh) | Giảm chi phí | Giảm đỉnh | Chênh đúng hạn |
+|---|---|---:|---:|---:|
+| 100, cả hai cụm | 2.000 | ≈0% | 0,4411% | 0 |
+| 100, cả hai cụm | TOU | 0,2546% | 0,4411% | 0 |
+| 500, chỉ cụm 2 | 2.000 | −0,0124% | ≈0% | +0,4854 |
+| 500, chỉ cụm 2 | TOU | 0,3952% | ≈0% | +0,9709 |
+
+Lượt đo ngày 19/11/2026 thấp hơn các mức giảm 22–25% chi phí và 64–66% đỉnh từng được báo cáo. Với giá cố định ở cụm 2 mốc 500, MILP cấp thêm 0,6504 kWh và chi phí tăng khoảng 1.301 đồng. Ở mốc 1.000 và 10.000, danh sách thuật toán đo thông lượng loại MILP ngay từ đầu.
+
+### KPI của hai cụm gộp lại
+
+Đơn vị giá cố định là 2.000 đ/kWh, TOU là 1.600/2.400/4.000 đ/kWh. Dòng “LLF + MILP” ghi kết quả khi yêu cầu MILP ở mốc 500, theo thứ tự cụm 1 rồi cụm 2. Tất cả các dòng dưới đây đều có 0 lần vượt trần. Bảng làm tròn khi hiển thị, JSON giữ nguyên kết quả đo.
+
+| Request | Giá | Thực chạy | Đúng hạn | Thiếu (kWh) | Chi phí (đ) | Đỉnh (kW) | solve_ms |
+|---:|---|---|---:|---:|---:|---:|---:|
+| 100 | Cố định | MILP | 94% | 17,5719 | 4.909.489,60 | 681,0700 | 15.961,31 |
+| 100 | Cố định | LLF | 94% | 17,5719 | 4.909.489,60 | 684,0876 | 12,43 |
+| 100 | TOU | MILP | 94% | 17,5719 | 7.172.282,48 | 681,0700 | 15.708,39 |
+| 100 | TOU | LLF | 94% | 17,5719 | 7.190.587,84 | 684,0876 | 10,14 |
+| 500 | Cố định | LLF + MILP | 68,2% | 2.613,4802 | 27.413.039,20 | 850 | 10.441,34 |
+| 500 | Cố định | LLF | 68% | 2.614,1306 | 27.411.738,40 | 850 | 70,17 |
+| 500 | TOU | LLF + MILP | 68,4% | 2.613,4802 | 37.246.807,04 | 850 | 11.331,22 |
+| 500 | TOU | LLF | 68% | 2.614,1306 | 37.302.182,96 | 850 | 59,23 |
+| 1.000 | Cố định | LLF | 52,2% | 5.184,4282 | 22.271.142,20 | 850 | 77,56 |
+| 1.000 | TOU | LLF | 52,2% | 5.184,4282 | 30.135.059,84 | 850 | 91,86 |
+| 10.000 | Cố định | LLF | 1,74% | 224.282,5779 | 42.161.966,00 | 850 | 707,04 |
+| 10.000 | TOU | LLF | 1,74% | 224.282,5779 | 54.107.690,00 | 850 | 939,15 |
+
+Ở mốc 10.000, nhu cầu là 245.363,5609 kWh trên khả năng cấp 20.400 kWh trong 24 giờ. Tỷ lệ đúng hạn 1,74% đi kèm với mức quá tải này.
+
 ## Huấn luyện dự báo
 
 ```sh
