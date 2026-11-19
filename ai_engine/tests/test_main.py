@@ -40,6 +40,7 @@ def test_optimize_and_health() -> None:
     resp=client.post("/ai/optimize",json=snapshot())
     assert resp.status_code==200 and resp.json()["schedules"]
     assert resp.json()["kpi"]["cap_violations"]==0 and resp.headers["x-request-id"]
+    assert resp.json()["fallback_reason"] == "NONE"
 
 
 def test_schema_error() -> None:
@@ -52,6 +53,7 @@ def test_solver_error(monkeypatch) -> None:
     monkeypatch.setattr(main,"SOLVER_ENTRY",__name__+":fail_solver")
     body=client.post("/ai/optimize",json=snapshot()).json()
     assert (body["status"],body["algorithm"])==("FALLBACK","LLF")
+    assert body["fallback_reason"] == "SOLVER_ERROR"
     assert body["schedules"]
 
 
@@ -62,6 +64,7 @@ def test_deadline(monkeypatch) -> None:
     data["time_budget_ms"]=20
     response=client.post("/ai/optimize",json=data)
     assert response.status_code==200 and response.json()["status"]=="ERROR"
+    assert response.json()["fallback_reason"] == "TIME_BUDGET_EXHAUSTED"
 
 
 def test_benchmark() -> None:

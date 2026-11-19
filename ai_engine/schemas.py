@@ -87,6 +87,16 @@ class SolverStatus(str, Enum):
     ERROR = "ERROR"
 
 
+class FallbackReason(str, Enum):
+    """Nguyên nhân solver không trả được nghiệm của thuật toán chính."""
+
+    NONE = "NONE"
+    THRESHOLD_EXCEEDED = "THRESHOLD_EXCEEDED"
+    TIME_BUDGET_EXHAUSTED = "TIME_BUDGET_EXHAUSTED"
+    SEED_NOT_IMPROVED = "SEED_NOT_IMPROVED"
+    SOLVER_ERROR = "SOLVER_ERROR"
+
+
 class Algorithm(str, Enum):
     """Tên thuật toán lập lịch được hỗ trợ trong hợp đồng API."""
 
@@ -359,6 +369,7 @@ class OptimizeResponse(APIModel):
 
     status: SolverStatus = Field(description="Trạng thái giải hoặc fallback.")
     algorithm: Algorithm | None = Field(description="Thuật toán thực tế tạo ra nghiệm; null nếu chưa có nghiệm.")
+    fallback_reason: FallbackReason = Field(default=FallbackReason.NONE, description="Lý do fallback hoặc lỗi; NONE nếu có nghiệm từ thuật toán yêu cầu.")
     solve_ms: NonNegativeFloat = Field(description="Thời gian xử lý thực tế, mili giây.")
     kpi: KPI = Field(description="Các chỉ số đánh giá nghiệm.")
     request_results: list[RequestResult] = Field(description="Kết quả chi tiết cho từng yêu cầu.")
