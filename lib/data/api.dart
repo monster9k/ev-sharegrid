@@ -95,7 +95,7 @@ class ApiClient {
       postJson('/api/v1/requests/$requestId/cancel', body: const {});
 
   Future<Map<String, dynamic>> getBenchmark() =>
-      getJson('/api/v1/admin/benchmark');
+      getJson('/api/v1/admin/benchmark').timeout(const Duration(seconds: 10));
 
   Future<List<Map<String, dynamic>>> getActiveStations() async {
     final response = await getJson('/api/v1/stations');

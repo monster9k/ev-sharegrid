@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../data/api.dart';
@@ -8,7 +10,9 @@ import 'admin_common.dart';
 
 /// A5 – Bảng KPI đọc từ benchmark thật trên API.
 class AdminBenchmarkScreen extends StatefulWidget {
-  const AdminBenchmarkScreen({super.key});
+  const AdminBenchmarkScreen({super.key, this.client});
+
+  final ApiClient? client;
 
   @override
   State<AdminBenchmarkScreen> createState() => _AdminBenchmarkScreenState();
@@ -34,7 +38,7 @@ class _AdminBenchmarkScreenState extends State<AdminBenchmarkScreen> {
       _points = const [];
     });
     try {
-      final response = await apiClient.getBenchmark();
+      final response = await (widget.client ?? apiClient).getBenchmark();
       final points = BenchmarkPoint.parse(response);
       if (!mounted) return;
       setState(() {
@@ -43,15 +47,28 @@ class _AdminBenchmarkScreenState extends State<AdminBenchmarkScreen> {
       });
     } catch (error) {
       if (!mounted) return;
-      setState(
-        () => _error = error is ApiException
-            ? '${error.message} (HTTP ${error.statusCode})'
-            : 'Không thể tải benchmark từ máy chủ: $error',
-      );
+      setState(() => _error = _describeError(error));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
+
+  String _describeError(Object error) => switch (error) {
+    FormatException(:final message) =>
+      'Báo cáo benchmark bị thiếu hoặc sai định dạng. $message',
+    TimeoutException() =>
+      'Máy chủ benchmark không phản hồi trong 10 giây. Hãy thử tải lại.',
+    ApiException(statusCode: 401) =>
+      'Hãy đăng nhập bằng tài khoản quản trị để xem benchmark (HTTP 401).',
+    ApiException(statusCode: 403) =>
+      'Tài khoản hiện tại không có quyền xem benchmark (HTTP 403).',
+    ApiException(statusCode: 404) =>
+      'Máy chủ không cung cấp dữ liệu benchmark (HTTP 404).',
+    ApiException(:final statusCode, :final message) =>
+      'Máy chủ không tải được benchmark (HTTP $statusCode). $message',
+    _ =>
+      'Không kết nối được máy chủ benchmark. Kiểm tra backend và địa chỉ API, rồi thử tải lại.',
+  };
 
   String _number(double? value) => value?.toString() ?? '—';
   String _integer(int? value) => value?.toString() ?? '—';
@@ -65,10 +82,8 @@ class _AdminBenchmarkScreenState extends State<AdminBenchmarkScreen> {
     _ => value,
   };
 
-  String _status(BenchmarkMetrics metrics) => [
-    metrics.status ?? '—',
-    if (metrics.fallbackReason case final reason? when reason != 'NONE') reason,
-  ].join('\n');
+  String _status(BenchmarkMetrics metrics) =>
+      [metrics.status ?? '—', ?metrics.fallbackReason].join('\n');
 
   Widget _actual(BenchmarkPoint point) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -93,6 +108,7 @@ class _AdminBenchmarkScreenState extends State<AdminBenchmarkScreen> {
     route: '/admin/benchmark',
     eyebrow: 'Quản trị · số đo từ máy chủ',
     title: 'Benchmark thuật toán',
+    simulationLabel: _points.isEmpty ? null : 'Kịch bản mô phỏng',
     actions: [
       if (_source != null) Pill.neutral('Nguồn: $_source'),
       WebBtn(
@@ -119,11 +135,22 @@ class _AdminBenchmarkScreenState extends State<AdminBenchmarkScreen> {
           ],
         ),
       if (!_loading && _error == null && _points.isEmpty)
-        const WebCard(children: [InfoNote('Chưa có dữ liệu benchmark thật')]),
+        const WebCard(
+          children: [
+            InfoNote(
+              'Chưa có dữ liệu benchmark thật. Máy chủ chưa cung cấp báo cáo có kết quả.',
+              warn: true,
+            ),
+          ],
+        ),
+      if (_source == 'benchmark_result' && _points.isNotEmpty)
+        const InfoNote(
+          'Máy chủ chưa cung cấp file benchmark_real.json. Bảng bên dưới hiển thị các lượt đo đã lưu.',
+          warn: true,
+        ),
       if (_points.isNotEmpty)
         WebCard(
           title: 'Kết quả đo · ${_points.length} lượt',
-          trailing: const MutedText('Kịch bản mô phỏng', size: 12),
           children: [
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
