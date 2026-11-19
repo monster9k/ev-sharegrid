@@ -60,9 +60,14 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
+      AI_URL: ${AI_URL:-http://ai-engine:8001}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      AUTH_PASSWORD_HASHES_JSON: ${AUTH_PASSWORD_HASHES_JSON:?Set AUTH_PASSWORD_HASHES_JSON in .env}
     depends_on:
       catalog-seed:
         condition: service_completed_successfully
+      ai-engine:
+        condition: service_started
     healthcheck:
       test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/', timeout=3).close()"]
       interval: 10s

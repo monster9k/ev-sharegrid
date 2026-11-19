@@ -1,0 +1,72 @@
+{
+  "label": "LLF_THROUGHPUT_ONLY",
+  "purpose": "10,000-request throughput test; not a dispatch-quality result",
+  "measured_at": "2026-11-19T17:51:50+07:00",
+  "seed": 42,
+  "request_count": 10000,
+  "source_csv": "data/scenario_10000_requests.csv",
+  "source_csv_sha256": "472f4cb5cfd10a82cc0fac673eb19f5baad37feff8b0d7cf014a7ab898df14a6",
+  "request_demand_kwh": 245363.56090000056,
+  "cluster_capacity_24h_kwh": 20400.0,
+  "input_demand_ratio": 12.027625534313753,
+  "requests_by_cluster": {
+    "1": 5882,
+    "2": 4118
+  },
+  "benchmark_endpoint": "POST /ai/benchmark",
+  "tariff_mode": "fixed_2000_vnd_kwh",
+  "algorithm": {
+    "requested_algorithm": "LLF",
+    "actual_algorithms": [
+      "LLF"
+    ],
+    "status": "FEASIBLE",
+    "status_by_cluster": {
+      "1": "FEASIBLE",
+      "2": "FEASIBLE"
+    },
+    "solve_ms": 823.9341000007698,
+    "kpi": {
+      "on_time_rate": 0.0174,
+      "total_shortfall_kwh": 224282.57789999997,
+      "total_cost_vnd": 42161966.0,
+      "peak_power_kw": 850.0000000000002,
+      "cap_violations": 0
+    },
+    "cluster_results": {
+      "1": {
+        "status": "FEASIBLE",
+        "actual_algorithm": "LLF",
+        "solve_ms": 495.35569999716245,
+        "request_count": 5882,
+        "kpi": {
+          "total_shortfall_kwh": 131902.4564,
+          "total_cost_vnd": 25030136.8,
+          "peak_power_kw": 500.0000000000001,
+          "on_time_rate": 0.01972118327099626,
+          "fairness": 0.1646319068332496,
+          "cap_violations": 0
+        }
+      },
+      "2": {
+        "status": "FEASIBLE",
+        "actual_algorithm": "LLF",
+        "solve_ms": 328.5784000036074,
+        "request_count": 4118,
+        "kpi": {
+          "total_shortfall_kwh": 92380.1215,
+          "total_cost_vnd": 17131829.200000003,
+          "peak_power_kw": 350.00000000000006,
+          "on_time_rate": 0.014084507042253521,
+          "fairness": 0.1641275750301247,
+          "cap_violations": 0
+        }
+      }
+    }
+  },
+  "measurement_notes": {
+    "solve_ms": "Sum of measured solver times for the two cluster requests.",
+    "cap_violations": "Validator KPI reported by the AI Engine.",
+    "machine_dependent": true
+  }
+}

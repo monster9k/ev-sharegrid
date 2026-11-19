@@ -204,9 +204,12 @@ def build_cluster_snapshot(
     now = snapshot_time or datetime.now(tz)
     if now.tzinfo is None or now.utcoffset() is None:
         raise ValueError("snapshot_time must include a timezone")
-    # All AI timestamps are serialized to second precision; normalize the snapshot
-    # anchor too so tariff coverage checks do not see a microsecond-sized gap.
-    now = now.astimezone(tz).replace(microsecond=0)
+    # Anchor all snapshot data to the same quarter-hour boundary. The AI solver
+    # aligns its first slot down to 15 minutes, so tariffs and station windows
+    # must start at that exact boundary too (including when the API call arrives
+    # during a slot or just before midnight).
+    now = now.astimezone(tz)
+    now = now.replace(second=0, microsecond=0) - timedelta(minutes=now.minute % SLOT_MINUTES)
     if now.utcoffset() != timedelta(hours=7):
         raise ValueError("AI Engine contract requires the cluster timezone to use +07:00")
     horizon_end = now + timedelta(minutes=horizon_slots * SLOT_MINUTES)
