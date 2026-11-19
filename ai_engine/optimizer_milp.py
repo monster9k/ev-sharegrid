@@ -13,7 +13,7 @@ from time import perf_counter
 from .baselines import solve_llf
 from .normalizer import NormProblem, Solution
 from .schemas import Algorithm, FallbackReason, SolverStatus
-from .settings import DECOMPOSE_THRESHOLD, EPS_KW, is_leq, is_zero, snap
+from .settings import DECOMPOSE_THRESHOLD, EPS_KW, EPS_KWH, is_leq, is_zero, snap
 from .validator import validate_solution
 
 
@@ -25,6 +25,20 @@ def _stop(best: Solution, reason: FallbackReason) -> Solution:
     if best.status == SolverStatus.FALLBACK:
         return replace(best, fallback_reason=reason)
     return best
+
+
+def _solve_stage(model, stage_ms: int, lp: bool) -> int:
+    model.SetTimeLimit(stage_ms)
+    if lp or sys.platform != "win32":
+        return model.Solve()
+    # SCIP's CPU clock advances differently from elapsed time on Windows.
+    timeout = Timer(stage_ms / 1000, model.InterruptSolve)
+    timeout.start()
+    try:
+        return model.Solve()
+    finally:
+        timeout.cancel()
+        timeout.join()
 
 
 def _optimize(p: NormProblem, prefer_lp: bool) -> Solution:
@@ -133,32 +147,33 @@ def _optimize(p: NormProblem, prefer_lp: bool) -> Solution:
         m.SetHint(*zip(*hints))
     objectives=[m.Sum([p.requests[r].priority_weight*g for r,g in gaps.items()]),
                 *[-floors[w] for w in sorted(floors,reverse=True)],m.Sum(costs),peak+m.Sum(penalties)]
+    def weighted_shortfall(solution: Solution) -> float:
+        return sum(p.requests[r].priority_weight * solution.shortfall[r] for r in gaps)
+
+    seed_weighted = weighted_shortfall(seed)
+    seed_total = sum(seed.shortfall[r] for r in gaps)
+    m.Add(objectives[0] <= seed_weighted + EPS_KWH)
+    m.Add(m.Sum(list(gaps.values())) <= seed_total + EPS_KWH)
     # Bound cumulative rounding error for a whole slot and for a long session.
     rounding_error = EPS_KW / max(1, len(p.requests), p.T * p.dt)
     best=seed
+    all_optimal = True
+    last_reason = FallbackReason.TIME_BUDGET_EXHAUSTED
     for i,obj in enumerate(objectives):
         ms=int((end-perf_counter())*1000)
         if ms<=0:
             return _stop(best, FallbackReason.TIME_BUDGET_EXHAUSTED)
         m.Minimize(obj)
         stage_ms = max(1, ms // (len(objectives) - i))
-        m.SetTimeLimit(stage_ms)
-        if not lp and sys.platform == "win32":
-            # Enforce the same wall-time budget even when CPU time advances slowly.
-            timeout = Timer(stage_ms / 1000, m.InterruptSolve)
-            timeout.start()
-            try:
-                status = m.Solve()
-            finally:
-                timeout.cancel()
-                timeout.join()
-        else:
-            status = m.Solve()
+        status = _solve_stage(m, stage_ms, lp)
+        all_optimal &= status == m.OPTIMAL
+        if status == m.NOT_SOLVED:
+            LOG.info("Tầng %d hết thời gian trước khi có nghiệm", i)
+            last_reason = FallbackReason.TIME_BUDGET_EXHAUSTED
+            continue
         if status not in (m.OPTIMAL,m.FEASIBLE):
-            reason = (FallbackReason.TIME_BUDGET_EXHAUSTED if status == m.NOT_SOLVED
-                      else FallbackReason.SOLVER_ERROR)
             LOG.info("Tầng %d: OR-Tools status=%s", i, status)
-            return _stop(best, reason)
+            return _stop(best, FallbackReason.SOLVER_ERROR)
         sol=Solution({}, {},SolverStatus.FEASIBLE,Algorithm.LP_MPC if lp else Algorithm.MILP_MPC,
                      {rid:snap(max(0,g.solution_value())) for rid,g in gaps.items()})
         for rid,r in p.requests.items():
@@ -183,19 +198,22 @@ def _optimize(p: NormProblem, prefer_lp: bool) -> Solution:
         if not report.ok:
             LOG.info("Tầng %d: validator từ chối nghiệm: %s", i, report.violations[:3])
             return _stop(best, FallbackReason.SOLVER_ERROR)
-        if status==m.FEASIBLE and i==0:
-            improvement = sum(p.requests[r].priority_weight * (seed.shortfall[r] - sol.shortfall[r]) for r in gaps)
-            if is_leq(improvement, 0):
-                return _stop(seed, FallbackReason.SEED_NOT_IMPROVED)
+        weighted = weighted_shortfall(sol)
+        if (not is_leq(weighted, min(seed_weighted, weighted_shortfall(best)), EPS_KWH)
+                or not is_leq(sum(sol.shortfall.values()), seed_total, EPS_KWH)):
+            LOG.info("Tầng %d: nghiệm vượt giới hạn điện thiếu", i)
+            return _stop(best, FallbackReason.SOLVER_ERROR)
+        if status == m.FEASIBLE and i == 0 and is_leq(seed_weighted, weighted):
+            # Ràng buộc seed đã có trong mô hình. Dùng thời gian còn lại cho các tầng sau.
+            last_reason = FallbackReason.SEED_NOT_IMPROVED
+            continue
         best=sol
-        if status!=m.OPTIMAL:
-            return best
-        if i==len(objectives)-1:
+        if i==len(objectives)-1 and all_optimal:
             best.status=SolverStatus.OPTIMAL
-        else:
+        elif i<len(objectives)-1:
             # Slack for lexicographic objective locking (also applies to price and fairness).
             m.Add(obj<=m.Objective().Value()+1e-8)
-    return best
+    return _stop(best, last_reason)
 
 
 def solve_milp(problem: NormProblem, time_budget_ms: int | None = None) -> Solution:
