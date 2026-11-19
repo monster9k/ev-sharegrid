@@ -83,7 +83,7 @@ Nhóm làm Data là nền móng của cả dự án: nếu chưa có bộ dữ l
 | **1. Mẫu xe điện (`vehicle_model`)** | Hãng xe (`brand`), tên mẫu (`model_name`), loại xe (`CAR` / `MOTORBIKE`), chuẩn đầu nối (`CCS2`, `Type2`, `CHAdeMO`, `AC_HOME`), dung lượng pin (`battery_kwh`), công suất sạc tối đa xe nhận được (`max_kw`). | Website thông số kỹ thuật của VinFast (VF e34, VF 5, VF 6, VF 7, VF 8, VF 9, Feliz S, Klara S, Evo200), EV Database (`ev-database.org`), brochure hãng BYD, Hyundai Ioniq 5, Kia EV6. | 
 | **2. Trạm sạc (`charging_station`) & Cụm điện (`grid_cluster`)** | Tên trạm, địa chỉ, tỉnh/thành phố, tọa độ (`lat`, `lng`), giờ mở cửa (`open_time`, `close_time`), loại xe hỗ trợ, trần công suất trạm (`station_power_kw`), phí dịch vụ. | **OpenStreetMap (Overpass Turbo API)** với tag `amenity=charging_station`, bản đồ trạm sạc công cộng, Google Maps API, kết hợp phân cụm địa lý bằng thư viện **Uber H3** hoặc chia theo Quận/Huyện. | 
 | **3. Cổng sạc (`port`)** | Mã cổng trong trạm (`port_code`: P1, P2...), chuẩn đầu nối (`connector_type`), loại điều khiển (`CONTINUOUS` điều chỉnh kW liên tục hoặc `ON_OFF_SWITCH` bật/tắt mức cố định), `min_power_kw`, `max_power_kw`. | Tài liệu trụ sạc AC (3.3 kW, 7.4 kW, 11 kW, 22 kW) và trụ DC (30 kW, 60 kW, 150 kW). Với trạm dân sinh chia sẻ (ShareGrid), cấu hình trụ AC 2.2 kW – 7.4 kW (ON/OFF hoặc liên tục). | 
-| **4. Biểu giá điện (`tariff_window`)** | Loại ngày (`WEEKDAY`, `WEEKEND`, `HOLIDAY`), khung bậc (`OFF_PEAK`, `NORMAL`, `PEAK`), giờ bắt đầu/kết thúc, đơn giá (`price_vnd_kwh`). | Biểu giá bán lẻ điện theo thời gian trong ngày (TOU - Time of Use) của **EVN** (Giờ bình thường, Giờ thấp điểm 22:00–04:00, Giờ cao điểm 09:30–11:30 & 17:00–20:00). | 
+| **4. Biểu giá điện (`tariff_window`)** | Loại ngày (`WEEKDAY`, `WEEKEND`, `HOLIDAY`), khung bậc (`OFF_PEAK`, `NORMAL`, `PEAK`), giờ bắt đầu/kết thúc, đơn giá (`price_vnd_kwh`). | **Biểu giá TOU giả định theo khung giờ cao/thấp điểm** (giờ thấp điểm 00:00–04:00 và 22:00–24:00; giờ cao điểm 09:30–11:30 và 17:00–20:00). Đây là giả định cho mô phỏng, chưa xác thực là biểu giá chính thức. |
 
 ### 2.3. Cách thiết kế các Sheet trong file Excel (Data Dictionary chuẩn 19 bảng)
 
@@ -178,13 +178,13 @@ Khi tạo file Excel mẫu (ví dụ `EV_ShareGrid_Dataset_Master.xlsx`), nhóm 
 
 | tariff_id | cluster_id | day_type | band | start_time | end_time | price_vnd_kwh | valid_from | valid_to | source_ref | 
 | ----- | ----- | ----- | ----- | ----- | ----- | ----- | ----- | ----- | ----- | 
-| 1 | 1 | WEEKDAY | OFF_PEAK | 00:00 | 04:00 | 1600.00 | 2026-01-01 | 2026-12-31 | EVN_TOU_2026 | 
-| 2 | 1 | WEEKDAY | NORMAL | 04:00 | 09:30 | 2400.00 | 2026-01-01 | 2026-12-31 | EVN_TOU_2026 | 
-| 3 | 1 | WEEKDAY | PEAK | 09:30 | 11:30 | 4000.00 | 2026-01-01 | 2026-12-31 | EVN_TOU_2026 | 
-| 4 | 1 | WEEKDAY | NORMAL | 11:30 | 17:00 | 2400.00 | 2026-01-01 | 2026-12-31 | EVN_TOU_2026 | 
-| 5 | 1 | WEEKDAY | PEAK | 17:00 | 20:00 | 4000.00 | 2026-01-01 | 2026-12-31 | EVN_TOU_2026 | 
-| 6 | 1 | WEEKDAY | NORMAL | 20:00 | 22:00 | 2400.00 | 2026-01-01 | 2026-12-31 | EVN_TOU_2026 | 
-| 7 | 1 | WEEKDAY | OFF_PEAK | 22:00 | 24:00 | 1600.00 | 2026-01-01 | 2026-12-31 | EVN_TOU_2026 | 
+| 1 | 1 | WEEKDAY | OFF_PEAK | 00:00 | 04:00 | 1600.00 | 2026-01-01 | 2026-12-31 | biểu giá TOU giả định theo khung giờ cao/thấp điểm |
+| 2 | 1 | WEEKDAY | NORMAL | 04:00 | 09:30 | 2400.00 | 2026-01-01 | 2026-12-31 | biểu giá TOU giả định theo khung giờ cao/thấp điểm |
+| 3 | 1 | WEEKDAY | PEAK | 09:30 | 11:30 | 4000.00 | 2026-01-01 | 2026-12-31 | biểu giá TOU giả định theo khung giờ cao/thấp điểm |
+| 4 | 1 | WEEKDAY | NORMAL | 11:30 | 17:00 | 2400.00 | 2026-01-01 | 2026-12-31 | biểu giá TOU giả định theo khung giờ cao/thấp điểm |
+| 5 | 1 | WEEKDAY | PEAK | 17:00 | 20:00 | 4000.00 | 2026-01-01 | 2026-12-31 | biểu giá TOU giả định theo khung giờ cao/thấp điểm |
+| 6 | 1 | WEEKDAY | NORMAL | 20:00 | 22:00 | 2400.00 | 2026-01-01 | 2026-12-31 | biểu giá TOU giả định theo khung giờ cao/thấp điểm |
+| 7 | 1 | WEEKDAY | OFF_PEAK | 22:00 | 24:00 | 1600.00 | 2026-01-01 | 2026-12-31 | biểu giá TOU giả định theo khung giờ cao/thấp điểm |
 
 #### Nhóm Sheet 2: Vận hành Đặt lịch, Giải tối ưu & Phiên sạc (6 bảng lõi + 2 bảng hàng đợi đồng thời)
 
@@ -563,7 +563,7 @@ Theo ghi chú của bạn (*"Liệt kê thuật toán lập lịch đa mục ti�
 
 * **Nhóm Data:**
 
-  1. Tạo file `EV_ShareGrid_Seed_Data.xlsx` gồm 7 sheet danh mục gốc (`grid_cluster`, `vehicle_model`, `app_user`, `vehicle`, `charging_station`, `port`, `tariff_window`) tại 1 thành phố trước (ví dụ Đà Nẵng: 3 cụm, 15 trạm, 60 cổng, 10 mẫu xe thực tế, biểu giá EVN).
+  1. Tạo file `EV_ShareGrid_Seed_Data.xlsx` gồm 7 sheet danh mục gốc (`grid_cluster`, `vehicle_model`, `app_user`, `vehicle`, `charging_station`, `port`, `tariff_window`) tại 1 thành phố trước (ví dụ Đà Nẵng: 3 cụm, 15 trạm, 60 cổng, 10 mẫu xe thực tế, biểu giá TOU giả định theo khung giờ cao/thấp điểm).
 
   2. Viết script Python `generate_synthetic_data.py` để sinh dữ liệu mở rộng toàn quốc, tập 100.000 `app_user` và các kịch bản `charging_request` (`100`, `500`, `1000`, `10000` active requests) xuất ra `.csv`.
 

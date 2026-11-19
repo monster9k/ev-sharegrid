@@ -31,8 +31,7 @@ CONNECTOR_ALIASES = {
     "AC_HOME_VINFAST_ADAPTER": "AC_HOME",
 }
 CONNECTOR_TYPES = {"CCS2", "Type2", "CHAdeMO", "AC_HOME"}
-# TODO: bổ sung số và ngày Quyết định EVN sau khi có văn bản được xác nhận.
-EVN_TARIFF_SOURCE_REF = None
+TARIFF_SOURCE_REF = "biểu giá TOU giả định theo khung giờ cao/thấp điểm"
 
 
 def _configure_console_encoding():
@@ -319,7 +318,7 @@ def clean_and_extract_catalogs():
     df_ports.to_csv(os.path.join(DATA_DIR, "port_cleaned.csv"), index=False, encoding="utf-8")
     print(f"✅ Đã sinh & xuất {len(cleaned_ports)} cổng sạc chuẩn hóa -> {os.path.join(DATA_DIR, 'port_cleaned.csv')}")
 
-    # 3. Tạo bảng biểu giá điện EVN 3 khung giờ cho 4 cụm
+    # 3. Tạo biểu giá TOU giả định theo khung giờ cao/thấp điểm cho 4 cụm
     tariffs = []
     t_id = 1
     bands = [
@@ -341,7 +340,7 @@ def clean_and_extract_catalogs():
                 "start_time": start,
                 "end_time": end,
                 "price_vnd_kwh": price,
-                "source_ref": EVN_TARIFF_SOURCE_REF
+                "source_ref": TARIFF_SOURCE_REF
             })
             t_id += 1
             tariffs.append({
@@ -352,13 +351,16 @@ def clean_and_extract_catalogs():
                 "start_time": start,
                 "end_time": end,
                 "price_vnd_kwh": price,
-                "source_ref": EVN_TARIFF_SOURCE_REF
+                "source_ref": TARIFF_SOURCE_REF
             })
             t_id += 1
 
     df_tariff = pd.DataFrame(tariffs)
     df_tariff.to_csv(os.path.join(DATA_DIR, "tariff_window_cleaned.csv"), index=False, encoding="utf-8")
-    print(f"✅ Đã xuất {len(tariffs)} khung biểu giá điện EVN -> {os.path.join(DATA_DIR, 'tariff_window_cleaned.csv')}")
+    print(
+        f"✅ Đã xuất {len(tariffs)} khung biểu giá TOU giả định -> "
+        f"{os.path.join(DATA_DIR, 'tariff_window_cleaned.csv')}"
+    )
 
     return df_models, df_stations, df_ports, df_tariff
 
