@@ -40,6 +40,15 @@ Benchmark nhận một trong hai nguồn dữ liệu: snapshot inline hoặc sce
 
 ### Số đo trên dữ liệu scenario đã commit
 
+Chẩn đoán trước khi sửa MILP trên CSV tại `b0fc3f7`, seed 42 và ngân sách 10.000 ms mỗi cụm. Cả bốn lượt đều trả `LLF / FALLBACK / SEED_NOT_IMPROVED`.
+
+| Biểu giá | Cụm 1 (59 request), solve_ms | Cụm 2 (41 request), solve_ms |
+|---|---:|---:|
+| Cố định 2.000 đ/kWh | 3063.4715000051074 | 3230.1406000042334 |
+| TOU giả định | 3334.9094000004698 | 3041.2056000059238 |
+
+Tầng điện thiếu tìm được nghiệm khả thi nhưng chưa cải thiện seed trong dung sai. Code cũ kết thúc ngay ở tầng này.
+
 `benchmark_real.json` được sinh ngày 19/11/2026 từ scenario và catalog ở commit `d067916` (develop sau khi gộp PR #24), với seed sinh dữ liệu và seed benchmark đều là 42. JSON lưu SHA-256 của mọi CSV đầu vào. Mỗi cụm được gửi trong một POST `/ai/benchmark` riêng rồi gộp kết quả: cộng thiếu điện, chi phí và `solve_ms`; tính tỷ lệ đúng hạn theo số request; tính đỉnh từ tổng tải hai cụm theo từng slot. `solve_ms` là tổng thời gian xử lý của các cụm, không gồm thời gian truyền HTTP.
 
 Chạy lại bằng một lệnh:
