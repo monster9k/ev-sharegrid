@@ -13,11 +13,21 @@ import pandas as pd
 try:
     from backend.auth import AuthUser, require_roles
     from backend.db import connect, dict_cursor
-    from backend.ai_contract import AIUpstreamError, pick_request_result, trigger_cluster_reoptimize
+    from backend.ai_contract import (
+        AIUpstreamError,
+        optimization_horizon,
+        pick_request_result,
+        trigger_cluster_reoptimize,
+    )
 except ModuleNotFoundError:  # Support `python backend/main.py` as well as package imports.
     from auth import AuthUser, require_roles
     from db import connect, dict_cursor
-    from ai_contract import AIUpstreamError, pick_request_result, trigger_cluster_reoptimize
+    from ai_contract import (
+        AIUpstreamError,
+        optimization_horizon,
+        pick_request_result,
+        trigger_cluster_reoptimize,
+    )
 
 router = APIRouter(prefix="/api/v1", tags=["User Requests & Stations"])
 
@@ -157,6 +167,19 @@ def create_booking_request(
     """Persist a pending request, publish its outbox event, then optimize its cluster."""
     if req.user_id != user.user_id:
         raise HTTPException(status_code=403, detail="A user can only create requests for their own account")
+    horizon_start, horizon_end = optimization_horizon()
+    if (
+        req.arrival_time < horizon_start
+        or req.arrival_time >= horizon_end
+        or req.departure_time > horizon_end
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Chỉ nhận đặt lịch có toàn bộ khung sạc trong vòng 24 giờ tới; "
+                f"horizon tối ưu hiện tại kết thúc lúc {horizon_end.isoformat(timespec='minutes')}."
+            ),
+        )
     try:
         connection = connect()
     except Exception as exc:
@@ -333,10 +356,21 @@ def get_request_schedule(
             cursor.execute(
                 """
                 SELECT cr.request_id, cr.status, cr.energy_needed_kwh, cr.shortfall_kwh,
-                       sc.port_id, sc.slot_start, sc.power_kw, sc.version
+                       sc.port_id, sc.slot_start, sc.power_kw, sc.version,
+                       solver.solver_status, solver.algorithm, solver.solve_ms,
+                       solver.explanation
                 FROM charging_request cr
                 LEFT JOIN schedule sc
                   ON sc.request_id = cr.request_id AND sc.is_active = TRUE
+                LEFT JOIN LATERAL (
+                    SELECT run.status AS solver_status, run.algorithm, run.solve_ms,
+                           rr.explanation
+                    FROM run_request rr
+                    JOIN optimization_run run ON run.run_id = rr.run_id
+                    WHERE rr.request_id = cr.request_id
+                    ORDER BY run.started_at DESC, run.run_id DESC
+                    LIMIT 1
+                ) solver ON TRUE
                 WHERE cr.request_id = %s AND cr.user_id = %s
                 ORDER BY sc.slot_start, sc.schedule_id
                 """,
@@ -358,7 +392,7 @@ def get_request_schedule(
                     "power_kw": float(row["power_kw"]),
                     "version": int(row["version"]),
                 })
-            return {
+            response = {
                 "request_id": int(first["request_id"]),
                 "status": first["status"],
                 "slot_minutes": 15,
@@ -366,5 +400,9 @@ def get_request_schedule(
                 "shortfall_kwh": float(first["shortfall_kwh"] or 0),
                 "slots": slots,
             }
+            for field in ("solver_status", "algorithm", "solve_ms", "explanation"):
+                if first[field] is not None:
+                    response[field] = first[field]
+            return response
     finally:
         connection.close()

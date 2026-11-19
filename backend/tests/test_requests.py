@@ -3,6 +3,7 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 import httpx
+import pytest
 from fastapi.testclient import TestClient
 
 from backend import ai_contract
@@ -124,6 +125,22 @@ class FakeCursor:
                 },
                 {
                     "day_type": "WEEKDAY",
+                    "start_time": time(12),
+                    "end_time": time(0),
+                    "price_vnd_kwh": Decimal("2400"),
+                    "valid_from": date(2025, 1, 1),
+                    "valid_to": date(2099, 12, 31),
+                },
+                {
+                    "day_type": "WEEKEND",
+                    "start_time": time(0),
+                    "end_time": time(12),
+                    "price_vnd_kwh": Decimal("1600"),
+                    "valid_from": date(2025, 1, 1),
+                    "valid_to": date(2099, 12, 31),
+                },
+                {
+                    "day_type": "WEEKEND",
                     "start_time": time(12),
                     "end_time": time(0),
                     "price_vnd_kwh": Decimal("2400"),
@@ -319,3 +336,114 @@ def test_overlapping_vehicle_request_returns_409(monkeypatch):
     assert response.status_code == 409
     assert "overlapping" in response.json()["detail"]
     assert booking_db.commits == 0
+
+
+@pytest.mark.parametrize("window_kind", ["arrival_after_horizon", "departure_after_horizon"])
+def test_booking_outside_optimization_horizon_is_rejected_before_database(
+    monkeypatch, window_kind
+):
+    booking_db, _, calls, payload = install_fake_services(monkeypatch)
+    _, horizon_end = requests_route.optimization_horizon()
+    if window_kind == "arrival_after_horizon":
+        arrival = horizon_end + timedelta(minutes=15)
+        departure = arrival + timedelta(hours=1)
+    else:
+        arrival = horizon_end - timedelta(hours=1)
+        departure = horizon_end + timedelta(minutes=15)
+    payload["arrival_time"] = arrival.isoformat()
+    payload["departure_time"] = departure.isoformat()
+    connect_calls = []
+    monkeypatch.setattr(requests_route, "connect", lambda: connect_calls.append(True))
+
+    response = CLIENT.post("/api/v1/requests", json=payload)
+
+    assert response.status_code == 422
+    assert "24 giờ tới" in response.json()["detail"]
+    assert connect_calls == []
+    assert booking_db.fake_cursor.executed == []
+    assert calls == []
+
+
+def test_get_request_schedule_includes_solver_metadata_and_explanation(monkeypatch):
+    slot_start = datetime(2026, 11, 20, 3, 15, tzinfo=TZ)
+    rows = [
+        {
+            "request_id": 31,
+            "status": "SCHEDULED",
+            "energy_needed_kwh": Decimal("10"),
+            "shortfall_kwh": Decimal("0"),
+            "port_id": 20,
+            "slot_start": slot_start,
+            "power_kw": Decimal("11"),
+            "version": 2,
+            "solver_status": "OPTIMAL",
+            "algorithm": "MILP_MPC",
+            "solve_ms": 17,
+            "explanation": "Lịch được xếp trong giờ thấp điểm.",
+        },
+        {
+            "request_id": 31,
+            "status": "SCHEDULED",
+            "energy_needed_kwh": Decimal("10"),
+            "shortfall_kwh": Decimal("0"),
+            "port_id": 20,
+            "slot_start": slot_start + timedelta(minutes=15),
+            "power_kw": Decimal("11"),
+            "version": 2,
+            "solver_status": "OPTIMAL",
+            "algorithm": "MILP_MPC",
+            "solve_ms": 17,
+            "explanation": "Lịch được xếp trong giờ thấp điểm.",
+        },
+    ]
+
+    class ScheduleCursor:
+        def __init__(self):
+            self.query = ""
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+        def execute(self, query, params=()):
+            self.query = " ".join(query.split())
+
+        def fetchall(self):
+            return rows
+
+    class ScheduleConnection:
+        def __init__(self):
+            self.schedule_cursor = ScheduleCursor()
+            self.closed = False
+
+        def cursor(self, **kwargs):
+            return self.schedule_cursor
+
+        def close(self):
+            self.closed = True
+
+    connection = ScheduleConnection()
+    monkeypatch.setattr(requests_route, "connect", lambda: connection)
+    monkeypatch.setattr(requests_route, "dict_cursor", lambda _connection: connection.schedule_cursor)
+    monkeypatch.setitem(
+        app.dependency_overrides,
+        get_current_user,
+        lambda: AuthUser(3, "USER", "user1@sharegrid.vn", "Test User"),
+    )
+
+    response = CLIENT.get("/api/v1/requests/31/schedule")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "SCHEDULED"
+    assert body["solver_status"] == "OPTIMAL"
+    assert body["algorithm"] == "MILP_MPC"
+    assert body["solve_ms"] == 17
+    assert body["explanation"] == "Lịch được xếp trong giờ thấp điểm."
+    assert len(body["slots"]) == 2
+    assert body["slots"][0]["slot_start"] == slot_start.isoformat()
+    assert "LEFT JOIN LATERAL" in connection.schedule_cursor.query
+    assert "optimization_run" in connection.schedule_cursor.query
+    assert connection.closed
