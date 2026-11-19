@@ -2,17 +2,38 @@ import os
 import sys
 from pathlib import Path
 
-# Thêm đường dẫn backend vào sys.path để import routes chuẩn dù chạy từ bất cứ đâu
+# Thêm thư mục gốc để giữ import package ổn định khi chạy uvicorn từ repo root.
 BASE_DIR = Path(__file__).resolve().parent
-if str(BASE_DIR) not in sys.path:
-    sys.path.insert(0, str(BASE_DIR))
+PROJECT_DIR = BASE_DIR.parent
+if str(PROJECT_DIR) not in sys.path:
+    sys.path.insert(0, str(PROJECT_DIR))
 
 from fastapi import FastAPI
-from routes.requests import router as requests_router
+from fastapi.middleware.cors import CORSMiddleware
+from backend.routes.auth import router as auth_router
+from backend.routes.admin import router as admin_router
+from backend.routes.host import router as host_router
+from backend.routes.notifications import router as notifications_router
+from backend.routes.request_actions import router as request_actions_router
+from backend.routes.requests import router as requests_router
 
 app = FastAPI(title="EV ShareGrid Backend API", version="1.0.0")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://ev-sharegrid.web.app"],
+    allow_origin_regex=r"^http://localhost(?::\d+)?$",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(requests_router)
+app.include_router(request_actions_router)
+app.include_router(auth_router)
+app.include_router(host_router)
+app.include_router(admin_router)
+app.include_router(notifications_router)
 
 @app.get("/")
 def root():
@@ -20,4 +41,4 @@ def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, app_dir=str(BASE_DIR))
+    uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=True)

@@ -607,10 +607,4 @@ class Mock {
     8.0,
     5.0,
   ];
-
-  /// Thời gian giải (giây) theo active requests 100/500/1k/2,5k/5k/10k.
-  static const solveMilp = [0.2, 0.8, 1.4, 4.1, 9.8, 23.5];
-  static const solveLp = [0.05, 0.15, 0.31, 0.9, 2.1, 5.2];
-  static const solveLlf = [0.01, 0.02, 0.05, 0.12, 0.26, 0.6];
-  static const solveMonolithic = [0.3, 3.2, 14.0];
 }

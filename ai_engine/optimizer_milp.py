@@ -81,6 +81,8 @@ def _optimize(p: NormProblem, prefer_lp: bool) -> Solution:
                     continue
                 hi=min(r.vehicle_max_kw,port.max_power_kw)
                 v=ps[k]=m.NumVar(0,hi,"")
+                # m.Add overloads these operators to create exact symbolic MILP constraints.
+                # EPS_KW is for checks on concrete floating-point solver results, never to relax caps.
                 if k in fixed:
                     m.Add(v==fixed[k])
                 if not lp:

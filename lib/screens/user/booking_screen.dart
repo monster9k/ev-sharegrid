@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../data/mock_data.dart';
-import '../../data/models.dart';
+import '../../data/api.dart';
 import '../../theme.dart';
 import '../../widgets/common.dart';
 import '../../widgets/glass.dart';
@@ -16,28 +15,189 @@ class BookingScreen extends StatefulWidget {
 }
 
 class _BookingScreenState extends State<BookingScreen> {
-  static const _eta = 0.92;
-  final _station = Mock.nguyenVanLinh;
-  Vehicle _vehicle = Mock.vehicles.first;
+  static const _eta = 0.90;
+  final DateTime _bookingDate = DateTime.now().add(const Duration(days: 1));
+  List<Map<String, dynamic>> _vehicles = [];
+  List<Map<String, dynamic>> _stations = [];
+  Map<String, dynamic>? _vehicle;
+  Map<String, dynamic>? _station;
+  Map<String, dynamic>? _stationDetail;
   TimeOfDay _arrival = const TimeOfDay(hour: 8, minute: 0);
   TimeOfDay _departure = const TimeOfDay(hour: 17, minute: 30);
   double _socNow = 30;
   double _socTarget = 80;
+  bool _loadingData = false;
+  bool _loadingStation = false;
+  bool _submitting = false;
+  String? _loadError;
+  String? _submitError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final profile = apiClient.currentUser;
+    if (profile == null) {
+      setState(
+        () => _loadError = 'Đăng nhập để tải xe và trạm sạc của máy chủ.',
+      );
+      return;
+    }
+    final rawVehicles = profile['vehicles'];
+    final vehicles = rawVehicles is List
+        ? rawVehicles.whereType<Map>().map(Map<String, dynamic>.from).toList()
+        : <Map<String, dynamic>>[];
+    setState(() {
+      _vehicles = vehicles;
+      _vehicle = vehicles.cast<Map<String, dynamic>?>().firstWhere(
+        (vehicle) => vehicle?['is_default'] == true,
+        orElse: () => vehicles.isEmpty ? null : vehicles.first,
+      );
+      if (_vehicle != null) {
+        _socTarget =
+            (_vehicle!['default_soc_target'] as num?)?.toDouble() ?? 80;
+      }
+      _loadingData = true;
+      _loadError = null;
+    });
+    try {
+      if (vehicles.isEmpty) {
+        throw const FormatException(
+          'Tài khoản chưa có xe đăng ký trên máy chủ.',
+        );
+      }
+      final stations = await apiClient.getActiveStations();
+      if (stations.isEmpty) {
+        throw const FormatException('Máy chủ chưa có trạm ACTIVE để đặt lịch.');
+      }
+      final station = stations.first;
+      final detail = await apiClient.getStation(
+        (station['station_id'] as num).toInt(),
+      );
+      if (!mounted) return;
+      setState(() {
+        _stations = stations;
+        _station = station;
+        _stationDetail = detail;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loadError = _errorMessage(error));
+    } finally {
+      if (mounted) setState(() => _loadingData = false);
+    }
+  }
+
+  Future<void> _selectStation(int stationId) async {
+    final station = _stations.firstWhere(
+      (item) => (item['station_id'] as num).toInt() == stationId,
+    );
+    setState(() {
+      _station = station;
+      _stationDetail = null;
+      _loadingStation = true;
+      _loadError = null;
+    });
+    try {
+      final detail = await apiClient.getStation(stationId);
+      if (mounted) setState(() => _stationDetail = detail);
+    } catch (error) {
+      if (mounted) setState(() => _loadError = _errorMessage(error));
+    } finally {
+      if (mounted) setState(() => _loadingStation = false);
+    }
+  }
+
+  Future<void> _submit() async {
+    final profile = apiClient.currentUser;
+    final vehicleId = _vehicle?['vehicle_id'];
+    final stationId = _station?['station_id'];
+    if (profile == null || vehicleId is! num || stationId is! num) {
+      setState(
+        () => _submitError =
+            'Thiếu thông tin tài khoản, xe hoặc trạm từ máy chủ.',
+      );
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _submitError = null;
+    });
+    try {
+      final result = await submitBooking(
+        userId: (profile['user_id'] as num).toInt(),
+        vehicleId: vehicleId.toInt(),
+        stationId: stationId.toInt(),
+        arrivalTime: _apiDateTime(_arrival),
+        departureTime: _apiDateTime(_departure),
+        socNow: _socNow,
+        socTarget: _socTarget,
+        idempotencyKey: 'booking-${DateTime.now().microsecondsSinceEpoch}',
+      );
+      if (mounted) context.go('/schedule', extra: result);
+    } catch (error) {
+      if (!mounted) return;
+      final message = _errorMessage(error);
+      setState(() => _submitError = message);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  String _apiDateTime(TimeOfDay time) {
+    final dateTime = DateTime(
+      _bookingDate.year,
+      _bookingDate.month,
+      _bookingDate.day,
+      time.hour,
+      time.minute,
+    );
+    final date =
+        '${dateTime.year.toString().padLeft(4, '0')}-'
+        '${dateTime.month.toString().padLeft(2, '0')}-'
+        '${dateTime.day.toString().padLeft(2, '0')}';
+    return '$date'
+        'T${_fmt(time)}:00+07:00';
+  }
+
+  String _errorMessage(Object error) => error is ApiException
+      ? '${error.message} (HTTP ${error.statusCode})'
+      : 'Không thể kết nối máy chủ: $error';
+
+  String get _connector => _vehicle?['connector_type']?.toString() ?? '';
+  double get _batteryKwh => (_vehicle?['battery_kwh'] as num?)?.toDouble() ?? 0;
+  double get _maxKw => (_vehicle?['max_kw'] as num?)?.toDouble() ?? 0;
 
   int _min(TimeOfDay t) => t.hour * 60 + t.minute;
   String _fmt(TimeOfDay t) =>
       '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
-  double get _energy =>
-      (_socTarget - _socNow) / 100 * _vehicle.model.batteryKwh / _eta;
+  String get _dateLabel =>
+      '${_bookingDate.day.toString().padLeft(2, '0')}/'
+      '${_bookingDate.month.toString().padLeft(2, '0')}/'
+      '${_bookingDate.year}';
 
-  List<Port> get _compatible => _station.ports
-      .where(
-        (p) =>
-            p.connector == _vehicle.model.connector &&
-            p.status == PortStatus.active,
-      )
-      .toList();
+  double get _energy => (_socTarget - _socNow) / 100 * _batteryKwh / _eta;
+
+  List<Map<String, dynamic>> get _compatible {
+    final ports = _stationDetail?['ports'];
+    if (ports is! List) return [];
+    return ports
+        .whereType<Map>()
+        .map(Map<String, dynamic>.from)
+        .where(
+          (port) =>
+              port['connector_type'] == _connector &&
+              port['status'] == 'ACTIVE',
+        )
+        .toList();
+  }
 
   Future<void> _pick(bool arrival) async {
     final t = await showTimePicker(
@@ -50,12 +210,25 @@ class _BookingScreenState extends State<BookingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final m = _vehicle.model;
+    final userIsSignedIn = apiClient.currentUser != null;
     final connectorOk = _compatible.isNotEmpty;
-    final socOk = _socNow < _socTarget && _socTarget <= 100;
+    final socOk = _vehicle != null && _socNow < _socTarget && _socTarget <= 100;
     final timeOk = _min(_departure) > _min(_arrival);
-    final allOk = connectorOk && socOk && timeOk;
-    final codes = _compatible.map((p) => p.code).join(', ');
+    final allOk = connectorOk && socOk && timeOk && _station != null;
+    final codes = _compatible.map((port) => port['port_code']).join(', ');
+    final vehicleName = [
+      _vehicle?['brand'],
+      _vehicle?['model_name'],
+    ].where((part) => part != null && part.toString().isNotEmpty).join(' ');
+    final stationPower = (_station?['station_power_kw'] as num?)?.toDouble();
+    final stationHours = _stationDetail?['is_24h'] == true
+        ? 'mở 24/7'
+        : '${_stationDetail?['open_time'] ?? '—'}–${_stationDetail?['close_time'] ?? '—'}';
+    final buttonLabel = _submitting
+        ? 'Đang gửi và xếp lịch…'
+        : userIsSignedIn
+        ? 'Gửi yêu cầu & Xếp lịch'
+        : 'Đăng nhập để gửi yêu cầu';
 
     return UserScaffold(
       gap: 14,
@@ -63,12 +236,18 @@ class _BookingScreenState extends State<BookingScreen> {
         children: [
           Expanded(
             child: AppButton(
-              label: 'Gửi yêu cầu & Xếp lịch',
+              label: buttonLabel,
               icon: AppIcons.ai,
               radius: 999,
               height: 54,
               kind: allOk ? AppButtonKind.primary : AppButtonKind.outline,
-              onPressed: allOk ? () => context.go('/schedule') : null,
+              onPressed: _submitting
+                  ? null
+                  : !userIsSignedIn
+                  ? () => context.go('/login')
+                  : allOk
+                  ? _submit
+                  : null,
             ),
           ),
         ],
@@ -78,6 +257,20 @@ class _BookingScreenState extends State<BookingScreen> {
           title: 'Đặt lịch sạc',
           onBack: () => context.go('/station'),
         ),
+        if (_loadingData || _loadingStation || _submitting)
+          const LinearProgressIndicator(minHeight: 3),
+        if (_loadError != null || _submitError != null)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.redBg,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              _submitError ?? _loadError!,
+              style: AppFonts.body(size: 13, color: AppColors.red),
+            ),
+          ),
         AppCard(
           padding: const EdgeInsets.all(12),
           child: Row(
@@ -88,58 +281,86 @@ class _BookingScreenState extends State<BookingScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    BoldText(_station.name),
+                    BoldText(_station?['name']?.toString() ?? 'Chưa chọn trạm'),
                     MutedText(
-                      'Cụm Hải Châu · mở 24/7 · trần trạm ${vnDec(_station.capKw, 0)} kW',
+                      _station == null
+                          ? 'Đang tải danh sách trạm thật từ máy chủ.'
+                          : 'Cụm ${_station?['cluster_id']} · $stationHours · trần trạm ${stationPower == null ? '—' : vnDec(stationPower, 1)} kW',
                       size: 12,
                     ),
                   ],
                 ),
               ),
-              LinkText('Đổi', size: 13, onTap: () => context.go('/map')),
+              if (_stations.length > 1)
+                SizedBox(
+                  width: 110,
+                  child: DropdownButtonFormField<int>(
+                    initialValue: (_station?['station_id'] as num?)?.toInt(),
+                    isExpanded: true,
+                    isDense: true,
+                    decoration: const InputDecoration(labelText: 'Đổi trạm'),
+                    items: [
+                      for (final station in _stations)
+                        DropdownMenuItem(
+                          value: (station['station_id'] as num).toInt(),
+                          child: Text('#${station['station_id']}'),
+                        ),
+                    ],
+                    onChanged: (id) {
+                      if (id != null) _selectStation(id);
+                    },
+                  ),
+                ),
             ],
           ),
         ),
         _Section(
           label: '1. Chọn xe',
           children: [
-            DropdownButtonFormField<Vehicle>(
-              initialValue: _vehicle,
-              isExpanded: true,
-              style: AppFonts.body(size: 14, weight: FontWeight.w600),
-              items: [
-                for (final v in Mock.vehicles)
-                  DropdownMenuItem(
-                    value: v,
-                    child: Text(
-                      '${v.nickname} · ${v.plate}${v.isDefault ? ' (mặc định)' : ''}',
-                      overflow: TextOverflow.ellipsis,
+            if (_vehicles.isEmpty)
+              MutedText('Tài khoản chưa có xe thật để đặt lịch.', size: 13)
+            else
+              DropdownButtonFormField<int>(
+                initialValue: (_vehicle?['vehicle_id'] as num?)?.toInt(),
+                isExpanded: true,
+                style: AppFonts.body(size: 14, weight: FontWeight.w600),
+                items: [
+                  for (final vehicle in _vehicles)
+                    DropdownMenuItem(
+                      value: (vehicle['vehicle_id'] as num).toInt(),
+                      child: Text(
+                        '${vehicle['nickname'] ?? vehicle['model_name']} · ${vehicle['plate_number']}${vehicle['is_default'] == true ? ' (mặc định)' : ''}',
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  ),
-              ],
-              onChanged: (v) => setState(() {
-                _vehicle = v!;
-                _socTarget = v.defaultSoc.toDouble();
-                if (_socNow >= _socTarget) _socNow = _socTarget - 10;
-              }),
-            ),
+                ],
+                onChanged: (id) => setState(() {
+                  _vehicle = _vehicles.firstWhere(
+                    (vehicle) => (vehicle['vehicle_id'] as num).toInt() == id,
+                  );
+                  _socTarget =
+                      (_vehicle!['default_soc_target'] as num?)?.toDouble() ??
+                      80;
+                  if (_socNow >= _socTarget) _socNow = _socTarget - 10;
+                }),
+              ),
             Wrap(
               spacing: 6,
               runSpacing: 6,
               children: [
-                Pill.neutral('${m.brand} ${m.name}'),
-                Pill.neutral(m.connector),
-                Pill.neutral('Pin ${vnDec(m.batteryKwh, 1)} kWh'),
-                Pill.neutral(
-                  'Tối đa ${vnDec(m.maxKw, m.maxKw % 1 == 0 ? 0 : 1)} kW',
-                ),
+                if (_vehicle != null) ...[
+                  Pill.neutral(vehicleName),
+                  Pill.neutral(_connector),
+                  Pill.neutral('Pin ${vnDec(_batteryKwh, 1)} kWh'),
+                  Pill.neutral('Tối đa ${vnDec(_maxKw, 1)} kW'),
+                ],
               ],
             ),
             Wrap(
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 MutedText(
-                  'Thông số lấy từ danh mục mẫu xe, không chỉnh tay. ',
+                  'Xe và thông số được tải từ tài khoản máy chủ. ',
                   size: 12,
                 ),
                 LinkText(
@@ -159,7 +380,7 @@ class _BookingScreenState extends State<BookingScreen> {
                 Expanded(
                   child: _TimeTile(
                     label: 'Giờ đến (arrival)',
-                    value: '05/12 · ${_fmt(_arrival)}',
+                    value: '$_dateLabel · ${_fmt(_arrival)}',
                     onTap: () => _pick(true),
                   ),
                 ),
@@ -167,7 +388,7 @@ class _BookingScreenState extends State<BookingScreen> {
                 Expanded(
                   child: _TimeTile(
                     label: 'Giờ lấy xe (departure)',
-                    value: '05/12 · ${_fmt(_departure)}',
+                    value: '$_dateLabel · ${_fmt(_departure)}',
                     onTap: () => _pick(false),
                     error: !timeOk,
                   ),
@@ -201,7 +422,7 @@ class _BookingScreenState extends State<BookingScreen> {
                   MutedText('Năng lượng cần nạp', size: 12),
                   Text(
                     socOk
-                        ? '(${_socTarget.round()} − ${_socNow.round()})% × ${vnDec(m.batteryKwh, 1)} kWh ÷ ${vnDec(_eta, 2)} = ${vnDec(_energy, 2)} kWh'
+                        ? 'Ước tính (${_socTarget.round()} − ${_socNow.round()})% × ${vnDec(_batteryKwh, 1)} kWh ÷ ${vnDec(_eta, 2)} = ${vnDec(_energy, 2)} kWh'
                         : 'Pin mục tiêu phải lớn hơn pin hiện tại',
                     style: AppFonts.numbers(
                       size: 16,
@@ -220,28 +441,27 @@ class _BookingScreenState extends State<BookingScreen> {
               ok: connectorOk,
               title: 'Đầu nối khớp',
               body: connectorOk
-                  ? 'xe ${m.connector} – trạm có ${_compatible.length} cổng ${m.connector} đang hoạt động ($codes). Hệ thống tự gán cổng.'
-                  : 'trạm không có cổng ${m.connector} đang hoạt động. Gợi ý: Trạm ShareGrid Bạch Đằng.',
+                  ? 'Xe $_connector – trạm có ${_compatible.length} cổng $_connector đang hoạt động ($codes). Máy chủ sẽ xếp cổng.'
+                  : 'Máy chủ chưa xác nhận cổng $_connector đang hoạt động tại trạm này.',
             ),
             _Check(
               ok: socOk && timeOk,
               title: 'SOC & giờ hợp lệ',
               body: socOk && timeOk
-                  ? '${_socNow.round()}% < ${_socTarget.round()}% ≤ 100%, giờ lấy xe sau giờ đến, trạm mở 24/7, trong giới hạn phiên 360 phút.'
+                  ? '${_socNow.round()}% < ${_socTarget.round()}% ≤ 100%, giờ lấy xe sau giờ đến.'
                   : 'cần pin hiện tại < pin mục tiêu ≤ 100% và giờ lấy xe sau giờ đến.',
             ),
             _Check(
-              ok: true,
+              ok: _vehicle != null,
               title: 'Không trùng lịch',
-              body:
-                  'xe ${_vehicle.plate} chưa có yêu cầu khác trong khung giờ này.',
+              body: 'Máy chủ sẽ kiểm tra lịch trùng của xe khi nhận yêu cầu.',
             ),
             _Check(
               ok: allOk,
               title: 'Đưa vào hàng đợi',
               body: allOk
-                  ? 'yêu cầu được xếp chung với các yêu cầu đang hoạt động của cụm Hải Châu.'
-                  : 'sửa các mục chưa đạt để gửi yêu cầu.',
+                  ? 'Yêu cầu sẽ được gửi tới máy chủ để xếp cùng các yêu cầu đang hoạt động.'
+                  : 'Đăng nhập, chọn xe/trạm hợp lệ và sửa các mục chưa đạt.',
             ),
           ],
         ),
