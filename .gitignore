@@ -55,6 +55,11 @@ firebase-debug.log
 .claude/
 .env
 
+# Local secrets and environment files
+.env
+.env.*
+!.env.example
+
 # Python
 __pycache__/
 *.pyc

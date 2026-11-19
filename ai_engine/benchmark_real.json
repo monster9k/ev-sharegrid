@@ -1,9 +1,9 @@
 {
   "title": "EV ShareGrid AI Engine measured benchmark",
-  "measured_on": "2026-11-18",
+  "measured_on": "2026-11-19",
   "seed": 42,
   "source": {
-    "dataset_ref": "3b4b6c6",
+    "dataset_ref": "d067916",
     "scenario_generation_seed": 42,
     "benchmark_seed": 42,
     "request_files": [
@@ -70,6 +70,7 @@
     "ASAP"
   ],
   "algorithms_at_10000_requests": [
+    "MILP_MPC",
     "LLF",
     "EDF",
     "FCFS",
@@ -119,7 +120,7 @@
                 "1": "FALLBACK",
                 "2": "FALLBACK"
               },
-              "solve_ms": 5751.440999999886,
+              "solve_ms": 5900.167500010866,
               "kpi": {
                 "on_time_rate": 0.82,
                 "total_shortfall_kwh": 66.5731,
@@ -131,7 +132,7 @@
                 "1": {
                   "status": "FALLBACK",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 2971.3859000000866,
+                  "solve_ms": 2992.4318000048515,
                   "request_count": 59,
                   "kpi": {
                     "total_shortfall_kwh": 19.8358,
@@ -145,7 +146,7 @@
                 "2": {
                   "status": "FALLBACK",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 2780.0550999997995,
+                  "solve_ms": 2907.7357000060147,
                   "request_count": 41,
                   "kpi": {
                     "total_shortfall_kwh": 46.7373,
@@ -168,7 +169,7 @@
                 "1": "FALLBACK",
                 "2": "FALLBACK"
               },
-              "solve_ms": 5699.405999999954,
+              "solve_ms": 5832.640399996308,
               "kpi": {
                 "on_time_rate": 0.82,
                 "total_shortfall_kwh": 66.5731,
@@ -180,7 +181,7 @@
                 "1": {
                   "status": "FALLBACK",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 2905.033499999945,
+                  "solve_ms": 2988.447499999893,
                   "request_count": 59,
                   "kpi": {
                     "total_shortfall_kwh": 19.8358,
@@ -194,7 +195,7 @@
                 "2": {
                   "status": "FALLBACK",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 2794.3725000000086,
+                  "solve_ms": 2844.192899996415,
                   "request_count": 41,
                   "kpi": {
                     "total_shortfall_kwh": 46.7373,
@@ -217,7 +218,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 6.907500000124855,
+              "solve_ms": 8.367700007511303,
               "kpi": {
                 "on_time_rate": 0.82,
                 "total_shortfall_kwh": 66.5731,
@@ -229,7 +230,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 4.588200000171128,
+                  "solve_ms": 4.240000002027955,
                   "request_count": 59,
                   "kpi": {
                     "total_shortfall_kwh": 19.8358,
@@ -243,7 +244,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 2.319299999953728,
+                  "solve_ms": 4.127700005483348,
                   "request_count": 41,
                   "kpi": {
                     "total_shortfall_kwh": 46.7373,
@@ -266,7 +267,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 9.43579999989197,
+              "solve_ms": 7.689799997024238,
               "kpi": {
                 "on_time_rate": 0.82,
                 "total_shortfall_kwh": 66.5731,
@@ -278,7 +279,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EDF",
-                  "solve_ms": 5.71999999988293,
+                  "solve_ms": 4.890999996860046,
                   "request_count": 59,
                   "kpi": {
                     "total_shortfall_kwh": 19.8358,
@@ -292,7 +293,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EDF",
-                  "solve_ms": 3.7158000000090396,
+                  "solve_ms": 2.798800000164192,
                   "request_count": 41,
                   "kpi": {
                     "total_shortfall_kwh": 46.7373,
@@ -315,7 +316,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 6.726900000103342,
+              "solve_ms": 7.3845999941113405,
               "kpi": {
                 "on_time_rate": 0.82,
                 "total_shortfall_kwh": 66.5731,
@@ -327,7 +328,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "FCFS",
-                  "solve_ms": 3.755299999966155,
+                  "solve_ms": 4.7994999986258335,
                   "request_count": 59,
                   "kpi": {
                     "total_shortfall_kwh": 19.8358,
@@ -341,7 +342,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "FCFS",
-                  "solve_ms": 2.9716000001371867,
+                  "solve_ms": 2.585099995485507,
                   "request_count": 41,
                   "kpi": {
                     "total_shortfall_kwh": 46.7373,
@@ -364,7 +365,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 6.722399999944173,
+              "solve_ms": 8.29399999929592,
               "kpi": {
                 "on_time_rate": 0.82,
                 "total_shortfall_kwh": 66.5731,
@@ -376,7 +377,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EQUAL_SHARE",
-                  "solve_ms": 4.116000000067288,
+                  "solve_ms": 5.110400001285598,
                   "request_count": 59,
                   "kpi": {
                     "total_shortfall_kwh": 19.8358,
@@ -390,7 +391,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EQUAL_SHARE",
-                  "solve_ms": 2.606399999876885,
+                  "solve_ms": 3.1835999980103225,
                   "request_count": 41,
                   "kpi": {
                     "total_shortfall_kwh": 46.7373,
@@ -413,7 +414,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 6.190300000071147,
+              "solve_ms": 6.56130000425037,
               "kpi": {
                 "on_time_rate": 0.82,
                 "total_shortfall_kwh": 66.5731,
@@ -425,7 +426,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "ASAP",
-                  "solve_ms": 2.9976999999234977,
+                  "solve_ms": 3.8893000019015744,
                   "request_count": 59,
                   "kpi": {
                     "total_shortfall_kwh": 19.8358,
@@ -439,7 +440,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "ASAP",
-                  "solve_ms": 3.1926000001476496,
+                  "solve_ms": 2.6720000023487955,
                   "request_count": 41,
                   "kpi": {
                     "total_shortfall_kwh": 46.7373,
@@ -467,7 +468,7 @@
                 "1": "FALLBACK",
                 "2": "FALLBACK"
               },
-              "solve_ms": 5749.125099999901,
+              "solve_ms": 5785.519699995348,
               "kpi": {
                 "on_time_rate": 0.82,
                 "total_shortfall_kwh": 66.5731,
@@ -479,7 +480,7 @@
                 "1": {
                   "status": "FALLBACK",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 2938.158299999941,
+                  "solve_ms": 2942.234099995403,
                   "request_count": 59,
                   "kpi": {
                     "total_shortfall_kwh": 19.8358,
@@ -493,7 +494,7 @@
                 "2": {
                   "status": "FALLBACK",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 2810.96679999996,
+                  "solve_ms": 2843.2855999999447,
                   "request_count": 41,
                   "kpi": {
                     "total_shortfall_kwh": 46.7373,
@@ -516,7 +517,7 @@
                 "1": "FALLBACK",
                 "2": "FALLBACK"
               },
-              "solve_ms": 5630.1164999999855,
+              "solve_ms": 5867.931000000681,
               "kpi": {
                 "on_time_rate": 0.82,
                 "total_shortfall_kwh": 66.5731,
@@ -528,7 +529,7 @@
                 "1": {
                   "status": "FALLBACK",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 2870.452500000056,
+                  "solve_ms": 2974.036300001899,
                   "request_count": 59,
                   "kpi": {
                     "total_shortfall_kwh": 19.8358,
@@ -542,7 +543,7 @@
                 "2": {
                   "status": "FALLBACK",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 2759.6639999999297,
+                  "solve_ms": 2893.894699998782,
                   "request_count": 41,
                   "kpi": {
                     "total_shortfall_kwh": 46.7373,
@@ -565,7 +566,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 8.774999999786814,
+              "solve_ms": 9.489099997153971,
               "kpi": {
                 "on_time_rate": 0.82,
                 "total_shortfall_kwh": 66.5731,
@@ -577,7 +578,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 5.597599999873637,
+                  "solve_ms": 4.70849999692291,
                   "request_count": 59,
                   "kpi": {
                     "total_shortfall_kwh": 19.8358,
@@ -591,7 +592,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 3.1773999999131775,
+                  "solve_ms": 4.780600000231061,
                   "request_count": 41,
                   "kpi": {
                     "total_shortfall_kwh": 46.7373,
@@ -614,7 +615,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 8.664200000112032,
+              "solve_ms": 9.519600003841333,
               "kpi": {
                 "on_time_rate": 0.82,
                 "total_shortfall_kwh": 66.5731,
@@ -626,7 +627,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EDF",
-                  "solve_ms": 5.1267000001189444,
+                  "solve_ms": 5.326999998942483,
                   "request_count": 59,
                   "kpi": {
                     "total_shortfall_kwh": 19.8358,
@@ -640,7 +641,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EDF",
-                  "solve_ms": 3.537499999993088,
+                  "solve_ms": 4.19260000489885,
                   "request_count": 41,
                   "kpi": {
                     "total_shortfall_kwh": 46.7373,
@@ -663,7 +664,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 7.7056999998603715,
+              "solve_ms": 7.640499999979511,
               "kpi": {
                 "on_time_rate": 0.82,
                 "total_shortfall_kwh": 66.5731,
@@ -675,7 +676,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "FCFS",
-                  "solve_ms": 3.5172000000329717,
+                  "solve_ms": 3.88589999784017,
                   "request_count": 59,
                   "kpi": {
                     "total_shortfall_kwh": 19.8358,
@@ -689,7 +690,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "FCFS",
-                  "solve_ms": 4.1884999998274,
+                  "solve_ms": 3.754600002139341,
                   "request_count": 41,
                   "kpi": {
                     "total_shortfall_kwh": 46.7373,
@@ -712,7 +713,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 8.468499999935375,
+              "solve_ms": 8.184899998013861,
               "kpi": {
                 "on_time_rate": 0.82,
                 "total_shortfall_kwh": 66.5731,
@@ -724,7 +725,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EQUAL_SHARE",
-                  "solve_ms": 3.901799999994182,
+                  "solve_ms": 4.584499998600222,
                   "request_count": 59,
                   "kpi": {
                     "total_shortfall_kwh": 19.8358,
@@ -738,7 +739,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EQUAL_SHARE",
-                  "solve_ms": 4.566699999941193,
+                  "solve_ms": 3.6003999994136393,
                   "request_count": 41,
                   "kpi": {
                     "total_shortfall_kwh": 46.7373,
@@ -761,7 +762,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 7.409400000142341,
+              "solve_ms": 6.835200001660269,
               "kpi": {
                 "on_time_rate": 0.82,
                 "total_shortfall_kwh": 66.5731,
@@ -773,7 +774,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "ASAP",
-                  "solve_ms": 3.768499999978303,
+                  "solve_ms": 3.5857000038959086,
                   "request_count": 59,
                   "kpi": {
                     "total_shortfall_kwh": 19.8358,
@@ -787,7 +788,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "ASAP",
-                  "solve_ms": 3.640900000164038,
+                  "solve_ms": 3.24949999776436,
                   "request_count": 41,
                   "kpi": {
                     "total_shortfall_kwh": 46.7373,
@@ -847,7 +848,7 @@
                 "1": "FALLBACK",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 3680.5709999998726,
+              "solve_ms": 3941.906799998833,
               "kpi": {
                 "on_time_rate": 0.544,
                 "total_shortfall_kwh": 3835.2927,
@@ -859,7 +860,7 @@
                 "1": {
                   "status": "FALLBACK",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 21.35109999994711,
+                  "solve_ms": 24.12880000338191,
                   "request_count": 294,
                   "kpi": {
                     "total_shortfall_kwh": 2078.2953,
@@ -873,7 +874,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "MILP_MPC",
-                  "solve_ms": 3659.2198999999255,
+                  "solve_ms": 3917.777999995451,
                   "request_count": 206,
                   "kpi": {
                     "total_shortfall_kwh": 1756.9974,
@@ -897,7 +898,7 @@
                 "1": "FALLBACK",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 3713.3420000000115,
+              "solve_ms": 4487.882000001264,
               "kpi": {
                 "on_time_rate": 0.544,
                 "total_shortfall_kwh": 3835.2927,
@@ -909,7 +910,7 @@
                 "1": {
                   "status": "FALLBACK",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 26.687399999900663,
+                  "solve_ms": 21.844999995664693,
                   "request_count": 294,
                   "kpi": {
                     "total_shortfall_kwh": 2078.2953,
@@ -923,7 +924,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "MILP_MPC",
-                  "solve_ms": 3686.654600000111,
+                  "solve_ms": 4466.037000005599,
                   "request_count": 206,
                   "kpi": {
                     "total_shortfall_kwh": 1756.9974,
@@ -946,7 +947,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 40.63349999978527,
+              "solve_ms": 45.80569999961881,
               "kpi": {
                 "on_time_rate": 0.542,
                 "total_shortfall_kwh": 3835.6732,
@@ -958,7 +959,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 23.643199999924036,
+                  "solve_ms": 21.61049999995157,
                   "request_count": 294,
                   "kpi": {
                     "total_shortfall_kwh": 2078.2953,
@@ -972,7 +973,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 16.990299999861236,
+                  "solve_ms": 24.19519999966724,
                   "request_count": 206,
                   "kpi": {
                     "total_shortfall_kwh": 1757.3779,
@@ -995,7 +996,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 35.67750000001979,
+              "solve_ms": 44.6592000007513,
               "kpi": {
                 "on_time_rate": 0.608,
                 "total_shortfall_kwh": 3087.135,
@@ -1007,7 +1008,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EDF",
-                  "solve_ms": 17.021800000065923,
+                  "solve_ms": 19.893400000000838,
                   "request_count": 294,
                   "kpi": {
                     "total_shortfall_kwh": 1696.1622,
@@ -1021,7 +1022,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EDF",
-                  "solve_ms": 18.655699999953868,
+                  "solve_ms": 24.76580000075046,
                   "request_count": 206,
                   "kpi": {
                     "total_shortfall_kwh": 1390.9728,
@@ -1044,7 +1045,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 31.68849999997292,
+              "solve_ms": 49.108700004580896,
               "kpi": {
                 "on_time_rate": 0.544,
                 "total_shortfall_kwh": 5504.0725999999995,
@@ -1056,7 +1057,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "FCFS",
-                  "solve_ms": 17.651999999998225,
+                  "solve_ms": 23.67950000189012,
                   "request_count": 294,
                   "kpi": {
                     "total_shortfall_kwh": 3052.4469,
@@ -1070,7 +1071,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "FCFS",
-                  "solve_ms": 14.036499999974694,
+                  "solve_ms": 25.429200002690777,
                   "request_count": 206,
                   "kpi": {
                     "total_shortfall_kwh": 2451.6257,
@@ -1093,7 +1094,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 45.30699999986609,
+              "solve_ms": 56.566399995062966,
               "kpi": {
                 "on_time_rate": 0.494,
                 "total_shortfall_kwh": 5910.726250144142,
@@ -1105,7 +1106,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EQUAL_SHARE",
-                  "solve_ms": 30.34170000000813,
+                  "solve_ms": 25.941299994883593,
                   "request_count": 294,
                   "kpi": {
                     "total_shortfall_kwh": 3216.0341638675986,
@@ -1119,7 +1120,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EQUAL_SHARE",
-                  "solve_ms": 14.965299999857962,
+                  "solve_ms": 30.625100000179373,
                   "request_count": 206,
                   "kpi": {
                     "total_shortfall_kwh": 2694.6920862765433,
@@ -1142,7 +1143,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 30.121000000235654,
+              "solve_ms": 41.094099993642885,
               "kpi": {
                 "on_time_rate": 0.582,
                 "total_shortfall_kwh": 5126.844999999999,
@@ -1154,7 +1155,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "ASAP",
-                  "solve_ms": 15.360000000100626,
+                  "solve_ms": 19.903499996871687,
                   "request_count": 294,
                   "kpi": {
                     "total_shortfall_kwh": 2764.605,
@@ -1168,7 +1169,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "ASAP",
-                  "solve_ms": 14.761000000135027,
+                  "solve_ms": 21.190599996771198,
                   "request_count": 206,
                   "kpi": {
                     "total_shortfall_kwh": 2362.24,
@@ -1197,7 +1198,7 @@
                 "1": "FALLBACK",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 3737.303000000111,
+              "solve_ms": 5221.131800004514,
               "kpi": {
                 "on_time_rate": 0.544,
                 "total_shortfall_kwh": 3835.2927,
@@ -1209,7 +1210,7 @@
                 "1": {
                   "status": "FALLBACK",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 23.343900000099893,
+                  "solve_ms": 40.43449999880977,
                   "request_count": 294,
                   "kpi": {
                     "total_shortfall_kwh": 2078.2953,
@@ -1223,7 +1224,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "MILP_MPC",
-                  "solve_ms": 3713.959100000011,
+                  "solve_ms": 5180.697300005704,
                   "request_count": 206,
                   "kpi": {
                     "total_shortfall_kwh": 1756.9974,
@@ -1247,7 +1248,7 @@
                 "1": "FALLBACK",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 3701.9138999999086,
+              "solve_ms": 5014.992600001278,
               "kpi": {
                 "on_time_rate": 0.544,
                 "total_shortfall_kwh": 3835.2927,
@@ -1259,7 +1260,7 @@
                 "1": {
                   "status": "FALLBACK",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 19.97609999989436,
+                  "solve_ms": 39.4393000024138,
                   "request_count": 294,
                   "kpi": {
                     "total_shortfall_kwh": 2078.2953,
@@ -1273,7 +1274,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "MILP_MPC",
-                  "solve_ms": 3681.9378000000142,
+                  "solve_ms": 4975.5532999988645,
                   "request_count": 206,
                   "kpi": {
                     "total_shortfall_kwh": 1756.9974,
@@ -1296,7 +1297,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 49.86589999998614,
+              "solve_ms": 70.01699999818811,
               "kpi": {
                 "on_time_rate": 0.542,
                 "total_shortfall_kwh": 3835.6732,
@@ -1308,7 +1309,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 29.129100000091057,
+                  "solve_ms": 40.50309999729507,
                   "request_count": 294,
                   "kpi": {
                     "total_shortfall_kwh": 2078.2953,
@@ -1322,7 +1323,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 20.736799999895084,
+                  "solve_ms": 29.513900000893045,
                   "request_count": 206,
                   "kpi": {
                     "total_shortfall_kwh": 1757.3779,
@@ -1345,7 +1346,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 32.48829999984082,
+              "solve_ms": 67.31969999964349,
               "kpi": {
                 "on_time_rate": 0.608,
                 "total_shortfall_kwh": 3087.135,
@@ -1357,7 +1358,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EDF",
-                  "solve_ms": 19.757099999878847,
+                  "solve_ms": 37.965299998177215,
                   "request_count": 294,
                   "kpi": {
                     "total_shortfall_kwh": 1696.1622,
@@ -1371,7 +1372,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EDF",
-                  "solve_ms": 12.731199999961973,
+                  "solve_ms": 29.354400001466274,
                   "request_count": 206,
                   "kpi": {
                     "total_shortfall_kwh": 1390.9728,
@@ -1394,7 +1395,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 39.34479999998075,
+              "solve_ms": 59.808699996210635,
               "kpi": {
                 "on_time_rate": 0.544,
                 "total_shortfall_kwh": 5504.0725999999995,
@@ -1406,7 +1407,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "FCFS",
-                  "solve_ms": 27.59169999990263,
+                  "solve_ms": 35.19319999759318,
                   "request_count": 294,
                   "kpi": {
                     "total_shortfall_kwh": 3052.4469,
@@ -1420,7 +1421,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "FCFS",
-                  "solve_ms": 11.75310000007812,
+                  "solve_ms": 24.61549999861745,
                   "request_count": 206,
                   "kpi": {
                     "total_shortfall_kwh": 2451.6257,
@@ -1443,7 +1444,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 42.942999999922904,
+              "solve_ms": 81.78559999942081,
               "kpi": {
                 "on_time_rate": 0.494,
                 "total_shortfall_kwh": 5910.726250144142,
@@ -1455,7 +1456,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EQUAL_SHARE",
-                  "solve_ms": 26.603900000054637,
+                  "solve_ms": 51.49689999961993,
                   "request_count": 294,
                   "kpi": {
                     "total_shortfall_kwh": 3216.0341638675986,
@@ -1469,7 +1470,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EQUAL_SHARE",
-                  "solve_ms": 16.339099999868267,
+                  "solve_ms": 30.288699999800883,
                   "request_count": 206,
                   "kpi": {
                     "total_shortfall_kwh": 2694.6920862765433,
@@ -1492,7 +1493,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 29.304500000080225,
+              "solve_ms": 55.194399996253196,
               "kpi": {
                 "on_time_rate": 0.582,
                 "total_shortfall_kwh": 5126.844999999999,
@@ -1504,7 +1505,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "ASAP",
-                  "solve_ms": 20.826599999963946,
+                  "solve_ms": 34.541900000476744,
                   "request_count": 294,
                   "kpi": {
                     "total_shortfall_kwh": 2764.605,
@@ -1518,7 +1519,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "ASAP",
-                  "solve_ms": 8.477900000116279,
+                  "solve_ms": 20.652499995776452,
                   "request_count": 206,
                   "kpi": {
                     "total_shortfall_kwh": 2362.24,
@@ -1577,7 +1578,7 @@
                 "1": "FALLBACK",
                 "2": "FALLBACK"
               },
-              "solve_ms": 69.93699999998171,
+              "solve_ms": 175.45480000262614,
               "kpi": {
                 "on_time_rate": 0.536,
                 "total_shortfall_kwh": 4667.3876,
@@ -1589,7 +1590,7 @@
                 "1": {
                   "status": "FALLBACK",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 50.70870000008654,
+                  "solve_ms": 109.04860000300687,
                   "request_count": 588,
                   "kpi": {
                     "total_shortfall_kwh": 2442.6629000000003,
@@ -1603,7 +1604,7 @@
                 "2": {
                   "status": "FALLBACK",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 19.22829999989517,
+                  "solve_ms": 66.40619999961928,
                   "request_count": 412,
                   "kpi": {
                     "total_shortfall_kwh": 2224.7246999999998,
@@ -1626,7 +1627,7 @@
                 "1": "FALLBACK",
                 "2": "FALLBACK"
               },
-              "solve_ms": 71.27429999991364,
+              "solve_ms": 198.2212000002619,
               "kpi": {
                 "on_time_rate": 0.536,
                 "total_shortfall_kwh": 4667.3876,
@@ -1638,7 +1639,7 @@
                 "1": {
                   "status": "FALLBACK",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 49.43709999997736,
+                  "solve_ms": 124.10539999837056,
                   "request_count": 588,
                   "kpi": {
                     "total_shortfall_kwh": 2442.6629000000003,
@@ -1652,7 +1653,7 @@
                 "2": {
                   "status": "FALLBACK",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 21.837199999936274,
+                  "solve_ms": 74.11580000189133,
                   "request_count": 412,
                   "kpi": {
                     "total_shortfall_kwh": 2224.7246999999998,
@@ -1675,7 +1676,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 80.35620000009658,
+              "solve_ms": 177.53890000312822,
               "kpi": {
                 "on_time_rate": 0.536,
                 "total_shortfall_kwh": 4667.3876,
@@ -1687,7 +1688,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 43.94410000008975,
+                  "solve_ms": 107.2308000002522,
                   "request_count": 588,
                   "kpi": {
                     "total_shortfall_kwh": 2442.6629000000003,
@@ -1701,7 +1702,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 36.41210000000683,
+                  "solve_ms": 70.30810000287602,
                   "request_count": 412,
                   "kpi": {
                     "total_shortfall_kwh": 2224.7246999999998,
@@ -1724,7 +1725,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 74.0966999999273,
+              "solve_ms": 277.09280000271974,
               "kpi": {
                 "on_time_rate": 0.609,
                 "total_shortfall_kwh": 4298.9076,
@@ -1736,7 +1737,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EDF",
-                  "solve_ms": 55.06209999998646,
+                  "solve_ms": 103.79220000322675,
                   "request_count": 588,
                   "kpi": {
                     "total_shortfall_kwh": 2323.5917,
@@ -1750,7 +1751,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EDF",
-                  "solve_ms": 19.034599999940838,
+                  "solve_ms": 173.300599999493,
                   "request_count": 412,
                   "kpi": {
                     "total_shortfall_kwh": 1975.3158999999998,
@@ -1773,7 +1774,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 55.75110000017958,
+              "solve_ms": 161.71980000217445,
               "kpi": {
                 "on_time_rate": 0.493,
                 "total_shortfall_kwh": 7091.9838,
@@ -1785,7 +1786,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "FCFS",
-                  "solve_ms": 27.240200000051118,
+                  "solve_ms": 94.66940000129398,
                   "request_count": 588,
                   "kpi": {
                     "total_shortfall_kwh": 3975.5401,
@@ -1799,7 +1800,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "FCFS",
-                  "solve_ms": 28.51090000012846,
+                  "solve_ms": 67.05040000088047,
                   "request_count": 412,
                   "kpi": {
                     "total_shortfall_kwh": 3116.4437,
@@ -1822,7 +1823,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 47.26699999991979,
+              "solve_ms": 193.11499999457737,
               "kpi": {
                 "on_time_rate": 0.398,
                 "total_shortfall_kwh": 8574.504097024022,
@@ -1834,7 +1835,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EQUAL_SHARE",
-                  "solve_ms": 27.741899999909947,
+                  "solve_ms": 125.87199999688892,
                   "request_count": 588,
                   "kpi": {
                     "total_shortfall_kwh": 4767.136781309738,
@@ -1848,7 +1849,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EQUAL_SHARE",
-                  "solve_ms": 19.525100000009843,
+                  "solve_ms": 67.24299999768846,
                   "request_count": 412,
                   "kpi": {
                     "total_shortfall_kwh": 3807.3673157142857,
@@ -1871,7 +1872,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 52.850799999760056,
+              "solve_ms": 163.81719999480993,
               "kpi": {
                 "on_time_rate": 0.423,
                 "total_shortfall_kwh": 8448.8688,
@@ -1883,7 +1884,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "ASAP",
-                  "solve_ms": 36.106699999891134,
+                  "solve_ms": 100.26269999798387,
                   "request_count": 588,
                   "kpi": {
                     "total_shortfall_kwh": 4732.8746,
@@ -1897,7 +1898,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "ASAP",
-                  "solve_ms": 16.744099999868922,
+                  "solve_ms": 63.55449999682605,
                   "request_count": 412,
                   "kpi": {
                     "total_shortfall_kwh": 3715.9942,
@@ -1925,7 +1926,7 @@
                 "1": "FALLBACK",
                 "2": "FALLBACK"
               },
-              "solve_ms": 76.60869999995157,
+              "solve_ms": 179.71110000507906,
               "kpi": {
                 "on_time_rate": 0.536,
                 "total_shortfall_kwh": 4667.3876,
@@ -1937,7 +1938,7 @@
                 "1": {
                   "status": "FALLBACK",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 54.72239999994599,
+                  "solve_ms": 132.66730000032112,
                   "request_count": 588,
                   "kpi": {
                     "total_shortfall_kwh": 2442.6629000000003,
@@ -1951,7 +1952,7 @@
                 "2": {
                   "status": "FALLBACK",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 21.886300000005576,
+                  "solve_ms": 47.04380000475794,
                   "request_count": 412,
                   "kpi": {
                     "total_shortfall_kwh": 2224.7246999999998,
@@ -1974,7 +1975,7 @@
                 "1": "FALLBACK",
                 "2": "FALLBACK"
               },
-              "solve_ms": 69.5491999999831,
+              "solve_ms": 160.7566000020597,
               "kpi": {
                 "on_time_rate": 0.536,
                 "total_shortfall_kwh": 4667.3876,
@@ -1986,7 +1987,7 @@
                 "1": {
                   "status": "FALLBACK",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 45.8889999999883,
+                  "solve_ms": 113.90150000079302,
                   "request_count": 588,
                   "kpi": {
                     "total_shortfall_kwh": 2442.6629000000003,
@@ -2000,7 +2001,7 @@
                 "2": {
                   "status": "FALLBACK",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 23.660199999994802,
+                  "solve_ms": 46.85510000126669,
                   "request_count": 412,
                   "kpi": {
                     "total_shortfall_kwh": 2224.7246999999998,
@@ -2023,7 +2024,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 72.48310000022684,
+              "solve_ms": 115.82750000525266,
               "kpi": {
                 "on_time_rate": 0.536,
                 "total_shortfall_kwh": 4667.3876,
@@ -2035,7 +2036,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 43.62140000012005,
+                  "solve_ms": 67.25990000268212,
                   "request_count": 588,
                   "kpi": {
                     "total_shortfall_kwh": 2442.6629000000003,
@@ -2049,7 +2050,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 28.861700000106794,
+                  "solve_ms": 48.56760000257054,
                   "request_count": 412,
                   "kpi": {
                     "total_shortfall_kwh": 2224.7246999999998,
@@ -2072,7 +2073,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 73.52280000009159,
+              "solve_ms": 111.05549999774667,
               "kpi": {
                 "on_time_rate": 0.609,
                 "total_shortfall_kwh": 4298.9076,
@@ -2084,7 +2085,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EDF",
-                  "solve_ms": 47.14850000004844,
+                  "solve_ms": 67.22050000098534,
                   "request_count": 588,
                   "kpi": {
                     "total_shortfall_kwh": 2323.5917,
@@ -2098,7 +2099,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EDF",
-                  "solve_ms": 26.37430000004315,
+                  "solve_ms": 43.834999996761326,
                   "request_count": 412,
                   "kpi": {
                     "total_shortfall_kwh": 1975.3158999999998,
@@ -2121,7 +2122,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 51.99540000012348,
+              "solve_ms": 110.99370000010822,
               "kpi": {
                 "on_time_rate": 0.493,
                 "total_shortfall_kwh": 7091.9838,
@@ -2133,7 +2134,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "FCFS",
-                  "solve_ms": 33.02220000000489,
+                  "solve_ms": 61.594200000399724,
                   "request_count": 588,
                   "kpi": {
                     "total_shortfall_kwh": 3975.5401,
@@ -2147,7 +2148,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "FCFS",
-                  "solve_ms": 18.973200000118595,
+                  "solve_ms": 49.399499999708496,
                   "request_count": 412,
                   "kpi": {
                     "total_shortfall_kwh": 3116.4437,
@@ -2170,7 +2171,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 67.4008999999387,
+              "solve_ms": 163.38199999881908,
               "kpi": {
                 "on_time_rate": 0.398,
                 "total_shortfall_kwh": 8574.504097024022,
@@ -2182,7 +2183,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EQUAL_SHARE",
-                  "solve_ms": 38.52469999992536,
+                  "solve_ms": 106.88049999589566,
                   "request_count": 588,
                   "kpi": {
                     "total_shortfall_kwh": 4767.136781309738,
@@ -2196,7 +2197,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EQUAL_SHARE",
-                  "solve_ms": 28.87620000001334,
+                  "solve_ms": 56.50150000292342,
                   "request_count": 412,
                   "kpi": {
                     "total_shortfall_kwh": 3807.3673157142857,
@@ -2219,7 +2220,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 73.02479999998468,
+              "solve_ms": 100.49150000122609,
               "kpi": {
                 "on_time_rate": 0.423,
                 "total_shortfall_kwh": 8448.8688,
@@ -2231,7 +2232,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "ASAP",
-                  "solve_ms": 44.98179999995955,
+                  "solve_ms": 58.288699998229276,
                   "request_count": 588,
                   "kpi": {
                     "total_shortfall_kwh": 4732.8746,
@@ -2245,7 +2246,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "ASAP",
-                  "solve_ms": 28.04300000002513,
+                  "solve_ms": 42.20280000299681,
                   "request_count": 412,
                   "kpi": {
                     "total_shortfall_kwh": 3715.9942,
@@ -2295,6 +2296,55 @@
           "tariff": "fixed_2000_vnd_kwh",
           "algorithms": [
             {
+              "requested_algorithm": "MILP_MPC",
+              "actual_algorithms": [
+                "LLF"
+              ],
+              "status": "FALLBACK",
+              "status_by_cluster": {
+                "1": "FALLBACK",
+                "2": "FALLBACK"
+              },
+              "solve_ms": 1355.5350999959046,
+              "kpi": {
+                "on_time_rate": 0.2622,
+                "total_shortfall_kwh": 12428.5622,
+                "total_cost_vnd": 7782875.599999985,
+                "peak_power_kw": 573.9696000000002,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FALLBACK",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 874.6023999992758,
+                  "request_count": 5882,
+                  "kpi": {
+                    "total_shortfall_kwh": 7093.3669,
+                    "total_cost_vnd": 5013266.1999999685,
+                    "peak_power_kw": 386.1796,
+                    "on_time_rate": 0.28034682080924855,
+                    "fairness": 0.28034682080924855,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FALLBACK",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 480.9326999966288,
+                  "request_count": 4118,
+                  "kpi": {
+                    "total_shortfall_kwh": 5335.1953,
+                    "total_cost_vnd": 2769609.400000016,
+                    "peak_power_kw": 237.936,
+                    "on_time_rate": 0.23627974745021854,
+                    "fairness": 0.23627974745021854,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
               "requested_algorithm": "LLF",
               "actual_algorithms": [
                 "LLF"
@@ -2304,7 +2354,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 669.5902999997543,
+              "solve_ms": 1332.6003999973182,
               "kpi": {
                 "on_time_rate": 0.2622,
                 "total_shortfall_kwh": 12428.5622,
@@ -2316,7 +2366,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 388.19539999985864,
+                  "solve_ms": 815.0116999968304,
                   "request_count": 5882,
                   "kpi": {
                     "total_shortfall_kwh": 7093.3669,
@@ -2330,7 +2380,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 281.39489999989564,
+                  "solve_ms": 517.5887000004877,
                   "request_count": 4118,
                   "kpi": {
                     "total_shortfall_kwh": 5335.1953,
@@ -2353,7 +2403,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 613.3511000002727,
+              "solve_ms": 1166.8539000020246,
               "kpi": {
                 "on_time_rate": 0.2622,
                 "total_shortfall_kwh": 11783.6359,
@@ -2365,7 +2415,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EDF",
-                  "solve_ms": 381.1334000001807,
+                  "solve_ms": 692.119500003173,
                   "request_count": 5882,
                   "kpi": {
                     "total_shortfall_kwh": 6783.0052,
@@ -2379,7 +2429,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EDF",
-                  "solve_ms": 232.217700000092,
+                  "solve_ms": 474.7343999988516,
                   "request_count": 4118,
                   "kpi": {
                     "total_shortfall_kwh": 5000.6307,
@@ -2402,7 +2452,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 531.6331000003629,
+              "solve_ms": 1158.188200002769,
               "kpi": {
                 "on_time_rate": 0.1329,
                 "total_shortfall_kwh": 14044.023,
@@ -2414,7 +2464,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "FCFS",
-                  "solve_ms": 298.9177000001746,
+                  "solve_ms": 691.4104000024963,
                   "request_count": 5882,
                   "kpi": {
                     "total_shortfall_kwh": 8200.1336,
@@ -2428,7 +2478,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "FCFS",
-                  "solve_ms": 232.7154000001883,
+                  "solve_ms": 466.7778000002727,
                   "request_count": 4118,
                   "kpi": {
                     "total_shortfall_kwh": 5843.8894,
@@ -2451,7 +2501,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 683.6246000002575,
+              "solve_ms": 1092.6884000000427,
               "kpi": {
                 "on_time_rate": 0.062,
                 "total_shortfall_kwh": 15168.7418,
@@ -2463,7 +2513,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EQUAL_SHARE",
-                  "solve_ms": 421.4857000001757,
+                  "solve_ms": 588.3455000002868,
                   "request_count": 5882,
                   "kpi": {
                     "total_shortfall_kwh": 8860.3254,
@@ -2477,7 +2527,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EQUAL_SHARE",
-                  "solve_ms": 262.1389000000818,
+                  "solve_ms": 504.3428999997559,
                   "request_count": 4118,
                   "kpi": {
                     "total_shortfall_kwh": 6308.4164,
@@ -2500,7 +2550,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 533.5758999999598,
+              "solve_ms": 1120.114299999841,
               "kpi": {
                 "on_time_rate": 0.062,
                 "total_shortfall_kwh": 15168.7418,
@@ -2512,7 +2562,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "ASAP",
-                  "solve_ms": 268.7822000000324,
+                  "solve_ms": 595.523800002411,
                   "request_count": 5882,
                   "kpi": {
                     "total_shortfall_kwh": 8860.3254,
@@ -2526,7 +2576,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "ASAP",
-                  "solve_ms": 264.7936999999274,
+                  "solve_ms": 524.59049999743,
                   "request_count": 4118,
                   "kpi": {
                     "total_shortfall_kwh": 6308.4164,
@@ -2545,6 +2595,55 @@
           "tariff": "evn_tou_1600_2400_4000_vnd_kwh",
           "algorithms": [
             {
+              "requested_algorithm": "MILP_MPC",
+              "actual_algorithms": [
+                "LLF"
+              ],
+              "status": "FALLBACK",
+              "status_by_cluster": {
+                "1": "FALLBACK",
+                "2": "FALLBACK"
+              },
+              "solve_ms": 1478.2028000045102,
+              "kpi": {
+                "on_time_rate": 0.2622,
+                "total_shortfall_kwh": 12428.5622,
+                "total_cost_vnd": 9925629.200000094,
+                "peak_power_kw": 573.9696000000002,
+                "cap_violations": 0
+              },
+              "cluster_results": {
+                "1": {
+                  "status": "FALLBACK",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 1096.5113999991445,
+                  "request_count": 5882,
+                  "kpi": {
+                    "total_shortfall_kwh": 7093.3669,
+                    "total_cost_vnd": 6401951.040000073,
+                    "peak_power_kw": 386.1796,
+                    "on_time_rate": 0.28034682080924855,
+                    "fairness": 0.28034682080924855,
+                    "cap_violations": 0
+                  }
+                },
+                "2": {
+                  "status": "FALLBACK",
+                  "actual_algorithm": "LLF",
+                  "solve_ms": 381.6914000053657,
+                  "request_count": 4118,
+                  "kpi": {
+                    "total_shortfall_kwh": 5335.1953,
+                    "total_cost_vnd": 3523678.160000021,
+                    "peak_power_kw": 237.936,
+                    "on_time_rate": 0.23627974745021854,
+                    "fairness": 0.23627974745021854,
+                    "cap_violations": 0
+                  }
+                }
+              }
+            },
+            {
               "requested_algorithm": "LLF",
               "actual_algorithms": [
                 "LLF"
@@ -2554,7 +2653,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 786.8831999999202,
+              "solve_ms": 1229.0395999953034,
               "kpi": {
                 "on_time_rate": 0.2622,
                 "total_shortfall_kwh": 12428.5622,
@@ -2566,7 +2665,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 461.6209999999228,
+                  "solve_ms": 900.5562000020291,
                   "request_count": 5882,
                   "kpi": {
                     "total_shortfall_kwh": 7093.3669,
@@ -2580,7 +2679,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "LLF",
-                  "solve_ms": 325.2621999999974,
+                  "solve_ms": 328.48339999327436,
                   "request_count": 4118,
                   "kpi": {
                     "total_shortfall_kwh": 5335.1953,
@@ -2603,7 +2702,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 634.3879999999444,
+              "solve_ms": 883.9398999989498,
               "kpi": {
                 "on_time_rate": 0.2622,
                 "total_shortfall_kwh": 11783.6359,
@@ -2615,7 +2714,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EDF",
-                  "solve_ms": 343.27349999989565,
+                  "solve_ms": 541.6677999965032,
                   "request_count": 5882,
                   "kpi": {
                     "total_shortfall_kwh": 6783.0052,
@@ -2629,7 +2728,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EDF",
-                  "solve_ms": 291.1145000000488,
+                  "solve_ms": 342.2721000024467,
                   "request_count": 4118,
                   "kpi": {
                     "total_shortfall_kwh": 5000.6307,
@@ -2652,7 +2751,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 551.5227999999297,
+              "solve_ms": 874.1260999959195,
               "kpi": {
                 "on_time_rate": 0.1329,
                 "total_shortfall_kwh": 14044.023,
@@ -2664,7 +2763,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "FCFS",
-                  "solve_ms": 349.4811999999001,
+                  "solve_ms": 570.3073999975459,
                   "request_count": 5882,
                   "kpi": {
                     "total_shortfall_kwh": 8200.1336,
@@ -2678,7 +2777,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "FCFS",
-                  "solve_ms": 202.04160000002958,
+                  "solve_ms": 303.81869999837363,
                   "request_count": 4118,
                   "kpi": {
                     "total_shortfall_kwh": 5843.8894,
@@ -2701,7 +2800,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 603.5080999999991,
+              "solve_ms": 774.9819999953615,
               "kpi": {
                 "on_time_rate": 0.062,
                 "total_shortfall_kwh": 15168.7418,
@@ -2713,7 +2812,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EQUAL_SHARE",
-                  "solve_ms": 315.23409999999785,
+                  "solve_ms": 516.074999999546,
                   "request_count": 5882,
                   "kpi": {
                     "total_shortfall_kwh": 8860.3254,
@@ -2727,7 +2826,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "EQUAL_SHARE",
-                  "solve_ms": 288.27400000000125,
+                  "solve_ms": 258.90699999581557,
                   "request_count": 4118,
                   "kpi": {
                     "total_shortfall_kwh": 6308.4164,
@@ -2750,7 +2849,7 @@
                 "1": "FEASIBLE",
                 "2": "FEASIBLE"
               },
-              "solve_ms": 617.2715000000153,
+              "solve_ms": 562.4117999977898,
               "kpi": {
                 "on_time_rate": 0.062,
                 "total_shortfall_kwh": 15168.7418,
@@ -2762,7 +2861,7 @@
                 "1": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "ASAP",
-                  "solve_ms": 367.86189999997987,
+                  "solve_ms": 329.45610000024317,
                   "request_count": 5882,
                   "kpi": {
                     "total_shortfall_kwh": 8860.3254,
@@ -2776,7 +2875,7 @@
                 "2": {
                   "status": "FEASIBLE",
                   "actual_algorithm": "ASAP",
-                  "solve_ms": 249.40960000003543,
+                  "solve_ms": 232.95569999754662,
                   "request_count": 4118,
                   "kpi": {
                     "total_shortfall_kwh": 6308.4164,

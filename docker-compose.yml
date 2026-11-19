@@ -1,8 +1,8 @@
-version: '3.8'
 services:
   postgres:
     image: postgis/postgis:15-3.3
     container_name: ev_sharegrid_db
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
@@ -11,6 +11,63 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./database/schema_19_tables.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U '$$POSTGRES_USER' -d '$$POSTGRES_DB'"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  ai-engine:
+    build:
+      context: ./ai_engine
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      WORKERS: ${WORKERS:-1}
+      DEFAULT_TIME_BUDGET_MS: ${DEFAULT_TIME_BUDGET_MS:-2000}
+      DECOMPOSE_THRESHOLD: ${DECOMPOSE_THRESHOLD:-1000}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+
+  catalog-seed:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["python", "scripts/import_catalog.py"]
+    restart: "no"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ev_sharegrid}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ev_sharegrid}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+    depends_on:
+      catalog-seed:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/', timeout=3).close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
 volumes:
   pgdata:

@@ -31,7 +31,9 @@ OUTPUT = ROOT / "ai_engine" / "benchmark_real.json"
 SEED = 42
 SCENARIOS = (100, 500, 1000, 10000)
 ALL_ALGORITHMS = ("MILP_MPC", "LP_MPC", "LLF", "EDF", "FCFS", "EQUAL_SHARE", "ASAP")
-FAST_ALGORITHMS_10000 = ("LLF", "EDF", "FCFS", "EQUAL_SHARE", "ASAP")
+# MILP_MPC is included at 10k because the configured request threshold routes
+# it directly to the bounded LLF path before constructing a solver model.
+FAST_ALGORITHMS_10000 = ("MILP_MPC", "LLF", "EDF", "FCFS", "EQUAL_SHARE", "ASAP")
 LOCAL_TZ = timezone(timedelta(hours=7))
 SLOT = timedelta(minutes=15)
 
@@ -353,8 +355,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--dataset-ref",
-        default="3b4b6c6",
-        help="Git ref containing the regenerated CSV scenarios and final catalog (default: 3b4b6c6)",
+        default="d067916",
+        help="Git ref containing the latest develop scenarios and catalog after PR #24 (default: d067916)",
     )
     args = parser.parse_args()
     tables, hashes = read_inputs(args.dataset_ref)
