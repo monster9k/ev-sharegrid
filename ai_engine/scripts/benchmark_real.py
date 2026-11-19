@@ -31,9 +31,8 @@ OUTPUT = ROOT / "ai_engine" / "benchmark_real.json"
 SEED = 42
 SCENARIOS = (100, 500, 1000, 10000)
 ALL_ALGORITHMS = ("MILP_MPC", "LP_MPC", "LLF", "EDF", "FCFS", "EQUAL_SHARE", "ASAP")
-# MILP_MPC is included at 10k because the configured request threshold routes
-# it directly to the bounded LLF path before constructing a solver model.
-FAST_ALGORITHMS_10000 = ("MILP_MPC", "LLF", "EDF", "FCFS", "EQUAL_SHARE", "ASAP")
+FAST_ALGORITHMS = ("LLF", "EDF", "FCFS", "EQUAL_SHARE", "ASAP")
+THROUGHPUT_COUNTS = (1000, 10000)
 LOCAL_TZ = timezone(timedelta(hours=7))
 SLOT = timedelta(minutes=15)
 
@@ -267,6 +266,8 @@ def build_scenario(
     total_capacity = sum(clusters[cluster] * 24.0 for cluster in active_clusters)
     metadata = {
         "request_count": count,
+        "data_scenario_type": scenario_rows[0].get("scenario_type"),
+        "benchmark_purpose": "THROUGHPUT" if count in THROUGHPUT_COUNTS else "DISPATCH_COMPARISON",
         "requests_by_cluster": {str(cluster): len(requests_by_cluster[str(cluster)]) for cluster in active_clusters},
         "demand_kwh": sum(demand_by_cluster.values()),
         "capacity_kwh": total_capacity,
@@ -331,7 +332,7 @@ def aggregate_algorithm(
             "fallback_reason": result["fallback_reason"],
             "solve_ms": result["solve_ms"],
             "request_count": count,
-            "kpi": kpi,
+            "kpi": kpi if status != "ERROR" else None,
         }
 
     statuses = sorted(set(all_statuses))
@@ -346,7 +347,7 @@ def aggregate_algorithm(
             cluster: row["fallback_reason"] for cluster, row in cluster_runs.items()
         },
         "solve_ms": total_solve_ms,
-        "kpi": {
+        "kpi": None if "ERROR" in statuses else {
             "on_time_rate": weighted_on_time / total_requests if total_requests else 1.0,
             "total_shortfall_kwh": total_shortfall,
             "total_cost_vnd": total_cost,
@@ -361,8 +362,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--dataset-ref",
-        default="d067916",
-        help="Git ref containing the latest develop scenarios and catalog after PR #24 (default: d067916)",
+        default="b0fc3f7",
+        help="Git ref with 15–40 kWh scenarios and catalog (default: b0fc3f7)",
     )
     args = parser.parse_args()
     tables, hashes = read_inputs(args.dataset_ref)
@@ -372,7 +373,7 @@ def main() -> None:
     for count in SCENARIOS:
         snapshots, scenario = build_scenario(count, tables, hashes, args.dataset_ref)
         tariff_results = []
-        algorithms = FAST_ALGORITHMS_10000 if count == 10000 else ALL_ALGORITHMS
+        algorithms = FAST_ALGORITHMS if count in THROUGHPUT_COUNTS else ALL_ALGORITHMS
         request_counts = scenario["requests_by_cluster"]
         for tariff_mode in ("fixed_2000_vnd_kwh", "evn_tou_1600_2400_4000_vnd_kwh"):
             responses = {}
@@ -404,6 +405,7 @@ def main() -> None:
                     for algorithm in algorithms
                 ],
             })
+            print(f"{count} requests | {tariff_mode} | measured", flush=True)
         milestones.append({**scenario, "tariffs": tariff_results})
 
     report = {
@@ -432,10 +434,12 @@ def main() -> None:
             "evn_tou_1600_2400_4000_vnd_kwh": {
                 "source": "data/tariff_window_cleaned.csv",
                 "rates_vnd_kwh": [1600.0, 2400.0, 4000.0],
+                "source_ref": "biểu giá TOU giả định theo khung giờ cao/thấp điểm",
             },
         },
         "algorithms": list(ALL_ALGORITHMS),
-        "algorithms_at_10000_requests": list(FAST_ALGORITHMS_10000),
+        "algorithms_at_1000_requests": list(FAST_ALGORITHMS),
+        "algorithms_at_10000_requests": list(FAST_ALGORITHMS),
         "milestones": milestones,
     }
     OUTPUT.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -453,7 +457,8 @@ def main() -> None:
                 if result["requested_algorithm"] == "LLF":
                     print(
                         f"  {tariff['tariff']} LLF solve_ms={result['solve_ms']!r} "
-                        f"status={result['status']} shortfall_kwh={result['kpi']['total_shortfall_kwh']!r}"
+                        f"status={result['status']} shortfall_kwh="
+                        f"{(result['kpi'] or {}).get('total_shortfall_kwh')!r}"
                     )
 
 

@@ -30,7 +30,7 @@ curl -sS http://localhost:8001/ai/forecast \
   -d '{"cluster_id":"demo","history":[{"hour_start":"2026-11-18T08:00:00+07:00","arrivals":7}],"horizon_hours":24,"model":"BEST"}'
 ```
 
-Optimize trả 422 khi payload sai schema. Với payload hợp lệ, đọc `status` trong body HTTP 200. Khi solver lỗi, service thử LLF rồi kiểm tra lịch. Worker chạy trong tiến trình riêng. Khi vượt hạn `time_budget_ms + 500` ms tính từ lúc handler bắt đầu, service dừng worker và trả `ERROR`. `algorithm=null` khi không có kết quả để công bố. KPI trong phản hồi ERROR là giá trị giữ chỗ. `solve_ms` của nghiệm thành công đo thời gian chuẩn hóa, giải và kiểm tra trong worker. Tổng độ trễ HTTP còn có thời gian khởi động Python, mã hóa phản hồi và truyền mạng. Header X-Request-ID dùng để đối chiếu với log.
+Optimize trả 422 khi payload sai schema. Với payload hợp lệ, đọc `status` trong body HTTP 200. Khi solver lỗi, service thử LLF rồi kiểm tra lịch. Worker chạy trong tiến trình riêng. Khi vượt hạn `time_budget_ms + 500` ms tính từ lúc handler bắt đầu, service dừng worker và trả `ERROR`. `algorithm=null` khi không có kết quả để công bố. KPI trong phản hồi ERROR là giá trị giữ chỗ. Trường `fallback_reason` ghi `THRESHOLD_EXCEEDED`, `TIME_BUDGET_EXHAUSTED`, `SEED_NOT_IMPROVED`, `SOLVER_ERROR` hoặc `NONE`. `solve_ms` của nghiệm thành công đo thời gian chuẩn hóa, giải và kiểm tra trong worker. Tổng độ trễ HTTP còn có thời gian khởi động Python, mã hóa phản hồi và truyền mạng. Header X-Request-ID dùng để đối chiếu với log.
 
 Solver hiện dùng SCIP cho biến nguyên, GLOP khi miền nghiệm tuyến tính chính xác. `LP_MPC` có thể dùng SCIP nếu còn cổng đóng/ngắt, có công suất sàn hoặc hai xe có khả năng tranh cổng. Trường algorithm phản ánh backend thực tế. Slot đã chạy được giữ nguyên khi có previous_schedule. Điện năng còn lại phải bao gồm toàn bộ điện của slot freeze nếu gửi slot đó trong lịch cũ. Bản này chưa tích hợp Master LP với các worker theo trạm.
 
@@ -49,48 +49,17 @@ Chẩn đoán trước khi sửa MILP trên CSV tại `b0fc3f7`, seed 42 và ng�
 
 Tầng điện thiếu tìm được nghiệm khả thi nhưng chưa cải thiện seed trong dung sai. Code cũ kết thúc ngay ở tầng này.
 
-`benchmark_real.json` được sinh ngày 19/11/2026 từ scenario và catalog ở commit `d067916` (develop sau khi gộp PR #24), với seed sinh dữ liệu và seed benchmark đều là 42. JSON lưu SHA-256 của mọi CSV đầu vào. Mỗi cụm được gửi trong một POST `/ai/benchmark` riêng rồi gộp kết quả: cộng thiếu điện, chi phí và `solve_ms`; tính tỷ lệ đúng hạn theo số request; tính đỉnh từ tổng tải hai cụm theo từng slot. `solve_ms` là tổng thời gian xử lý của các cụm, không gồm thời gian truyền HTTP.
-
-Chạy lại bằng một lệnh:
+`benchmark_real.json` được đo lại từ CSV tại `b0fc3f7`, với seed 42 cho sinh dữ liệu và benchmark. JSON lưu SHA-256 của từng CSV. Chạy lại từ thư mục gốc:
 
 ```sh
-python -m ai_engine.scripts.benchmark_real --dataset-ref d067916
+python -m ai_engine.scripts.benchmark_real --dataset-ref b0fc3f7
 ```
 
-Script gọi POST `/ai/benchmark` qua FastAPI TestClient. Các mốc 100, 500 và 1.000 chạy đủ bảy thuật toán; mốc 10.000 chạy `MILP_MPC`, LLF, EDF, FCFS, EQUAL_SHARE và ASAP. Ở mốc 10.000, request `MILP_MPC` được chuyển sang LLF do vượt `DECOMPOSE_THRESHOLD=250`; JSON giữ cả thuật toán yêu cầu, thuật toán thực tế, status và KPI đầy đủ, không làm tròn.
+Mỗi cụm dùng một lượt `POST /ai/benchmark` qua FastAPI TestClient cho mỗi biểu giá. Script cộng chi phí, điện thiếu, số lần vượt trần và `solve_ms` của hai cụm. Tỷ lệ đúng hạn được tính theo số request. Đỉnh lấy từ tổng tải hai cụm ở cùng slot. `solve_ms` gồm thời gian chuẩn hóa, giải và kiểm tra, phụ thuộc máy và tải khi chạy. JSON giữ cấu trúc `milestones → tariffs → algorithms`, ghi thuật toán thực tế, trạng thái và lý do fallback cho từng cụm. Mã biểu giá TOU được giữ để tương thích. Các mức 1.600/2.400/4.000 đ/kWh là biểu giá giả định.
 
-Kết quả mới của MILP_MPC và LLF, tách theo biểu giá:
+MILP được yêu cầu ở mốc 100 và 500 theo ngân sách chuẩn và vẫn dùng ngưỡng 250. Solver giới hạn tổng điện thiếu và điện thiếu có trọng số theo seed LLF. Khi chưa chứng minh tối ưu toàn bộ các tầng, nó trả nghiệm MILP tốt nhất đã kiểm tra dưới trạng thái `FEASIBLE` nếu có. Các mốc 1.000 và 10.000 chỉ chạy LLF, EDF, FCFS, EQUAL_SHARE và ASAP để đo thông lượng.
 
-| Requests | Biểu giá | Thuật toán yêu cầu | Thuật toán thực tế | Status | Đúng hạn | Thiếu điện (kWh) | solve_ms |
-|---:|---|---|---|---|---:|---:|---:|
-| 100 | Cố định 2.000 | MILP_MPC | LLF | FALLBACK | 0.82 | 66.5731 | 5900.167500010866 |
-| 100 | Cố định 2.000 | LLF | LLF | FEASIBLE | 0.82 | 66.5731 | 8.367700007511303 |
-| 100 | TOU 1.600/2.400/4.000 | MILP_MPC | LLF | FALLBACK | 0.82 | 66.5731 | 5785.519699995348 |
-| 100 | TOU 1.600/2.400/4.000 | LLF | LLF | FEASIBLE | 0.82 | 66.5731 | 9.489099997153971 |
-| 500 | Cố định 2.000 | MILP_MPC | LLF + MILP_MPC | MIXED | 0.544 | 3835.2927 | 3941.906799998833 |
-| 500 | Cố định 2.000 | LLF | LLF | FEASIBLE | 0.542 | 3835.6732 | 45.80569999961881 |
-| 500 | TOU 1.600/2.400/4.000 | MILP_MPC | LLF + MILP_MPC | MIXED | 0.544 | 3835.2927 | 5221.131800004514 |
-| 500 | TOU 1.600/2.400/4.000 | LLF | LLF | FEASIBLE | 0.542 | 3835.6732 | 70.01699999818811 |
-| 1.000 | Cố định 2.000 | MILP_MPC | LLF | FALLBACK | 0.536 | 4667.3876 | 175.45480000262614 |
-| 1.000 | Cố định 2.000 | LLF | LLF | FEASIBLE | 0.536 | 4667.3876 | 177.53890000312822 |
-| 1.000 | TOU 1.600/2.400/4.000 | MILP_MPC | LLF | FALLBACK | 0.536 | 4667.3876 | 179.71110000507906 |
-| 1.000 | TOU 1.600/2.400/4.000 | LLF | LLF | FEASIBLE | 0.536 | 4667.3876 | 115.82750000525266 |
-| 10.000 | Cố định 2.000 | MILP_MPC | LLF | FALLBACK | 0.2622 | 12428.5622 | 1355.5350999959046 |
-| 10.000 | Cố định 2.000 | LLF | LLF | FEASIBLE | 0.2622 | 12428.5622 | 1332.6003999973182 |
-| 10.000 | TOU 1.600/2.400/4.000 | MILP_MPC | LLF | FALLBACK | 0.2622 | 12428.5622 | 1478.2028000045102 |
-| 10.000 | TOU 1.600/2.400/4.000 | LLF | LLF | FEASIBLE | 0.2622 | 12428.5622 | 1229.0395999953034 |
-
-Scenario lấy từ commit `d067916`. Tổng nhu cầu/trần cấp trong 24 giờ/tỷ lệ tải/số request đỗ ít nhất 8 giờ:
-
-| Request | Nhu cầu (kWh) | Trần (kWh) | Tỷ lệ tải | Đỗ ≥8 giờ |
-|---:|---:|---:|---:|---:|
-| 100 | 2916.9462000000003 | 20400.0 | 0.14298755882352943 | 60 |
-| 500 | 16319.999999999967 | 20400.0 | 0.7999999999999984 | 300 |
-| 1.000 | 16320.00000000003 | 20400.0 | 0.8000000000000014 | 600 |
-| 10.000 | 16319.999999999905 | 20400.0 | 0.7999999999999954 | 6000 |
-
-Mốc 100 giữ nguyên số dòng nên chỉ đạt 14.298755882352943% tải. Ở mốc 10.000 có 5.882 request thuộc cụm 1 và 4.118 thuộc cụm 2. LLF đạt `status=FEASIBLE`, `on_time_rate=0.2622`, `total_shortfall_kwh=12428.5622` ở cả hai biểu giá; `solve_ms` và các KPI khác nằm trong bảng/JSON. Có 1.241 request không khớp đầu nối đang ACTIVE tại trạm; benchmark giữ nguyên chuẩn xe và tính các request này vào thiếu điện. Số đo cho thấy kịch bản 10.000 request chưa đạt yêu cầu hạn giờ ở phần lớn request, không phải bằng chứng sẵn sàng tải production.
-
+`data/scenario_10000_llf_measurement.json` ghi một lần đo LLF riêng với giá cố định. CSV trong Git dùng LF (SHA-256 bắt đầu bằng `4539c0b7`). Đổi dấu xuống dòng sang CRLF cho đúng SHA-256 của lần đo riêng (`472f4cb5`). Benchmark này đo lại LLF ở cả hai biểu giá. Bộ 10.000 mang nhãn `LLF_THROUGHPUT_ONLY` vì nhu cầu vượt khả năng cấp 24 giờ.
 
 ## Huấn luyện dự báo
 
