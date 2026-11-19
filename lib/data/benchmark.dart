@@ -1,248 +1,163 @@
 import 'dart:convert';
 
+class BenchmarkMetrics {
+  BenchmarkMetrics(Map<String, dynamic> row)
+    : status = _text(row['status']),
+      fallbackReason = _text(row['fallback_reason']),
+      solveMs = _number(row['solve_ms']),
+      _kpi = row['kpi'] == null ? const {} : _object(row['kpi'], 'kpi');
+
+  final String? status;
+  final String? fallbackReason;
+  final double? solveMs;
+  final Map<String, dynamic> _kpi;
+
+  double? get onTimeRate => _number(_kpi['on_time_rate']);
+  double? get shortfallKwh => _number(_kpi['total_shortfall_kwh']);
+  double? get costVnd => _number(_kpi['total_cost_vnd']);
+  double? get peakKw => _number(_kpi['peak_power_kw']);
+  int? get capViolations =>
+      _kpi['cap_violations'] is int ? _kpi['cap_violations'] as int : null;
+}
+
+class BenchmarkCluster {
+  BenchmarkCluster(this.id, Map<String, dynamic> row)
+    : actualAlgorithm = _text(row['actual_algorithm']),
+      metrics = BenchmarkMetrics(row);
+
+  final String id;
+  final String? actualAlgorithm;
+  final BenchmarkMetrics metrics;
+}
+
 class BenchmarkPoint {
-  const BenchmarkPoint({
+  const BenchmarkPoint._({
     required this.milestone,
-    required this.algorithm,
-    required this.status,
-    this.repeat,
-    this.onTimeRate,
-    this.shortfallKwh,
-    this.costVnd,
-    this.peakKw,
-    this.capViolations,
-    this.solveMs,
+    required this.requestedAlgorithm,
+    required this.actualAlgorithms,
+    required this.metrics,
+    this.tariff,
+    this.variant,
+    this.llfThroughput = false,
+    this.clusters = const [],
   });
 
   final String milestone;
-  final String algorithm;
-  final String status;
-  final int? repeat;
-  final double? onTimeRate;
-  final double? shortfallKwh;
-  final double? costVnd;
-  final double? peakKw;
-  final int? capViolations;
-  final double? solveMs;
+  final String? tariff;
+  final String requestedAlgorithm;
+  final List<String> actualAlgorithms;
+  final String? variant;
+  final bool llfThroughput;
+  final BenchmarkMetrics metrics;
+  final List<BenchmarkCluster> clusters;
 
+  /// The admin API wraps the file in data; a raw file can also be read directly.
   static List<BenchmarkPoint> parse(Map<String, dynamic> response) {
-    final points = <BenchmarkPoint>[];
-    _visit(response['data'] ?? response, points);
-    points.sort((a, b) {
-      final aSize = int.tryParse(a.milestone);
-      final bSize = int.tryParse(b.milestone);
-      if (aSize != null && bSize != null && aSize != bSize) {
-        return aSize.compareTo(bSize);
-      }
-      final milestoneOrder = a.milestone.compareTo(b.milestone);
-      return milestoneOrder != 0
-          ? milestoneOrder
-          : a.algorithm.compareTo(b.algorithm);
-    });
-    return points;
-  }
-
-  static void _visit(
-    Object? value,
-    List<BenchmarkPoint> output, {
-    String? inheritedMilestone,
-    String? inheritedScenario,
-  }) {
-    if (value is List) {
-      for (final item in value) {
-        _visit(
-          item,
-          output,
-          inheritedMilestone: inheritedMilestone,
-          inheritedScenario: inheritedScenario,
-        );
-      }
-      return;
+    if (response['source'] == 'benchmark_result') {
+      return _parseHistory(response);
     }
-    if (value is! Map) return;
+    final report = response.containsKey('data')
+        ? _object(response['data'], 'data')
+        : response;
 
-    final map = Map<String, dynamic>.from(value);
-    final milestone = _milestone(map) ?? inheritedMilestone;
-    final scenario = _string(map['scenario_id']) ?? inheritedScenario;
-
-    final algorithms = map['algorithms'];
-    if (algorithms is Map) {
-      for (final entry in algorithms.entries) {
-        if (entry.value is Map) {
-          final algorithmRecord = <String, dynamic>{
-            ...Map<String, dynamic>.from(entry.value as Map),
-            'algorithm': entry.key.toString(),
-          };
-          _add(
-            algorithmRecord,
-            output,
-            milestone: milestone,
-            scenario: scenario,
+    final points = <BenchmarkPoint>[];
+    for (final milestone in _objects(report['milestones'], 'milestones')) {
+      final count = milestone['request_count'];
+      if (count is! int || count <= 0) {
+        throw const FormatException('request_count phải là số nguyên dương.');
+      }
+      final llfThroughput =
+          milestone['data_scenario_type'] == 'LLF_THROUGHPUT_ONLY' ||
+          milestone['scenario_type'] == 'LLF_THROUGHPUT_ONLY' ||
+          count == 10000;
+      for (final tariff in _objects(milestone['tariffs'], 'tariffs')) {
+        final tariffName = _requiredText(tariff['tariff'], 'tariff');
+        for (final row in _objects(tariff['algorithms'], 'algorithms')) {
+          final clusterRows = row['cluster_results'] == null
+              ? const <String, dynamic>{}
+              : _object(row['cluster_results'], 'cluster_results');
+          points.add(
+            BenchmarkPoint._(
+              milestone: count.toString(),
+              tariff: tariffName,
+              requestedAlgorithm: _requiredText(
+                row['requested_algorithm'],
+                'requested_algorithm',
+              ),
+              actualAlgorithms: _algorithmList(row['actual_algorithms']),
+              variant: _text(row['variant']),
+              llfThroughput: llfThroughput,
+              metrics: BenchmarkMetrics(row),
+              clusters: [
+                for (final entry in clusterRows.entries)
+                  BenchmarkCluster(
+                    entry.key,
+                    _object(entry.value, 'cluster_results.${entry.key}'),
+                  ),
+              ],
+            ),
           );
         }
       }
-      return;
     }
-
-    final algorithm = _string(map['algorithm']);
-    if (algorithm != null) {
-      final result = map['result'];
-      final record = result is Map
-          ? <String, dynamic>{
-              ...map,
-              ...Map<String, dynamic>.from(result),
-              'algorithm': algorithm,
-            }
-          : map;
-      _add(record, output, milestone: milestone, scenario: scenario);
-      return;
-    }
-
-    for (final key in const [
-      'benchmarks',
-      'records',
-      'results',
-      'runs',
-      'summary',
-      'scenarios',
-      'milestones',
-      'data',
-    ]) {
-      if (map[key] != null) {
-        _visit(
-          map[key],
-          output,
-          inheritedMilestone: milestone,
-          inheritedScenario: scenario,
-        );
-        return;
-      }
-    }
-
-    for (final entry in map.entries) {
-      if (entry.value is! Map && entry.value is! List) continue;
-      final key = entry.key.toString();
-      if (_isAlgorithm(key) && entry.value is Map) {
-        _add(
-          {...Map<String, dynamic>.from(entry.value as Map), 'algorithm': key},
-          output,
-          milestone: milestone ?? inheritedMilestone,
-          scenario: scenario ?? inheritedScenario,
-        );
-      } else {
-        _visit(
-          entry.value,
-          output,
-          inheritedMilestone: int.tryParse(key) == null ? milestone : key,
-          inheritedScenario: scenario,
-        );
-      }
-    }
+    return points;
   }
 
-  static bool _isAlgorithm(String value) => const {
-    'MILP_MPC',
-    'LP_MPC',
-    'LLF',
-    'EDF',
-    'FCFS',
-    'EQUAL_SHARE',
-    'ASAP',
-  }.contains(value);
+  /// Older deployments can return measured database rows if no file exists.
+  static List<BenchmarkPoint> _parseHistory(Map<String, dynamic> response) {
+    return [
+      for (final row in _objects(response['results'], 'results'))
+        _historyPoint(row),
+    ];
+  }
 
-  static void _add(
-    Map<String, dynamic> row,
-    List<BenchmarkPoint> output, {
-    String? milestone,
-    String? scenario,
-  }) {
-    final result = row['result'] is Map
-        ? Map<String, dynamic>.from(row['result'] as Map)
-        : const <String, dynamic>{};
-    final metrics = _map(row['metrics_json']) ?? _map(row['metrics']) ?? {};
-    final kpi =
-        _map(row['kpi']) ??
-        _map(result['kpi']) ??
-        _map(metrics['kpi']) ??
-        metrics;
-    final merged = <String, dynamic>{...metrics, ...result, ...row};
-    final algorithm = _string(row['algorithm']) ?? _string(result['algorithm']);
-    if (algorithm == null) return;
-
-    final count =
-        _milestone(row) ??
-        _milestone(metrics) ??
-        _milestone(result) ??
-        milestone;
-    output.add(
-      BenchmarkPoint(
-        milestone: count ?? scenario ?? '—',
-        algorithm: algorithm,
-        status: _string(merged['status']) ?? '—',
-        repeat: _int(merged['repeat_no']) ?? _int(merged['repeat_index']),
-        onTimeRate:
-            _number(kpi['on_time_rate']) ?? _number(merged['on_time_rate']),
-        shortfallKwh:
-            _number(kpi['total_shortfall_kwh']) ??
-            _number(merged['total_shortfall_kwh']) ??
-            _number(merged['shortfall_kwh']),
-        costVnd:
-            _number(kpi['total_cost_vnd']) ??
-            _number(merged['total_cost_vnd']) ??
-            _number(merged['cost_vnd']),
-        peakKw:
-            _number(kpi['peak_power_kw']) ??
-            _number(merged['peak_power_kw']) ??
-            _number(merged['peak_kw']),
-        capViolations:
-            _int(kpi['cap_violations']) ?? _int(merged['cap_violations']),
-        solveMs:
-            _number(merged['solve_ms']) ?? _number(merged['solve_ms_mean']),
-      ),
+  static BenchmarkPoint _historyPoint(Map<String, dynamic> row) {
+    final rawMetrics = row['metrics_json'];
+    final data = _object(
+      rawMetrics is String ? jsonDecode(rawMetrics) : rawMetrics,
+      'metrics_json',
+    );
+    return BenchmarkPoint._(
+      milestone:
+          (data['active_requests'] ??
+                  data['request_count'] ??
+                  row['scenario_id'])
+              ?.toString() ??
+          '—',
+      tariff: _text(data['tariff']),
+      requestedAlgorithm: _requiredText(row['algorithm'], 'algorithm'),
+      actualAlgorithms: [?_text(data['algorithm'])],
+      variant: row['repeat_no'] is int ? "Lượt ${row['repeat_no']}" : null,
+      metrics: BenchmarkMetrics({'kpi': data, ...data}),
     );
   }
-
-  static String? _milestone(Map map) {
-    for (final key in const [
-      'active_requests',
-      'active_request_count',
-      'request_count',
-      'n_requests',
-      'requests_count',
-      'size',
-      'milestone',
-    ]) {
-      final value = map[key];
-      if (value is num || value is String) return value.toString();
-    }
-    return null;
-  }
-
-  static Map<String, dynamic>? _map(Object? value) {
-    if (value is Map) return Map<String, dynamic>.from(value);
-    if (value is String) {
-      try {
-        final decoded = jsonDecode(value);
-        if (decoded is Map) return Map<String, dynamic>.from(decoded);
-      } on FormatException {
-        return null;
-      }
-    }
-    return null;
-  }
-
-  static String? _string(Object? value) =>
-      value is String && value.isNotEmpty ? value : null;
-
-  static double? _number(Object? value) => value is num
-      ? value.toDouble()
-      : value is String
-      ? double.tryParse(value)
-      : null;
-
-  static int? _int(Object? value) => value is num
-      ? value.toInt()
-      : value is String
-      ? int.tryParse(value)
-      : null;
 }
+
+Map<String, dynamic> _object(Object? value, String field) {
+  if (value is Map<String, dynamic>) return value;
+  throw FormatException('$field phải là một đối tượng JSON.');
+}
+
+Iterable<Map<String, dynamic>> _objects(Object? value, String field) {
+  if (value is! List) {
+    throw FormatException('$field phải là một danh sách JSON.');
+  }
+  return value.map((item) => _object(item, field));
+}
+
+List<String> _algorithmList(Object? value) {
+  if (value == null) return const [];
+  if (value is! List) {
+    throw const FormatException('actual_algorithms phải là một danh sách.');
+  }
+  return [for (final name in value) _requiredText(name, 'actual_algorithms')];
+}
+
+String? _text(Object? value) =>
+    value is String && value.trim().isNotEmpty ? value : null;
+
+String _requiredText(Object? value, String field) =>
+    _text(value) ?? (throw FormatException('Thiếu hoặc sai định dạng $field.'));
+
+double? _number(Object? value) =>
+    value is num && value.isFinite ? value.toDouble() : null;

@@ -529,6 +529,18 @@
           "title": "Algorithm",
           "type": "string"
         },
+        "FallbackReason": {
+          "description": "Nguyên nhân solver không trả được nghiệm của thuật toán chính.",
+          "enum": [
+            "NONE",
+            "THRESHOLD_EXCEEDED",
+            "TIME_BUDGET_EXHAUSTED",
+            "SEED_NOT_IMPROVED",
+            "SOLVER_ERROR"
+          ],
+          "title": "FallbackReason",
+          "type": "string"
+        },
         "KPI": {
           "additionalProperties": false,
           "description": "Chỉ số đánh giá chung của một nghiệm lập lịch.",
@@ -736,6 +748,11 @@
             }
           ],
           "description": "Thuật toán thực tế tạo ra nghiệm; null nếu chưa có nghiệm."
+        },
+        "fallback_reason": {
+          "$ref": "#/$defs/FallbackReason",
+          "default": "NONE",
+          "description": "Lý do fallback hoặc lỗi; NONE nếu có nghiệm từ thuật toán yêu cầu."
         },
         "solve_ms": {
           "description": "Thời gian xử lý thực tế, mili giây.",
@@ -1478,6 +1495,18 @@
           "title": "BenchmarkSummary",
           "type": "object"
         },
+        "FallbackReason": {
+          "description": "Nguyên nhân solver không trả được nghiệm của thuật toán chính.",
+          "enum": [
+            "NONE",
+            "THRESHOLD_EXCEEDED",
+            "TIME_BUDGET_EXHAUSTED",
+            "SEED_NOT_IMPROVED",
+            "SOLVER_ERROR"
+          ],
+          "title": "FallbackReason",
+          "type": "string"
+        },
         "KPI": {
           "additionalProperties": false,
           "description": "Chỉ số đánh giá chung của một nghiệm lập lịch.",
@@ -1557,6 +1586,11 @@
                 }
               ],
               "description": "Thuật toán thực tế tạo ra nghiệm; null nếu chưa có nghiệm."
+            },
+            "fallback_reason": {
+              "$ref": "#/$defs/FallbackReason",
+              "default": "NONE",
+              "description": "Lý do fallback hoặc lỗi; NONE nếu có nghiệm từ thuật toán yêu cầu."
             },
             "solve_ms": {
               "description": "Thời gian xử lý thực tế, mili giây.",

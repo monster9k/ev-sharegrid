@@ -20,7 +20,7 @@ from backend.db import connect, dict_cursor
 
 
 router = APIRouter(prefix="/api/v1/admin", tags=["Admin Portal"])
-BENCHMARK_REAL_PATH = Path(__file__).resolve().parents[2] / "ai_engine" / "benchmark_real.json"
+DEFAULT_BENCHMARK_REPORT_PATH = "/app/ai_engine/benchmark_real.json"
 CLOCK_PATTERN = re.compile(r"^(?:(?:[01]\d|2[0-3]):[0-5]\d|24:00)$")
 
 
@@ -199,9 +199,10 @@ def replace_cluster_tariffs(
 
 @router.get("/benchmark")
 def get_benchmark(_admin: AuthUser = Depends(require_roles("ADMIN"))):
-    if BENCHMARK_REAL_PATH.is_file():
+    report_path = Path(os.getenv("BENCHMARK_REPORT_PATH") or DEFAULT_BENCHMARK_REPORT_PATH)
+    if report_path.is_file():
         try:
-            payload = json.loads(BENCHMARK_REAL_PATH.read_text(encoding="utf-8"))
+            payload = json.loads(report_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise HTTPException(status_code=503, detail="benchmark_real.json could not be read") from exc
         return {"source": "benchmark_real.json", "data": payload}

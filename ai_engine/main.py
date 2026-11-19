@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
 from .schemas import (BenchmarkRequest, BenchmarkResponse, BenchmarkRun, BenchmarkSummary,
-                      ForecastRequest, ForecastResponse, KPI, OptimizeRequest, OptimizeResponse)
+                      FallbackReason, ForecastRequest, ForecastResponse, KPI, OptimizeRequest, OptimizeResponse)
 from .optimizer_milp import BENCHMARK_SEED
 from .settings import (
     WORKERS,
@@ -85,7 +85,10 @@ def optimize(body: OptimizeRequest, request: Request) -> OptimizeResponse:
         return result
     except Exception as exc:
         LOG.warning("request_id=%s optimize thất bại: %s",request.state.request_id,type(exc).__name__)
-        return failure((perf_counter()-start)*1000)
+        reason = (FallbackReason.TIME_BUDGET_EXHAUSTED
+                  if isinstance(exc, (TimeoutError, subprocess.TimeoutExpired))
+                  else FallbackReason.SOLVER_ERROR)
+        return failure((perf_counter()-start)*1000, reason)
 
 
 @app.post("/ai/benchmark",response_model=BenchmarkResponse)

@@ -42,6 +42,7 @@ class WebShell extends StatelessWidget {
     required this.title,
     required this.children,
     this.actions = const [],
+    this.simulationLabel = 'Dữ liệu mô phỏng',
   });
 
   final Portal portal;
@@ -50,6 +51,7 @@ class WebShell extends StatelessWidget {
   final String title;
   final List<Widget> children;
   final List<Widget> actions;
+  final String? simulationLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -74,11 +76,7 @@ class WebShell extends StatelessWidget {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     MutedText(eyebrow, weight: FontWeight.w600),
-                    SimTag(
-                      text: route == '/admin/benchmark'
-                          ? 'Chưa có benchmark thật'
-                          : 'Dữ liệu mô phỏng',
-                    ),
+                    if (simulationLabel case final label?) SimTag(text: label),
                   ],
                 ),
                 const Gap(4),

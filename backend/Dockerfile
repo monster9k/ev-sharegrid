@@ -7,6 +7,7 @@ COPY backend/requirements.txt /tmp/requirements.txt
 RUN python -m pip install --no-cache-dir -r /tmp/requirements.txt
 
 COPY backend /app/backend
+COPY ai_engine/*.py /app/ai_engine/
 COPY data /app/data
 COPY scripts /app/scripts
 COPY docs/dataofanh /app/docs/dataofanh

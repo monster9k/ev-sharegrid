@@ -175,9 +175,9 @@ def test_admin_tariffs_must_cover_each_day_without_gaps(monkeypatch):
 
 def test_admin_benchmark_reads_file_then_table(monkeypatch, tmp_path):
     connection = setup(monkeypatch)
-    benchmark_file = tmp_path / "benchmark_real.json"
+    benchmark_file = tmp_path / "custom-report.json"
     benchmark_file.write_text(json.dumps({"seed": 42, "runs": []}), encoding="utf-8")
-    monkeypatch.setattr(admin, "BENCHMARK_REAL_PATH", benchmark_file)
+    monkeypatch.setenv("BENCHMARK_REPORT_PATH", str(benchmark_file))
 
     from_file = client.get("/api/v1/admin/benchmark")
     benchmark_file.unlink()
@@ -189,6 +189,19 @@ def test_admin_benchmark_reads_file_then_table(monkeypatch, tmp_path):
     assert from_table.json()["source"] == "benchmark_result"
     assert from_table.json()["count"] == 1
     assert connection.closed
+
+
+def test_admin_benchmark_reports_invalid_configured_file(monkeypatch, tmp_path):
+    connection = setup(monkeypatch)
+    benchmark_file = tmp_path / "invalid-report.json"
+    benchmark_file.write_text("{", encoding="utf-8")
+    monkeypatch.setenv("BENCHMARK_REPORT_PATH", str(benchmark_file))
+
+    response = client.get("/api/v1/admin/benchmark")
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "benchmark_real.json could not be read"
+    assert not connection.fake_cursor.executed
 
 
 def test_admin_benchmark_run_proxies_validated_ai_result(monkeypatch):
