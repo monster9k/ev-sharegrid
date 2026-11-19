@@ -1,0 +1,92 @@
+import pandas as pd
+import pytest
+
+from scripts import import_catalog
+
+
+class FakeCursor:
+    def __init__(self, fail_on=None):
+        self.statements = []
+        self.fail_on = fail_on
+        self.closed = False
+
+    def executemany(self, query, values):
+        self.statements.append((" ".join(query.split()), values))
+
+    def execute(self, query, params=None):
+        normalized = " ".join(query.split())
+        self.statements.append((normalized, params))
+        if self.fail_on and self.fail_on in normalized:
+            raise RuntimeError("forced catalog insert failure")
+
+    def close(self):
+        self.closed = True
+
+
+class FakeConnection:
+    def __init__(self, cursor):
+        self.fake_cursor = cursor
+        self.commits = 0
+        self.rollbacks = 0
+        self.closed = False
+
+    def cursor(self):
+        return self.fake_cursor
+
+    def commit(self):
+        self.commits += 1
+
+    def rollback(self):
+        self.rollbacks += 1
+
+    def close(self):
+        self.closed = True
+
+
+def _empty_catalog_frames():
+    model = pd.DataFrame([{
+        "model_id": 2,
+        "brand": "VinFast",
+        "model_name": "VF 5 Plus",
+        "vehicle_type": "CAR",
+        "connector_type": "CCS2",
+        "source_type": "REAL",
+        "source_ref": "test",
+        "battery_kwh": 37.23,
+        "max_kw": 50.0,
+        "max_ac_kw": 6.6,
+        "max_dc_kw": 50.0,
+        "standard_charger_kw": None,
+        "data_note": "test fixture",
+    }])
+    return model, pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+
+
+def test_demo_vehicle_is_inserted_after_its_model(monkeypatch):
+    cursor = FakeCursor()
+    connection = FakeConnection(cursor)
+    monkeypatch.setattr(import_catalog.psycopg2, "connect", lambda **_kwargs: connection)
+
+    import_catalog.seed_postgres_database(*_empty_catalog_frames())
+
+    statements = [sql for sql, _params in cursor.statements]
+    model_index = next(i for i, sql in enumerate(statements) if "INSERT INTO vehicle_model" in sql)
+    demo_vehicle_index = next(i for i, sql in enumerate(statements) if "INSERT INTO vehicle (" in sql)
+    assert model_index < demo_vehicle_index
+    assert connection.commits == 1
+    assert connection.rollbacks == 0
+
+
+def test_catalog_insert_failure_rolls_back_prints_real_error_and_exits(monkeypatch, capsys):
+    cursor = FakeCursor(fail_on="INSERT INTO vehicle_model")
+    connection = FakeConnection(cursor)
+    monkeypatch.setattr(import_catalog.psycopg2, "connect", lambda **_kwargs: connection)
+
+    with pytest.raises(SystemExit) as raised:
+        import_catalog.seed_postgres_database(*_empty_catalog_frames())
+
+    assert raised.value.code == 1
+    assert "forced catalog insert failure" in capsys.readouterr().err
+    assert connection.commits == 0
+    assert connection.rollbacks == 1
+    assert connection.closed and cursor.closed
