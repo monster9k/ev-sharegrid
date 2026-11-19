@@ -87,19 +87,21 @@ def _profile_arrival_and_duration(profile, rng):
 
 
 def generate_scenario_files():
-    """Generate fixed-size scenarios; small sets may not physically reach 60% load."""
+    """Generate fixed-size scenarios using stations with a compatible active port."""
     rng = np.random.default_rng(SEED)
     models_path = os.path.join(DATA_DIR, "vehicle_model_cleaned.csv")
     vehicles_path = os.path.join(DATA_DIR, "vehicle_100k.csv")
     stations_path = os.path.join(DATA_DIR, "charging_station_cleaned.csv")
+    ports_path = os.path.join(DATA_DIR, "port_cleaned.csv")
     clusters_path = os.path.join(DATA_DIR, "grid_cluster.csv")
-    for path in (models_path, vehicles_path, stations_path, clusters_path):
+    for path in (models_path, vehicles_path, stations_path, ports_path, clusters_path):
         if not os.path.exists(path):
             raise FileNotFoundError(f"Chưa tìm thấy {path}; hãy nạp catalog trước.")
 
     df_models = pd.read_csv(models_path)
     df_vehicles = pd.read_csv(vehicles_path)
     df_stations = pd.read_csv(stations_path)
+    df_ports = pd.read_csv(ports_path)
     df_clusters = pd.read_csv(clusters_path)
     active_stations = df_stations[df_stations["status"] == "ACTIVE"].copy()
     if active_stations.empty:
@@ -110,10 +112,23 @@ def generate_scenario_files():
         int(row["cluster_id"]): float(row["grid_limit_kw"])
         for _, row in df_clusters.iterrows()
     }
-    station_pools = {
-        int(cluster_id): group["station_id"].astype(int).to_numpy()
-        for cluster_id, group in active_stations.groupby("cluster_id")
+    active_ports = df_ports[df_ports["status"] == "ACTIVE"]
+    connectors_by_station = {
+        int(station_id): set(group["connector_type"].astype(str))
+        for station_id, group in active_ports.groupby("station_id")
     }
+    station_pools = {}
+    for cluster_id, group in active_stations.groupby("cluster_id"):
+        connector_pools = {}
+        for connector in sorted(set(df_models["connector_type"].astype(str))):
+            compatible_ids = [
+                int(row["station_id"])
+                for _, row in group.iterrows()
+                if connector in connectors_by_station.get(int(row["station_id"]), set())
+            ]
+            if compatible_ids:
+                connector_pools[connector] = np.asarray(compatible_ids, dtype=int)
+        station_pools[int(cluster_id)] = connector_pools
     active_clusters = sorted(station_pools)
     missing_limits = set(active_clusters) - set(limits_kw)
     if missing_limits:
@@ -124,16 +139,28 @@ def generate_scenario_files():
     for scenario_id, request_count in enumerate(SCENARIOS, start=1):
         if request_count > len(df_vehicles):
             raise ValueError("Số vehicle mẫu phải ít nhất bằng số request của kịch bản.")
-        vehicle_indices = rng.choice(len(df_vehicles), size=request_count, replace=False)
-        selected_vehicles = df_vehicles.iloc[vehicle_indices].to_dict("records")
-
         cluster_counts = allocate_counts(request_count, cluster_weights)
-        cluster_labels = [
-            cluster_id
-            for cluster_id, count in cluster_counts.items()
-            for _ in range(count)
-        ]
-        rng.shuffle(cluster_labels)
+        assignments = []
+        used_vehicle_ids = set()
+        for cluster_id, count in cluster_counts.items():
+            compatible_connectors = set(station_pools[cluster_id])
+            candidate_mask = df_vehicles["model_id"].map(
+                lambda model_id: model_lookup[int(model_id)]["connector_type"]
+                in compatible_connectors
+            )
+            candidates = df_vehicles[candidate_mask]
+            candidates = candidates[~candidates["vehicle_id"].isin(used_vehicle_ids)]
+            if len(candidates) < count:
+                raise ValueError(
+                    f"Không đủ xe có đầu nối tương thích cụm {cluster_id}: "
+                    f"cần {count}, có {len(candidates)}."
+                )
+            chosen = candidates.iloc[
+                rng.choice(len(candidates), size=count, replace=False)
+            ].to_dict("records")
+            used_vehicle_ids.update(int(vehicle["vehicle_id"]) for vehicle in chosen)
+            assignments.extend((vehicle, cluster_id) for vehicle in chosen)
+        rng.shuffle(assignments)
 
         behavior_counts = allocate_counts(request_count, BEHAVIOR_RATIOS)
         behavior_labels = [
@@ -144,12 +171,14 @@ def generate_scenario_files():
         rng.shuffle(behavior_labels)
 
         requests = []
-        for index, (vehicle, cluster_id, profile) in enumerate(
-            zip(selected_vehicles, cluster_labels, behavior_labels), start=1
+        for index, ((vehicle, cluster_id), profile) in enumerate(
+            zip(assignments, behavior_labels), start=1
         ):
             model_id = int(vehicle["model_id"])
             model = model_lookup[model_id]
-            station_id = int(rng.choice(station_pools[cluster_id]))
+            connector = str(model["connector_type"])
+            compatible_station_ids = station_pools[cluster_id][connector]
+            station_id = int(rng.choice(compatible_station_ids))
             arrival, departure, dwell_hours = _profile_arrival_and_duration(profile, rng)
             preferred_soc_now = float(rng.integers(10, 40))
             preferred_soc_target = float(rng.integers(75, 95))
@@ -178,6 +207,7 @@ def generate_scenario_files():
                 "soc_target": preferred_soc_target,
                 "battery_kwh_snapshot": battery_kwh,
                 "max_kw_snapshot": float(model["max_kw"]),
+                "connector_type": connector,
                 "energy_needed_kwh": None,
                 "status": "PENDING",
                 "_behavior": profile,
@@ -267,6 +297,16 @@ def generate_scenario_files():
                 row.pop(internal_key, None)
 
         sc_file = os.path.join(DATA_DIR, f"scenario_{request_count}_requests.csv")
+        connector_mismatches = [
+            row for row in requests
+            if row["connector_type"] not in connectors_by_station.get(row["station_id"], set())
+        ]
+        if connector_mismatches:
+            raise ValueError(
+                f"Scenario {request_count} có {len(connector_mismatches)} request tại trạm "
+                "không có cổng ACTIVE cùng đầu nối."
+            )
+        connector_mismatch_count = len(connector_mismatches)
         pd.DataFrame(requests).to_csv(sc_file, index=False, encoding="utf-8")
 
         total_kwh = sum(float(row["energy_needed_kwh"]) for row in requests)
@@ -295,11 +335,23 @@ def generate_scenario_files():
                     f"{cluster_metrics[cluster_id]['peak_ratio']:.4f}"
                 )
         scenario_summaries.append(
-            (request_count, total_kwh, cluster_metrics, physical_max_by_cluster)
+            (
+                request_count,
+                total_kwh,
+                cluster_metrics,
+                physical_max_by_cluster,
+                connector_mismatch_count,
+            )
         )
 
-    print("Kịch bản | Requests | Tổng kWh | Tỷ lệ tải 24h | Tải theo cụm / tỷ lệ cao điểm")
-    for request_count, total_kwh, metrics, physical_limits in scenario_summaries:
+    print("Kịch bản | Requests | Tổng kWh | Tỷ lệ tải 24h | Sai đầu nối | Tải theo cụm / tỷ lệ cao điểm")
+    for (
+        request_count,
+        total_kwh,
+        metrics,
+        physical_limits,
+        connector_mismatch_count,
+    ) in scenario_summaries:
         total_capacity = sum(value["capacity_kwh"] for value in metrics.values())
         utilization = total_kwh / total_capacity if total_capacity else 0.0
         target_total = sum(
@@ -314,7 +366,7 @@ def generate_scenario_files():
         )
         print(
             f"{request_count:>5} | {request_count:>8} | {total_kwh:>9.1f} | "
-            f"{utilization:>10.1%} | {per_cluster}"
+            f"{utilization:>10.1%} | {connector_mismatch_count:>11} | {per_cluster}"
         )
         if physical_max_total < target_total:
             print(
