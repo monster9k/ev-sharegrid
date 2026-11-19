@@ -63,6 +63,14 @@ services:
       AI_URL: ${AI_URL:-http://ai-engine:8001}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       AUTH_PASSWORD_HASHES_JSON: ${AUTH_PASSWORD_HASHES_JSON:?Set AUTH_PASSWORD_HASHES_JSON in .env}
+      BENCHMARK_REPORT_PATH: ${BENCHMARK_REPORT_PATH:-/app/ai_engine/benchmark_real.json}
+    volumes:
+      - type: bind
+        source: ./ai_engine/benchmark_real.json
+        target: ${BENCHMARK_REPORT_PATH:-/app/ai_engine/benchmark_real.json}
+        read_only: true
+        bind:
+          create_host_path: false
     depends_on:
       catalog-seed:
         condition: service_completed_successfully
