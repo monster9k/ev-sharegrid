@@ -17,7 +17,7 @@ from psycopg2.extras import execute_values
 DB_CONFIG = {
     "dbname": os.environ.get("POSTGRES_DB", "ev_sharegrid"),
     "user": os.environ.get("POSTGRES_USER", "postgres"),
-    "password": os.environ.get("POSTGRES_PASSWORD", "password"),
+    "password": os.environ.get("POSTGRES_PASSWORD"),
     "host": os.environ.get("POSTGRES_HOST", "localhost"),
     "port": int(os.environ.get("POSTGRES_PORT", 5432))
 }

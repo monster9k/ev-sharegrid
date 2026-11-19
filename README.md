@@ -1,44 +1,162 @@
 # EV ShareGrid
 
-Nền tảng điều phối sạc xe điện và tối ưu lịch sạc cho TP. Đà Nẵng (Smart Campus 2026 – ISSCEI).
-App Flutter gồm 3 phân hệ: **USER** (app người dùng), **HOST** (cổng chủ trạm), **ADMIN** (quản trị).
-Giai đoạn hiện tại: giao diện chạy với dữ liệu mẫu (nhãn *Mô phỏng*), chưa nối backend/AI Engine.
+EV ShareGrid là nguyên mẫu điều phối lịch sạc xe điện cho Đà Nẵng, chuẩn bị tham dự Smart Campus 2026 – ISSCEI. Ứng dụng có ba phân hệ USER, HOST và ADMIN.
 
-## Chạy local
+## Trạng thái đã kiểm tra
 
-```bash
+| Thành phần | Trạng thái hiện tại |
+|---|---|
+| Flutter USER, HOST, ADMIN | Giao diện và dữ liệu mẫu; chưa gọi backend. Các giá trị mô phỏng cần được hiểu theo nhãn trên từng màn. |
+| Admin Benchmark | Không còn KPI cứng. Hiện thông báo chưa có artifact benchmark quy mô thực; chưa có `benchmark_real.json`. |
+| Backend FastAPI | Có danh mục trạm/mẫu xe và `POST /api/v1/requests`; chưa nối request tới AI Engine, chưa có đăng nhập/phân quyền hoàn chỉnh. |
+| AI Engine FastAPI | Chạy độc lập trên cổng 8001; có `/ai/optimize`, `/ai/benchmark`, `/ai/forecast` và `/health`. |
+| PostgreSQL/PostGIS | Schema 19 bảng và catalog; cấu hình local nằm trong `.env` không commit. |
+
+Docker Compose khởi động ba dịch vụ, nhưng hiện backend không gọi AI Engine. Vì vậy việc cả ba dịch vụ cùng chạy không đồng nghĩa với luồng đặt lịch Flutter → Backend → AI đã hoàn chỉnh.
+
+## Chạy toàn hệ thống bằng Docker Compose
+
+Cần Docker Engine với Docker Compose plugin. Tạo file cấu hình local rồi thay mật khẩu mẫu bằng giá trị ngẫu nhiên riêng:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Hoặc trên macOS/Linux:
+
+```sh
+cp .env.example .env
+```
+
+Sau khi cập nhật `POSTGRES_PASSWORD` trong `.env`, chạy:
+
+```sh
+docker compose up --build
+```
+
+Compose khởi tạo PostGIS từ `database/schema_19_tables.sql`, nạp catalog từ các workbook trong `docs/dataofanh/`, rồi khởi động Backend và AI Engine. Địa chỉ local:
+
+| Dịch vụ | Địa chỉ |
+|---|---|
+| Backend | <http://localhost:8000> |
+| AI Engine | <http://localhost:8001> |
+| AI health | <http://localhost:8001/health> |
+| AI OpenAPI | <http://localhost:8001/docs> |
+
+Dừng stack bằng `docker compose down`; thêm `-v` nếu muốn xóa cả dữ liệu Postgres local. `.env` bị loại khỏi Git; chỉ commit `.env.example`.
+
+## Chạy ứng dụng Flutter
+
+```sh
 flutter pub get
 flutter run -d chrome
 ```
 
-Đường dẫn chính (web):
+Các màn USER/HOST/ADMIN hiện dùng dữ liệu mô phỏng. Chưa có tích hợp đặt lịch Flutter với Backend. Kiểm tra giao diện bằng các đường dẫn:
+
+Các số mẫu UI là fixture cố định trong `lib/data/mock_data.dart`, có nhãn mô phỏng trên khung USER/HOST/ADMIN; chúng không phải đầu ra được sinh bởi benchmark seed 42. Không dùng chúng làm kết quả đo. Để mọi số UI tái sinh theo seed cần nối màn với API/artifact benchmark, việc này chưa hoàn tất.
 
 | Đường dẫn | Màn |
 |---|---|
-| `/` | Onboarding → Đăng nhập → Trang chủ |
-| `/home`, `/map`, `/station`, `/booking`, `/schedule`, `/sessions`, `/notifications`, `/garage`, `/profile` | App USER |
-| `/host/stations`, `/host/ports`, `/host/schedule` | Cổng chủ trạm |
-| `/admin/clusters`, `/admin/review`, `/admin/tariff`, `/admin/solver`, `/admin/benchmark`, `/admin/forecast` | Quản trị |
+| `/`, `/home`, `/map`, `/station`, `/booking`, `/schedule`, `/sessions`, `/notifications`, `/garage`, `/profile` | USER |
+| `/host/stations`, `/host/ports`, `/host/schedule` | HOST |
+| `/admin/clusters`, `/admin/review`, `/admin/tariff`, `/admin/solver`, `/admin/benchmark`, `/admin/forecast` | ADMIN |
+
+## Benchmark tái lập
+
+Lệnh dưới đây gọi cùng snapshot `demo` và seed 42 trên bảy thuật toán. Nó trả KPI của ba request tổng hợp trong `ai_engine/data/scenarios/demo.json`; đây không phải dữ liệu vận hành của trường/cụm sạc. `solve_ms` phụ thuộc máy và tải chạy nên sẽ thay đổi giữa các lần đo.
+
+```sh
+curl.exe -sS -X POST http://localhost:8001/ai/benchmark -H "Content-Type: application/json" -d '{"scenario_id":"demo","algorithms":["MILP_MPC","LP_MPC","LLF","EDF","FCFS","EQUAL_SHARE","ASAP"],"seed":42,"repeats":1}'
+```
+
+Đo ngày 19/11/2026 trên Windows, Python 3.12, một lần chạy, kết quả thực trả về:
+
+| Thuật toán yêu cầu | Thuật toán thực tế | Status | Đúng hạn | Thiếu điện (kWh) | Chi phí (VND) | Đỉnh (kW) | Vượt trần | solve_ms |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| MILP_MPC | MILP_MPC | OPTIMAL | 1.0 | 0.0 | 19000.0 | 13.5 | 0 | 152.15270000044256 |
+| LP_MPC | MILP_MPC | OPTIMAL | 1.0 | 0.0 | 19000.0 | 13.5 | 0 | 103.79280000051949 |
+| LLF | LLF | FEASIBLE | 1.0 | 0.0 | 19000.0 | 38.0 | 0 | 0.40979999994306127 |
+| EDF | EDF | FEASIBLE | 1.0 | 0.0 | 19000.0 | 38.0 | 0 | 0.28790000033040997 |
+| FCFS | FCFS | FEASIBLE | 1.0 | 0.0 | 19000.0 | 38.0 | 0 | 0.2687999995032442 |
+| EQUAL_SHARE | EQUAL_SHARE | FEASIBLE | 1.0 | 0.0 | 19000.0 | 38.0 | 0 | 0.44160000015835976 |
+| ASAP | ASAP | FEASIBLE | 1.0 | 0.0 | 19000.0 | 38.0 | 0 | 0.2733000001171604 |
+
+Kết quả cho biết `LP_MPC` hiện thực tế được báo là `MILP_MPC`; không diễn giải dòng đó như một phép đo LP độc lập. Đây là benchmark demo nhỏ, không thay thế `benchmark_real.json`. Hiện repo chưa có artifact đo cho các mốc 100/500/1.000/10.000 request, nên không công bố các KPI đó.
+
+Có thể tái sinh các CSV kịch bản tổng hợp với seed cố định 42 bằng một lệnh (sau khi catalog, xe và cụm đã có trong `data/`):
+
+```sh
+python scripts/generate_100k_data.py --scenarios-only
+```
+
+Kịch bản giữ nguyên số dòng yêu cầu. Với tổng giới hạn cụm hiện khai báo là 850 kW, 24 giờ tương ứng 20.400 kWh; kịch bản 100 request đạt 2.916,946 kWh (14,2987549%), còn các mốc 500, 1.000, 2.500, 5.000 và 10.000 đạt 16.320 kWh (80%). Đây là tải đầu vào tổng hợp, không phải kết quả benchmark của solver.
+
+## Đóng góp vào liên kết WEFE (trụ cột Năng lượng xanh và Giao thông thông minh)
+
+ShareGrid hướng tới phối hợp thời điểm sạc xe điện để hạn chế sạc đồng thời vào giờ cao điểm và chuyển một phần nhu cầu sang các khung giá thấp hơn. Nếu triển khai cùng trần công suất cụm, cách điều phối này có thể giúp sử dụng hạ tầng hiện hữu hiệu quả hơn và tạo thêm dư địa tiếp nhận năng lượng tái tạo.
+
+Các tác động trên hiện là **giả thuyết thiết kế**, chưa phải kết quả đo được. Repo không có `benchmark_real.json`; solver chỉ xét trần công suất cố định và biểu giá mô phỏng, không có dữ liệu phát điện tái tạo hoặc mô hình chi phí nâng cấp lưới. Do đó chưa công bố mức cắt đỉnh, điện chuyển giờ, khoản đầu tư tránh được hay lượng năng lượng tái tạo tiếp nhận.
+
+## Chất lượng và nguồn dữ liệu
+
+- Catalog có 107 trạm; 92 trạm thiếu ít nhất một tọa độ. Các trạm này không ở trạng thái `ACTIVE`; không tự gán tọa độ. Danh sách nằm trong `data/stations_missing_coordinates.csv` để người phụ trách dữ liệu đối chiếu.
+- Cột `rating` để trống vì chưa có đánh giá khảo sát đáng tin cậy. Các giá trị suy ra/giả định được ghi trong `qa_notes` hoặc `data_note`, gồm `station_power_kw`, phân cụm, trạng thái và giờ hoạt động.
+- Connector trong catalog dùng bốn mã `CCS2`, `Type2`, `CHAdeMO`, `AC_HOME`; tên cũ được chuẩn hóa khi nhập. Ghi chú xe giữ lại mã nguồn khi có chuẩn hóa.
+- `source_ref` cho `EVN_2026_TOU` để trống. **TODO cần người phụ trách điền số và ngày Quyết định EVN đã xác minh**; mức giá hiện có trong catalog chưa chứng minh được nguồn văn bản.
+- Không commit `.env`. Quét file Git hiện hành không tìm thấy `.env` được track; `.env.example` chỉ chứa giá trị thay thế, không phải thông tin xác thực.
+
+## Ảnh chụp màn hình
+
+Chưa có ảnh chụp màn hình sản phẩm trong repo. Thay các dòng dưới bằng ảnh chụp sau khi chạy demo; không dùng ảnh icon ứng dụng làm ảnh sản phẩm.
+
+| Màn hình | Ảnh |
+|---|---|
+| USER – đặt lịch/kết quả | Chưa chụp |
+| HOST – lịch cổng sạc | Chưa chụp |
+| ADMIN – benchmark | Chưa chụp |
+
+## Sơ đồ kiến trúc hiện trạng
+
+```mermaid
+flowchart LR
+    U[Flutter USER / HOST / ADMIN<br/>dữ liệu mô phỏng] -. chưa nối .-> B[Backend FastAPI<br/>localhost:8000]
+    B --> DB[(PostgreSQL + PostGIS<br/>19 bảng)]
+    AI[AI Engine FastAPI<br/>localhost:8001<br/>optimize / benchmark / forecast]
+    B -. chưa gọi AI .-> AI
+    C[Docker Compose] --> DB
+    C --> B
+    C --> AI
+```
 
 ## Kiểm tra
 
-```bash
+```sh
+pytest ai_engine/tests -q
+pytest backend -q
 dart format lib test
 flutter analyze
 flutter test
+docker compose up --build
 ```
 
-## Build & deploy (Firebase Hosting)
+Backend hiện chưa có bộ test pytest riêng; `pytest backend -q` báo không tìm thấy test. Docker Compose cần chạy trên máy có Docker Engine; kết quả thực thi phụ thuộc môi trường.
 
-```bash
-flutter build web --release
-firebase deploy --only hosting
-```
+## Checklist nộp Smart Campus 2026
 
-CI/CD: `.github/workflows/pr-check.yml` kiểm tra quy ước + format/analyze/test cho mọi PR; `.github/workflows/deploy-hosting.yml` build và deploy khi có commit lên `main` (cần secret `FIREBASE_SERVICE_ACCOUNT` trên GitHub).
+- [ ] Điền biểu mẫu và gửi hồ sơ trên cổng ISSCEI trước hạn 24/11/2026; kiểm tra lại thể lệ và trường bắt buộc trực tiếp trên cổng.
+- [ ] Quay video demo dự phòng, kiểm tra âm thanh, các màn USER/HOST/ADMIN và lưu bản offline.
+- [ ] Chụp ảnh màn hình thật và bổ sung vào README.
+- [ ] Có dữ liệu benchmark quy mô phù hợp và artifact tái lập trước khi đưa KPI quy mô lớn vào thuyết minh.
+- [ ] Người phụ trách dữ liệu xác minh 92 trạm thiếu tọa độ; không tự suy đoán.
+- [ ] Người phụ trách biểu giá điền số/ngày Quyết định EVN đã xác minh vào `source_ref`.
+- [ ] Mô tả rõ giới hạn hiện tại: Flutter chưa nối Backend; Backend chưa gọi AI; chưa có kết quả tác động WEFE đo thực tế.
 
-## Tài liệu
+Thông báo Smart Campus 2026 của [Trung tâm Đổi mới sáng tạo NTU](https://trungtamdmst.ntu.edu.vn/thong-bao/thong-bao-cuoc-thi-smart-campus-2026) nêu lĩnh vực Năng lượng xanh và Giao thông thông minh cùng hạn gửi hồ sơ 24/11/2026.
 
-- `CLAUDE.md` – tổng hợp nghiệp vụ, phạm vi, thuật toán, dữ liệu.
-- `AGENTS.md`, `git.md` – cấu trúc code và quy trình Git.
-- `docs/source/` – báo cáo thiết kế 10k và hướng dẫn triển khai (nguồn sự thật).
+## Tài liệu và quy trình
+
+- `CLAUDE.md` – nghiệp vụ và phạm vi hệ thống.
+- `AGENTS.md`, `git.md` – cấu trúc code, quy ước nhánh/commit và quy trình Git.
+- `ai_engine/README.md` – chạy riêng AI Engine.
+- `.github/workflows/pr-check.yml` – kiểm tra PR.
