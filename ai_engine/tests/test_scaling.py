@@ -89,4 +89,5 @@ def test_large_problem_uses_llf_and_validator_accepts(solver) -> None:
 
     assert solution.algorithm == "LLF"
     assert solution.status == "FALLBACK"
+    assert solution.fallback_reason == "THRESHOLD_EXCEEDED"
     assert validate_solution(problem, solution).ok

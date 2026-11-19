@@ -9,7 +9,7 @@ from typing import Iterable, Literal
 from .settings import EPS_KW, is_zero, snap
 from .schemas import (
     ConnectorType, ControlType, OptimizeRequest, PortStatus, RequestStatus,
-    ScheduleItem, Tariff, Algorithm, SolverStatus, ChargingRequestIn,
+    ScheduleItem, Tariff, Algorithm, FallbackReason, SolverStatus, ChargingRequestIn,
 )
 
 STEP = timedelta(minutes=15)
@@ -44,6 +44,7 @@ class Solution:
     status: SolverStatus
     algorithm: Algorithm
     shortfall: dict[str, float] = field(default_factory=dict)
+    fallback_reason: FallbackReason = FallbackReason.NONE
 
 
 @dataclass(frozen=True, slots=True)

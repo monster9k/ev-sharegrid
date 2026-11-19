@@ -12,12 +12,19 @@ from time import perf_counter
 
 from .baselines import solve_llf
 from .normalizer import NormProblem, Solution
-from .schemas import Algorithm, SolverStatus
+from .schemas import Algorithm, FallbackReason, SolverStatus
 from .settings import DECOMPOSE_THRESHOLD, EPS_KW, is_leq, is_zero, snap
 from .validator import validate_solution
 
 
 BENCHMARK_SEED: ContextVar[int] = ContextVar("benchmark_seed", default=42)
+LOG = logging.getLogger(__name__)
+
+
+def _stop(best: Solution, reason: FallbackReason) -> Solution:
+    if best.status == SolverStatus.FALLBACK:
+        return replace(best, fallback_reason=reason)
+    return best
 
 
 def _optimize(p: NormProblem, prefer_lp: bool) -> Solution:
@@ -75,7 +82,7 @@ def _optimize(p: NormProblem, prefer_lp: bool) -> Solution:
                 hints.append((y,int(seed.assign.get(rid)==pid)))
             for t in r.active_slots:
                 if perf_counter()>=end:
-                    return seed
+                    return _stop(seed, FallbackReason.TIME_BUDGET_EXHAUSTED)
                 k=rid,pid,t
                 if t<p.first_mutable_slot and k not in fixed:
                     continue
@@ -132,7 +139,7 @@ def _optimize(p: NormProblem, prefer_lp: bool) -> Solution:
     for i,obj in enumerate(objectives):
         ms=int((end-perf_counter())*1000)
         if ms<=0:
-            return best
+            return _stop(best, FallbackReason.TIME_BUDGET_EXHAUSTED)
         m.Minimize(obj)
         stage_ms = max(1, ms // (len(objectives) - i))
         m.SetTimeLimit(stage_ms)
@@ -148,7 +155,10 @@ def _optimize(p: NormProblem, prefer_lp: bool) -> Solution:
         else:
             status = m.Solve()
         if status not in (m.OPTIMAL,m.FEASIBLE):
-            return best
+            reason = (FallbackReason.TIME_BUDGET_EXHAUSTED if status == m.NOT_SOLVED
+                      else FallbackReason.SOLVER_ERROR)
+            LOG.info("Tầng %d: OR-Tools status=%s", i, status)
+            return _stop(best, reason)
         sol=Solution({}, {},SolverStatus.FEASIBLE,Algorithm.LP_MPC if lp else Algorithm.MILP_MPC,
                      {rid:snap(max(0,g.solution_value())) for rid,g in gaps.items()})
         for rid,r in p.requests.items():
@@ -169,12 +179,14 @@ def _optimize(p: NormProblem, prefer_lp: bool) -> Solution:
             if not is_zero(kw, EPS_KW):
                 sol.assign[rid] = pid
                 sol.power[k] = kw
-        if not validate_solution(p,sol).ok:
-            return best
+        report = validate_solution(p, sol)
+        if not report.ok:
+            LOG.info("Tầng %d: validator từ chối nghiệm: %s", i, report.violations[:3])
+            return _stop(best, FallbackReason.SOLVER_ERROR)
         if status==m.FEASIBLE and i==0:
             improvement = sum(p.requests[r].priority_weight * (seed.shortfall[r] - sol.shortfall[r]) for r in gaps)
             if is_leq(improvement, 0):
-                return seed
+                return _stop(seed, FallbackReason.SEED_NOT_IMPROVED)
         best=sol
         if status!=m.OPTIMAL:
             return best
@@ -212,7 +224,8 @@ def _large_problem_llf(problem: NormProblem) -> Solution:
         "Có %d request, vượt DECOMPOSE_THRESHOLD=%d; chuyển sang LLF để giữ trần cụm",
         len(problem.requests), DECOMPOSE_THRESHOLD,
     )
-    return replace(solve_llf(problem), status=SolverStatus.FALLBACK, algorithm=Algorithm.LLF)
+    return replace(solve_llf(problem), status=SolverStatus.FALLBACK, algorithm=Algorithm.LLF,
+                   fallback_reason=FallbackReason.THRESHOLD_EXCEEDED)
 
 
 def solve(problem: NormProblem) -> Solution:
@@ -238,4 +251,7 @@ def solve(problem: NormProblem) -> Solution:
     except Exception as exc:
         logging.getLogger(__name__).info("Dùng LLF: %s",exc)
         left = max(0,int(p.time_budget_ms-1000*(perf_counter()-start)))
-        return replace(solve_llf(replace(p,time_budget_ms=left)),status=SolverStatus.FALLBACK)
+        reason = (FallbackReason.TIME_BUDGET_EXHAUSTED if isinstance(exc, TimeoutError)
+                  else FallbackReason.SOLVER_ERROR)
+        return replace(solve_llf(replace(p,time_budget_ms=left)), status=SolverStatus.FALLBACK,
+                       fallback_reason=reason)

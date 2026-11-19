@@ -328,17 +328,23 @@ def aggregate_algorithm(
         cluster_runs[cluster_id] = {
             "status": status,
             "actual_algorithm": result["algorithm"],
+            "fallback_reason": result["fallback_reason"],
             "solve_ms": result["solve_ms"],
             "request_count": count,
             "kpi": kpi,
         }
 
     statuses = sorted(set(all_statuses))
+    reasons = {row["fallback_reason"] for row in cluster_runs.values()}
     return {
         "requested_algorithm": algorithm,
         "actual_algorithms": sorted(actual_algorithms),
         "status": statuses[0] if len(statuses) == 1 else "MIXED",
         "status_by_cluster": {cluster: row["status"] for cluster, row in cluster_runs.items()},
+        "fallback_reason": next(iter(reasons)) if len(reasons) == 1 else "MIXED",
+        "fallback_reason_by_cluster": {
+            cluster: row["fallback_reason"] for cluster, row in cluster_runs.items()
+        },
         "solve_ms": total_solve_ms,
         "kpi": {
             "on_time_rate": weighted_on_time / total_requests if total_requests else 1.0,

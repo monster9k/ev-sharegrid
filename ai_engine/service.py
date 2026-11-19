@@ -11,16 +11,16 @@ from .baselines import SOLVERS, compute_kpi
 from .explainer import build_all_results
 from .normalizer import NormProblem, Solution, normalize, to_response_slots
 from .optimizer_milp import solve, solve_lp, solve_milp
-from .schemas import Algorithm, KPI, OptimizeRequest, OptimizeResponse, SolverStatus
+from .schemas import Algorithm, FallbackReason, KPI, OptimizeRequest, OptimizeResponse, SolverStatus
 from .validator import safe_solve, validate_solution
 
 Solver = Callable[[NormProblem], Solution]
 ENGINES: dict[str, Solver] = dict(SOLVERS, MILP=solve_milp, MILP_MPC=solve_milp, LP_MPC=solve_lp)
 
 
-def failure(ms: float, algorithm: Algorithm | None = None) -> OptimizeResponse:
+def failure(ms: float, reason: FallbackReason = FallbackReason.SOLVER_ERROR) -> OptimizeResponse:
     """Trả trạng thái lỗi, không công bố kết quả hoặc lịch chưa kiểm tra."""
-    return OptimizeResponse(status="ERROR",algorithm=algorithm,solve_ms=ms,
+    return OptimizeResponse(status="ERROR",algorithm=None,solve_ms=ms,fallback_reason=reason,
         kpi=KPI(total_shortfall_kwh=0,total_cost_vnd=0,peak_power_kw=0,on_time_rate=0,
                 cap_violations=0,fairness=None),request_results=[],schedules=[])
 
@@ -33,13 +33,14 @@ def evaluate(req: OptimizeRequest, solver: Solver = solve, asap: bool = False) -
         sol=solver(p)
         violations=validate_solution(p,sol).violations
         if any(v.code not in {"STATION_CAP","GRID_CAP"} for v in violations):
-            return failure((perf_counter()-start)*1000,sol.algorithm)
+            return failure((perf_counter()-start)*1000)
     else:
         sol,status,report=safe_solve(p,solver)
         if not report.ok or status==SolverStatus.ERROR or not validate_solution(p,sol).ok:
-            return failure((perf_counter()-start)*1000,sol.algorithm)
+            return failure((perf_counter()-start)*1000,sol.fallback_reason)
     ms=(perf_counter()-start)*1000
     return OptimizeResponse(status=sol.status,algorithm=sol.algorithm,solve_ms=ms,
+        fallback_reason=sol.fallback_reason,
         kpi=compute_kpi(p,sol),request_results=build_all_results(p,sol),
         schedules=to_response_slots(p,((*key,kw) for key,kw in sol.power.items())))
 

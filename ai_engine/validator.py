@@ -8,7 +8,7 @@ from typing import Callable
 
 from .baselines import solve_llf
 from .normalizer import NormProblem, Solution
-from .schemas import Algorithm, SolverStatus
+from .schemas import Algorithm, FallbackReason, SolverStatus
 
 from .settings import EPS_KW, is_leq, is_zero
 
@@ -131,6 +131,7 @@ def safe_solve(problem: NormProblem, solver_fn: Callable[[NormProblem], Solution
     """Kiểm tra độc lập hai lần thử; nếu cả hai hỏng thì trả lịch rỗng và lỗi."""
     start = perf_counter()
     failures: list[Violation] = []
+    reason = FallbackReason.SOLVER_ERROR
     for fallback, solver in ((False, solver_fn), (True, solve_llf)):
         try:
             attempt = problem
@@ -144,12 +145,14 @@ def safe_solve(problem: NormProblem, solver_fn: Callable[[NormProblem], Solution
                     Violation("SOLVER_STATUS", None, None, None, f"Solver trả trạng thái {sol.status.value}.")])
             if report.ok:
                 if fallback:
-                    sol = replace(sol, status=SolverStatus.FALLBACK)
+                    sol = replace(sol, status=SolverStatus.FALLBACK, fallback_reason=reason)
                 return sol, sol.status, report
             failures.extend(report.violations)
         except Exception as exc:
+            if not fallback and isinstance(exc, TimeoutError):
+                reason = FallbackReason.TIME_BUDGET_EXHAUSTED
             failures.append(Violation("SOLVER_EXCEPTION", None, None, None,
                                       f"Lỗi khi chạy hoặc kiểm tra solver: {type(exc).__name__}: {exc}"))
     empty = Solution({}, {}, SolverStatus.ERROR, Algorithm.LLF,
-                     {rid: r.remaining_kwh for rid, r in problem.requests.items()})
+                     {rid: r.remaining_kwh for rid, r in problem.requests.items()}, reason)
     return empty, empty.status, ValidationReport(False, failures)
