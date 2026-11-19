@@ -128,7 +128,7 @@ Các tác động trên hiện là **giả thuyết thiết kế**, chưa phải
 - Catalog có 107 trạm; 92 trạm thiếu ít nhất một tọa độ. Các trạm này không ở trạng thái `ACTIVE`; không tự gán tọa độ. Danh sách nằm trong `data/stations_missing_coordinates.csv` để người phụ trách dữ liệu đối chiếu.
 - Cột `rating` để trống vì chưa có đánh giá khảo sát đáng tin cậy. Các giá trị suy ra/giả định được ghi trong `qa_notes` hoặc `data_note`, gồm `station_power_kw`, phân cụm, trạng thái và giờ hoạt động.
 - Connector trong catalog dùng bốn mã `CCS2`, `Type2`, `CHAdeMO`, `AC_HOME`; tên cũ được chuẩn hóa khi nhập. Ghi chú xe giữ lại mã nguồn khi có chuẩn hóa.
-- `source_ref` cho `EVN_2026_TOU` để trống. **TODO cần người phụ trách điền số và ngày Quyết định EVN đã xác minh**; mức giá hiện có trong catalog chưa chứng minh được nguồn văn bản.
+- Nguồn của biểu giá được ghi thống nhất là **"biểu giá TOU giả định theo khung giờ cao/thấp điểm"**. Repo không có số và ngày văn bản xác minh, nên các mức giá này không được giới thiệu là biểu giá chính thức của EVN.
 - Không commit `.env`. Quét file Git hiện hành không tìm thấy `.env` được track; `.env.example` chỉ chứa giá trị thay thế, không phải thông tin xác thực.
 
 ## Ảnh chụp màn hình
@@ -174,7 +174,7 @@ Backend hiện chưa có bộ test pytest riêng; `pytest backend -q` báo khôn
 - [ ] Chụp ảnh màn hình thật và bổ sung vào README.
 - [ ] Có dữ liệu benchmark quy mô phù hợp và artifact tái lập trước khi đưa KPI quy mô lớn vào thuyết minh.
 - [ ] Người phụ trách dữ liệu xác minh 92 trạm thiếu tọa độ; không tự suy đoán.
-- [ ] Người phụ trách biểu giá điền số/ngày Quyết định EVN đã xác minh vào `source_ref`.
+- [ ] Nếu nhóm có số và ngày văn bản EVN đã xác minh, cập nhật `source_ref` và rà lại nhãn biểu giá; hiện nguồn dữ liệu được ghi là giả định.
 - [ ] Mô tả rõ giới hạn hiện tại: Flutter chưa nối Backend; Backend chưa gọi AI; chưa có kết quả tác động WEFE đo thực tế.
 
 Thông báo Smart Campus 2026 của [Trung tâm Đổi mới sáng tạo NTU](https://trungtamdmst.ntu.edu.vn/thong-bao/thong-bao-cuoc-thi-smart-campus-2026) nêu lĩnh vực Năng lượng xanh và Giao thông thông minh cùng hạn gửi hồ sơ 24/11/2026.
