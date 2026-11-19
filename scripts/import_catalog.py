@@ -9,7 +9,7 @@ Tác giả: Thắng (thangchien1607@gmail.com)
 
 import math
 import os
-import openpyxl
+import sys
 import pandas as pd
 import psycopg2
 from psycopg2.extras import execute_values
@@ -35,6 +35,12 @@ CONNECTOR_TYPES = {"CCS2", "Type2", "CHAdeMO", "AC_HOME"}
 EVN_TARIFF_SOURCE_REF = None
 
 
+def _configure_console_encoding():
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
+
+
 def normalize_connector_type(value):
     source_value = "CCS2" if pd.isna(value) else str(value).strip()
     connector_type = CONNECTOR_ALIASES.get(source_value, source_value)
@@ -44,6 +50,9 @@ def normalize_connector_type(value):
 
 
 def clean_and_extract_catalogs():
+    _configure_console_encoding()
+    import openpyxl
+
     print("🚀 Bắt đầu đọc & làm sạch dữ liệu từ docs/dataofanh...")
     os.makedirs(DATA_DIR, exist_ok=True)
 
@@ -355,7 +364,10 @@ def clean_and_extract_catalogs():
 
 
 def seed_postgres_database(df_models, df_stations, df_ports, df_tariff):
+    _configure_console_encoding()
     print("🔌 Kiểm tra kết nối PostgreSQL...")
+    conn = None
+    cur = None
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         cur = conn.cursor()
@@ -372,13 +384,6 @@ def seed_postgres_database(df_models, df_stations, df_ports, df_tariff):
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (user_id) DO UPDATE SET full_name = EXCLUDED.full_name;
         """, users)
-
-        # 1b. Nạp vehicle demo cho user 3
-        cur.execute("""
-            INSERT INTO vehicle (vehicle_id, user_id, model_id, plate_number, nickname, default_soc_target, is_default)
-            VALUES (101, 3, 2, '43A-123.45', 'VF 5 Đi Làm', 80.00, TRUE)
-            ON CONFLICT (vehicle_id) DO NOTHING;
-        """)
 
         # 2. Nạp grid_cluster từ data/grid_cluster.csv
         gc_path = os.path.join(DATA_DIR, "grid_cluster.csv")
@@ -409,6 +414,13 @@ def seed_postgres_database(df_models, df_stations, df_ports, df_tariff):
                   m["max_dc_kw"] if pd.notnull(m["max_dc_kw"]) else None,
                   m["standard_charger_kw"] if pd.notnull(m["standard_charger_kw"]) else None,
                   m["data_note"]))
+
+        # 3b. Nạp xe demo sau vehicle_model để thỏa khóa ngoại model_id.
+        cur.execute("""
+            INSERT INTO vehicle (vehicle_id, user_id, model_id, plate_number, nickname, default_soc_target, is_default)
+            VALUES (101, 3, 2, '43A-123.45', 'VF 5 Đi Làm', 80.00, TRUE)
+            ON CONFLICT (vehicle_id) DO NOTHING;
+        """)
 
         # 4. Nạp charging_station (107 trạm thực tế)
         for _, s in df_stations.iterrows():
@@ -477,12 +489,24 @@ def seed_postgres_database(df_models, df_stations, df_ports, df_tariff):
                   t["start_time"], t["end_time"], float(t["price_vnd_kwh"]), t["source_ref"]))
 
         conn.commit()
-        cur.close()
-        conn.close()
-        print("🎉 Nạp dữ liệu vào PostgreSQL thành công 100%!")
     except Exception as e:
-        print(f"ℹ️ Không thể kết nối PostgreSQL tại {DB_CONFIG['host']}:{DB_CONFIG['port']} ({e}).")
-        print("💡 Lưu ý: Các bộ dữ liệu CSV sạch đã được tạo hoàn chỉnh tại thư mục data/, sẵn sàng nạp khi DB khởi chạy!")
+        if conn is not None:
+            try:
+                conn.rollback()
+            except Exception as rollback_error:
+                print(f"Rollback PostgreSQL thất bại: {rollback_error}", file=sys.stderr)
+        print(
+            f"Không thể nạp catalog vào PostgreSQL tại {DB_CONFIG['host']}:{DB_CONFIG['port']}: {e}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    finally:
+        if cur is not None:
+            cur.close()
+        if conn is not None:
+            conn.close()
+
+    print("🎉 Nạp dữ liệu vào PostgreSQL thành công 100%!")
 
 
 if __name__ == "__main__":
