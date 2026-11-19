@@ -83,6 +83,27 @@ def _cluster_timezone(name: str | None) -> ZoneInfo | timezone:
         raise ValueError(f"Unknown grid_cluster.timezone {timezone_name!r}") from exc
 
 
+def optimization_horizon(
+    snapshot_time: datetime | None = None,
+    *,
+    timezone_name: str = "Asia/Ho_Chi_Minh",
+    horizon_slots: int = DEFAULT_HORIZON_SLOTS,
+) -> tuple[datetime, datetime]:
+    """Return the same quarter-hour-aligned window used by cluster snapshots."""
+    tz = _cluster_timezone(timezone_name)
+    now = snapshot_time or datetime.now(tz)
+    if now.tzinfo is None or now.utcoffset() is None:
+        raise ValueError("snapshot_time must include a timezone")
+    start = now.astimezone(tz)
+    start = start.replace(second=0, microsecond=0) - timedelta(
+        minutes=start.minute % SLOT_MINUTES
+    )
+    if start.utcoffset() != timedelta(hours=7):
+        raise ValueError("AI Engine contract requires the cluster timezone to use +07:00")
+    end = start + timedelta(minutes=horizon_slots * SLOT_MINUTES)
+    return start, end
+
+
 def _as_time(value: time | str) -> time:
     if isinstance(value, time):
         return value.replace(tzinfo=None)
@@ -201,18 +222,15 @@ def build_cluster_snapshot(
     if cluster is None:
         raise ValueError(f"Active grid_cluster {cluster_id} was not found")
     tz = _cluster_timezone(cluster["timezone"])
-    now = snapshot_time or datetime.now(tz)
-    if now.tzinfo is None or now.utcoffset() is None:
-        raise ValueError("snapshot_time must include a timezone")
     # Anchor all snapshot data to the same quarter-hour boundary. The AI solver
     # aligns its first slot down to 15 minutes, so tariffs and station windows
     # must start at that exact boundary too (including when the API call arrives
     # during a slot or just before midnight).
-    now = now.astimezone(tz)
-    now = now.replace(second=0, microsecond=0) - timedelta(minutes=now.minute % SLOT_MINUTES)
-    if now.utcoffset() != timedelta(hours=7):
-        raise ValueError("AI Engine contract requires the cluster timezone to use +07:00")
-    horizon_end = now + timedelta(minutes=horizon_slots * SLOT_MINUTES)
+    now, horizon_end = optimization_horizon(
+        snapshot_time,
+        timezone_name=cluster["timezone"],
+        horizon_slots=horizon_slots,
+    )
 
     station_rows = _fetchall(
         cursor,
