@@ -40,15 +40,38 @@ Benchmark nhận một trong hai nguồn dữ liệu: snapshot inline hoặc sce
 
 ### Số đo trên dữ liệu scenario đã commit
 
+`benchmark_real.json` được sinh ngày 19/11/2026 từ scenario và catalog ở commit `d067916` (develop sau khi gộp PR #24), với seed sinh dữ liệu và seed benchmark đều là 42. JSON lưu SHA-256 của mọi CSV đầu vào. Mỗi cụm được gửi trong một POST `/ai/benchmark` riêng rồi gộp kết quả: cộng thiếu điện, chi phí và `solve_ms`; tính tỷ lệ đúng hạn theo số request; tính đỉnh từ tổng tải hai cụm theo từng slot. `solve_ms` là tổng thời gian xử lý của các cụm, không gồm thời gian truyền HTTP.
+
 Chạy lại bằng một lệnh:
 
 ```sh
-python -m ai_engine.scripts.benchmark_real --dataset-ref 3b4b6c6
+python -m ai_engine.scripts.benchmark_real --dataset-ref d067916
 ```
 
-Script gọi POST `/ai/benchmark` qua FastAPI TestClient với seed 42. Mỗi cụm được gửi riêng vì snapshot API chỉ nhận một cụm; kết quả gộp bằng tổng shortfall, chi phí, `solve_ms` và số lần vượt trần, tỷ lệ đúng hạn có trọng số theo request, còn đỉnh lấy từ tổng tải hai cụm ở từng slot. Các mốc 100, 500 và 1.000 chạy đủ bảy thuật toán; mốc 10.000 chỉ chạy LLF, EDF, FCFS, EQUAL_SHARE và ASAP. `benchmark_real.json` giữ các KPI và status đầy đủ, không làm tròn.
+Script gọi POST `/ai/benchmark` qua FastAPI TestClient. Các mốc 100, 500 và 1.000 chạy đủ bảy thuật toán; mốc 10.000 chạy `MILP_MPC`, LLF, EDF, FCFS, EQUAL_SHARE và ASAP. Ở mốc 10.000, request `MILP_MPC` được chuyển sang LLF do vượt `DECOMPOSE_THRESHOLD=250`; JSON giữ cả thuật toán yêu cầu, thuật toán thực tế, status và KPI đầy đủ, không làm tròn.
 
-Scenario được sinh với seed 42 ở commit `9391fe6`; benchmark đọc scenario và catalog cuối ở commit dữ liệu `3b4b6c6`. Tổng nhu cầu/trần cấp trong 24 giờ/tỷ lệ tải/số request đỗ ít nhất 8 giờ:
+Kết quả mới của MILP_MPC và LLF, tách theo biểu giá:
+
+| Requests | Biểu giá | Thuật toán yêu cầu | Thuật toán thực tế | Status | Đúng hạn | Thiếu điện (kWh) | solve_ms |
+|---:|---|---|---|---|---:|---:|---:|
+| 100 | Cố định 2.000 | MILP_MPC | LLF | FALLBACK | 0.82 | 66.5731 | 5900.167500010866 |
+| 100 | Cố định 2.000 | LLF | LLF | FEASIBLE | 0.82 | 66.5731 | 8.367700007511303 |
+| 100 | TOU 1.600/2.400/4.000 | MILP_MPC | LLF | FALLBACK | 0.82 | 66.5731 | 5785.519699995348 |
+| 100 | TOU 1.600/2.400/4.000 | LLF | LLF | FEASIBLE | 0.82 | 66.5731 | 9.489099997153971 |
+| 500 | Cố định 2.000 | MILP_MPC | LLF + MILP_MPC | MIXED | 0.544 | 3835.2927 | 3941.906799998833 |
+| 500 | Cố định 2.000 | LLF | LLF | FEASIBLE | 0.542 | 3835.6732 | 45.80569999961881 |
+| 500 | TOU 1.600/2.400/4.000 | MILP_MPC | LLF + MILP_MPC | MIXED | 0.544 | 3835.2927 | 5221.131800004514 |
+| 500 | TOU 1.600/2.400/4.000 | LLF | LLF | FEASIBLE | 0.542 | 3835.6732 | 70.01699999818811 |
+| 1.000 | Cố định 2.000 | MILP_MPC | LLF | FALLBACK | 0.536 | 4667.3876 | 175.45480000262614 |
+| 1.000 | Cố định 2.000 | LLF | LLF | FEASIBLE | 0.536 | 4667.3876 | 177.53890000312822 |
+| 1.000 | TOU 1.600/2.400/4.000 | MILP_MPC | LLF | FALLBACK | 0.536 | 4667.3876 | 179.71110000507906 |
+| 1.000 | TOU 1.600/2.400/4.000 | LLF | LLF | FEASIBLE | 0.536 | 4667.3876 | 115.82750000525266 |
+| 10.000 | Cố định 2.000 | MILP_MPC | LLF | FALLBACK | 0.2622 | 12428.5622 | 1355.5350999959046 |
+| 10.000 | Cố định 2.000 | LLF | LLF | FEASIBLE | 0.2622 | 12428.5622 | 1332.6003999973182 |
+| 10.000 | TOU 1.600/2.400/4.000 | MILP_MPC | LLF | FALLBACK | 0.2622 | 12428.5622 | 1478.2028000045102 |
+| 10.000 | TOU 1.600/2.400/4.000 | LLF | LLF | FEASIBLE | 0.2622 | 12428.5622 | 1229.0395999953034 |
+
+Scenario lấy từ commit `d067916`. Tổng nhu cầu/trần cấp trong 24 giờ/tỷ lệ tải/số request đỗ ít nhất 8 giờ:
 
 | Request | Nhu cầu (kWh) | Trần (kWh) | Tỷ lệ tải | Đỗ ≥8 giờ |
 |---:|---:|---:|---:|---:|
@@ -57,7 +80,8 @@ Scenario được sinh với seed 42 ở commit `9391fe6`; benchmark đọc scen
 | 1.000 | 16320.00000000003 | 20400.0 | 0.8000000000000014 | 600 |
 | 10.000 | 16319.999999999905 | 20400.0 | 0.7999999999999954 | 6000 |
 
-Mốc 100 giữ nguyên số dòng và vì vậy chỉ đạt 14.298755882352943% tải. Ở mốc 10.000, hai cụm có 5.882 và 4.118 request. LLF đạt `status=FEASIBLE`; với giá cố định, `solve_ms=669.5902999997543`, `on_time_rate=0.2622`, `total_shortfall_kwh=12428.5622`, `total_cost_vnd=7782875.599999985`, `peak_power_kw=573.9696000000002`, `cap_violations=0`. Với TOU 1.600/2.400/4.000 VND/kWh, `solve_ms=786.8831999999202`, `on_time_rate=0.2622`, `total_shortfall_kwh=12428.5622`, `total_cost_vnd=9925629.200000094`, `peak_power_kw=573.9696000000002`, `cap_violations=0`. Có 1.241 request ở mốc này không khớp đầu nối đang ACTIVE tại trạm; benchmark giữ nguyên chuẩn xe và các request này được tính vào KPI thiếu điện.
+Mốc 100 giữ nguyên số dòng nên chỉ đạt 14.298755882352943% tải. Ở mốc 10.000 có 5.882 request thuộc cụm 1 và 4.118 thuộc cụm 2. LLF đạt `status=FEASIBLE`, `on_time_rate=0.2622`, `total_shortfall_kwh=12428.5622` ở cả hai biểu giá; `solve_ms` và các KPI khác nằm trong bảng/JSON. Có 1.241 request không khớp đầu nối đang ACTIVE tại trạm; benchmark giữ nguyên chuẩn xe và tính các request này vào thiếu điện. Số đo cho thấy kịch bản 10.000 request chưa đạt yêu cầu hạn giờ ở phần lớn request, không phải bằng chứng sẵn sàng tải production.
+
 
 ## Huấn luyện dự báo
 
