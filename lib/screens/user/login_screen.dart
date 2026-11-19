@@ -1,19 +1,65 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../data/api.dart';
 import '../../theme.dart';
 import '../../widgets/common.dart';
 import '../../widgets/web_shell.dart';
 
-/// U1 – Đăng nhập: SĐT/email + mật khẩu hoặc Google.
+/// U1 – Đăng nhập bằng thông tin máy chủ; JWT chỉ được giữ trong bộ nhớ.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
+
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final _email = TextEditingController();
+  final _password = TextEditingController();
   bool _obscure = true;
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  Future<void> _login() async {
+    if (_email.text.trim().isEmpty || _password.text.isEmpty) {
+      setState(() => _error = 'Nhập email và mật khẩu để đăng nhập.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final user = await apiClient.login(
+        email: _email.text.trim(),
+        password: _password.text,
+      );
+      if (!mounted) return;
+      final route = switch (user['role']?.toString().toUpperCase()) {
+        'ADMIN' => '/admin/clusters',
+        'HOST' => '/host/stations',
+        _ => '/home',
+      };
+      context.go(route);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error is ApiException
+            ? '${error.message} (HTTP ${error.statusCode})'
+            : 'Không thể đăng nhập tới máy chủ: $error';
+      });
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -60,30 +106,23 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const _Label('Số điện thoại hoặc email'),
-                TextFormField(
-                  initialValue: '905 123 456',
-                  keyboardType: TextInputType.phone,
+                const _Label('Email'),
+                TextField(
+                  controller: _email,
+                  keyboardType: TextInputType.emailAddress,
+                  autofillHints: const [AutofillHints.username],
                   style: AppFonts.body(size: 15, weight: FontWeight.w600),
-                  decoration: InputDecoration(
-                    prefixIcon: Container(
-                      width: 60,
-                      margin: const EdgeInsets.only(right: 10),
-                      alignment: Alignment.center,
-                      decoration: const BoxDecoration(
-                        border: Border(
-                          right: BorderSide(color: AppColors.border),
-                        ),
-                      ),
-                      child: const BoldText('+84', size: 14),
-                    ),
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.email_outlined),
                   ),
+                  onSubmitted: (_) => _busy ? null : _login(),
                 ),
                 const Gap(14),
                 const _Label('Mật khẩu'),
-                TextFormField(
-                  initialValue: 'matkhau123',
+                TextField(
+                  controller: _password,
                   obscureText: _obscure,
+                  autofillHints: const [AutofillHints.password],
                   style: AppFonts.body(size: 15, weight: FontWeight.w600),
                   decoration: InputDecoration(
                     prefixIcon: const Icon(
@@ -101,53 +140,42 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ),
+                  onSubmitted: (_) => _busy ? null : _login(),
                 ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 10),
-                    child: LinkText('Quên mật khẩu?', onTap: () {}),
-                  ),
-                ),
-                const Gap(14),
-                AppButton(
-                  label: 'Đăng nhập',
-                  height: 54,
-                  onPressed: () => context.go('/home'),
-                ),
-                const Gap(14),
-                Row(
-                  children: [
-                    const Expanded(child: Divider(color: AppColors.border)),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: MutedText('hoặc'),
+                if (_error != null) ...[
+                  const Gap(12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.redBg,
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    const Expanded(child: Divider(color: AppColors.border)),
-                  ],
-                ),
-                const Gap(14),
+                    child: Text(
+                      _error!,
+                      style: AppFonts.body(size: 13, color: AppColors.red),
+                    ),
+                  ),
+                ],
+                if (_busy) ...[
+                  const Gap(12),
+                  const LinearProgressIndicator(minHeight: 3),
+                ],
+                const Gap(18),
                 AppButton(
-                  label: 'Tiếp tục với Google',
-                  kind: AppButtonKind.outline,
+                  label: _busy ? 'Đang đăng nhập…' : 'Đăng nhập',
                   height: 54,
-                  fontSize: 15,
-                  icon: Icons.g_mobiledata_rounded,
-                  onPressed: () => context.go('/home'),
+                  onPressed: _busy ? null : _login,
+                ),
+                const Gap(12),
+                const MutedText(
+                  'Đăng nhập kết nối máy chủ. Mã truy cập chỉ được giữ trong bộ nhớ phiên này.',
+                  size: 12,
                 ),
                 const Gap(28),
                 Wrap(
                   alignment: WrapAlignment.center,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    MutedText('Chưa có tài khoản? ', size: 14),
-                    LinkText('Đăng ký', onTap: () => context.go('/garage')),
-                  ],
-                ),
-                const Gap(12),
-                Wrap(
-                  alignment: WrapAlignment.center,
                   spacing: 8,
+                  runSpacing: 8,
                   children: [
                     LinkText(
                       'Cổng chủ trạm',
@@ -155,7 +183,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       color: AppColors.muted,
                       onTap: () => context.go('/host/stations'),
                     ),
-                    MutedText('·'),
+                    const MutedText('·'),
                     LinkText(
                       'Quản trị',
                       size: 13,
@@ -176,6 +204,7 @@ class _LoginScreenState extends State<LoginScreen> {
 class _Label extends StatelessWidget {
   const _Label(this.text);
   final String text;
+
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 6),

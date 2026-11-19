@@ -34,7 +34,54 @@ Optimize trả 422 khi payload sai schema. Với payload hợp lệ, đọc `sta
 
 Solver hiện dùng SCIP cho biến nguyên, GLOP khi miền nghiệm tuyến tính chính xác. `LP_MPC` có thể dùng SCIP nếu còn cổng đóng/ngắt, có công suất sàn hoặc hai xe có khả năng tranh cổng. Trường algorithm phản ánh backend thực tế. Slot đã chạy được giữ nguyên khi có previous_schedule. Điện năng còn lại phải bao gồm toàn bộ điện của slot freeze nếu gửi slot đó trong lịch cũ. Bản này chưa tích hợp Master LP với các worker theo trạm.
 
+Ngân sách mặc định là `DEFAULT_TIME_BUDGET_MS=10000` cho snapshot dưới 300 request. Từ 300 request, ngân sách dùng `LARGE_SCENARIO_TIME_BUDGET_MS=2000` và request gửi ngân sách cao hơn bị chặn ở mức này. Khi số request cần giải vượt `DECOMPOSE_THRESHOLD=250`, optimizer chuyển sang LLF trên toàn cụm. Tách MILP theo trạm sẽ làm mất ràng buộc trần cụm giữa các phần; LLF giữ trần đó và kết quả vẫn qua Validator. Vì vậy đây là fallback có kiểm soát, không phải bằng chứng MILP giải được 10.000 request.
+
 Benchmark nhận một trong hai nguồn dữ liệu: snapshot inline hoặc scenario_id tương ứng với `ai_engine/data/scenarios/<id>.json`. Ví dụ demo đã có sẵn. Các lượt chạy tuần tự trên cùng snapshot và cùng seed. Bảng `summary` có KPI trung bình, số lần vượt trần lớn nhất, thời gian trung bình và độ lệch chuẩn tổng thể. `actual_algorithms` cho biết nếu MILP đã rơi về LLF. ASAP được phép vượt giới hạn trạm và cụm để đo tác dụng của điều phối. NSGA_II trả NOT_IMPLEMENTED.
+
+### Số đo trên dữ liệu scenario đã commit
+
+`benchmark_real.json` được sinh ngày 19/11/2026 từ scenario và catalog ở commit `d067916` (develop sau khi gộp PR #24), với seed sinh dữ liệu và seed benchmark đều là 42. JSON lưu SHA-256 của mọi CSV đầu vào. Mỗi cụm được gửi trong một POST `/ai/benchmark` riêng rồi gộp kết quả: cộng thiếu điện, chi phí và `solve_ms`; tính tỷ lệ đúng hạn theo số request; tính đỉnh từ tổng tải hai cụm theo từng slot. `solve_ms` là tổng thời gian xử lý của các cụm, không gồm thời gian truyền HTTP.
+
+Chạy lại bằng một lệnh:
+
+```sh
+python -m ai_engine.scripts.benchmark_real --dataset-ref d067916
+```
+
+Script gọi POST `/ai/benchmark` qua FastAPI TestClient. Các mốc 100, 500 và 1.000 chạy đủ bảy thuật toán; mốc 10.000 chạy `MILP_MPC`, LLF, EDF, FCFS, EQUAL_SHARE và ASAP. Ở mốc 10.000, request `MILP_MPC` được chuyển sang LLF do vượt `DECOMPOSE_THRESHOLD=250`; JSON giữ cả thuật toán yêu cầu, thuật toán thực tế, status và KPI đầy đủ, không làm tròn.
+
+Kết quả mới của MILP_MPC và LLF, tách theo biểu giá:
+
+| Requests | Biểu giá | Thuật toán yêu cầu | Thuật toán thực tế | Status | Đúng hạn | Thiếu điện (kWh) | solve_ms |
+|---:|---|---|---|---|---:|---:|---:|
+| 100 | Cố định 2.000 | MILP_MPC | LLF | FALLBACK | 0.82 | 66.5731 | 5900.167500010866 |
+| 100 | Cố định 2.000 | LLF | LLF | FEASIBLE | 0.82 | 66.5731 | 8.367700007511303 |
+| 100 | TOU 1.600/2.400/4.000 | MILP_MPC | LLF | FALLBACK | 0.82 | 66.5731 | 5785.519699995348 |
+| 100 | TOU 1.600/2.400/4.000 | LLF | LLF | FEASIBLE | 0.82 | 66.5731 | 9.489099997153971 |
+| 500 | Cố định 2.000 | MILP_MPC | LLF + MILP_MPC | MIXED | 0.544 | 3835.2927 | 3941.906799998833 |
+| 500 | Cố định 2.000 | LLF | LLF | FEASIBLE | 0.542 | 3835.6732 | 45.80569999961881 |
+| 500 | TOU 1.600/2.400/4.000 | MILP_MPC | LLF + MILP_MPC | MIXED | 0.544 | 3835.2927 | 5221.131800004514 |
+| 500 | TOU 1.600/2.400/4.000 | LLF | LLF | FEASIBLE | 0.542 | 3835.6732 | 70.01699999818811 |
+| 1.000 | Cố định 2.000 | MILP_MPC | LLF | FALLBACK | 0.536 | 4667.3876 | 175.45480000262614 |
+| 1.000 | Cố định 2.000 | LLF | LLF | FEASIBLE | 0.536 | 4667.3876 | 177.53890000312822 |
+| 1.000 | TOU 1.600/2.400/4.000 | MILP_MPC | LLF | FALLBACK | 0.536 | 4667.3876 | 179.71110000507906 |
+| 1.000 | TOU 1.600/2.400/4.000 | LLF | LLF | FEASIBLE | 0.536 | 4667.3876 | 115.82750000525266 |
+| 10.000 | Cố định 2.000 | MILP_MPC | LLF | FALLBACK | 0.2622 | 12428.5622 | 1355.5350999959046 |
+| 10.000 | Cố định 2.000 | LLF | LLF | FEASIBLE | 0.2622 | 12428.5622 | 1332.6003999973182 |
+| 10.000 | TOU 1.600/2.400/4.000 | MILP_MPC | LLF | FALLBACK | 0.2622 | 12428.5622 | 1478.2028000045102 |
+| 10.000 | TOU 1.600/2.400/4.000 | LLF | LLF | FEASIBLE | 0.2622 | 12428.5622 | 1229.0395999953034 |
+
+Scenario lấy từ commit `d067916`. Tổng nhu cầu/trần cấp trong 24 giờ/tỷ lệ tải/số request đỗ ít nhất 8 giờ:
+
+| Request | Nhu cầu (kWh) | Trần (kWh) | Tỷ lệ tải | Đỗ ≥8 giờ |
+|---:|---:|---:|---:|---:|
+| 100 | 2916.9462000000003 | 20400.0 | 0.14298755882352943 | 60 |
+| 500 | 16319.999999999967 | 20400.0 | 0.7999999999999984 | 300 |
+| 1.000 | 16320.00000000003 | 20400.0 | 0.8000000000000014 | 600 |
+| 10.000 | 16319.999999999905 | 20400.0 | 0.7999999999999954 | 6000 |
+
+Mốc 100 giữ nguyên số dòng nên chỉ đạt 14.298755882352943% tải. Ở mốc 10.000 có 5.882 request thuộc cụm 1 và 4.118 thuộc cụm 2. LLF đạt `status=FEASIBLE`, `on_time_rate=0.2622`, `total_shortfall_kwh=12428.5622` ở cả hai biểu giá; `solve_ms` và các KPI khác nằm trong bảng/JSON. Có 1.241 request không khớp đầu nối đang ACTIVE tại trạm; benchmark giữ nguyên chuẩn xe và tính các request này vào thiếu điện. Số đo cho thấy kịch bản 10.000 request chưa đạt yêu cầu hạn giờ ở phần lớn request, không phải bằng chứng sẵn sàng tải production.
+
 
 ## Huấn luyện dự báo
 
@@ -82,7 +129,9 @@ python -m ai_engine.schemas
 | service.py | Chạy pipeline optimize trong worker và chuyển kết quả sang JSON |
 | main.py | FastAPI, timeout tiến trình, benchmark, forecast và health |
 | scripts/make_fake_history.py | Sinh 3–6 tháng dữ liệu giả có chu kỳ và nhiễu |
+| scripts/benchmark_real.py | Gọi `/ai/benchmark` trên CSV theo Git ref và xuất kết quả đo |
 | data/scenarios/demo.json | Snapshot ví dụ cho benchmark theo ID |
+| benchmark_real.json | KPI đo được trên các scenario CSV 100, 500, 1.000 và 10.000 request |
 | samples/ | Snapshot, lịch và bộ JSON Schema mẫu |
 | tests/ | Test solver, dữ liệu, forecast và HTTP |
 | requirements.txt | Các phụ thuộc chạy service |
@@ -110,7 +159,7 @@ curl -fsS -H "Content-Type: application/json" --data-binary @samples/page20_inpu
 docker compose -f docker-compose.ai.yml down
 ```
 
-Compose gắn thư mục `./models` vào container. Trên Linux, cấp quyền ghi thư mục này cho UID 10001 để lưu mô hình. Có thể đặt `WORKERS` (1), `LOG_LEVEL` (info) và `DEFAULT_TIME_BUDGET_MS` (2000) trước khi khởi động. Ngân sách trong request được ưu tiên. API hiển thị `DECOMPOSE_THRESHOLD` (1000) qua health; bản solver hiện tại chưa triển khai Master LP để sử dụng ngưỡng này. Để kiểm thử ngoài Docker, cài `python -m pip install -r ai_engine/requirements-dev.txt` từ thư mục cha.
+Compose gắn thư mục `./models` vào container. Trên Linux, cấp quyền ghi thư mục này cho UID 10001 để lưu mô hình. Có thể đặt `WORKERS` (1), `LOG_LEVEL` (info), `DEFAULT_TIME_BUDGET_MS` (10000), `LARGE_SCENARIO_TIME_BUDGET_MS` (2000) và `DECOMPOSE_THRESHOLD` (250) trước khi khởi động. `/health` trả các giá trị này cùng ngưỡng request nhỏ 300. Để kiểm thử ngoài Docker, cài `python -m pip install -r ai_engine/requirements-dev.txt` từ thư mục cha.
 
 ## Chạy trên Windows
 

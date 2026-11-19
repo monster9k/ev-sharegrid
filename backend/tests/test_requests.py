@@ -6,6 +6,7 @@ import httpx
 from fastapi.testclient import TestClient
 
 from backend import ai_contract
+from backend.auth import AuthUser, get_current_user
 from backend.main import app
 from backend.routes import requests as requests_route
 
@@ -207,6 +208,11 @@ def install_fake_services(monkeypatch, *, timeout=False):
     connections = iter((booking_db, optimization_db))
     monkeypatch.setattr(requests_route, "connect", lambda: next(connections))
     monkeypatch.setattr(ai_contract, "connect", lambda: optimization_db)
+    monkeypatch.setitem(
+        app.dependency_overrides,
+        get_current_user,
+        lambda: AuthUser(3, "USER", "user1@sharegrid.vn", "Test User"),
+    )
     monkeypatch.setenv("AI_URL", "http://ai-engine.test")
 
     calls = []
@@ -271,7 +277,7 @@ def test_ai_timeout_keeps_committed_request_pending(monkeypatch):
     response = CLIENT.post("/api/v1/requests", json=payload)
 
     assert response.status_code == 503
-    assert "request remains PENDING" in response.json()["detail"]
+    assert "request 31 remains PENDING" in response.json()["detail"]
     assert booking_db.commits == 1
     assert calls[0][2] == 15.0
     executed_sql = [sql for sql, _ in optimization_db.fake_cursor.executed]
@@ -292,6 +298,11 @@ def test_overlapping_vehicle_request_returns_409(monkeypatch):
                 self.one = {"request_id": 99}
 
     booking_db.fake_cursor = OverlapCursor((now + timedelta(hours=1), now + timedelta(hours=2)))
+    monkeypatch.setitem(
+        app.dependency_overrides,
+        get_current_user,
+        lambda: AuthUser(3, "USER", "user1@sharegrid.vn", "Test User"),
+    )
     payload = {
         "user_id": 3,
         "vehicle_id": 5,

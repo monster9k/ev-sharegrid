@@ -31,7 +31,12 @@ def snapshot() -> dict:
 
 def test_optimize_and_health() -> None:
     """Kiểm tra đường HTTP chính và phiên bản."""
-    assert "LLF" in client.get("/health").json()["algorithms"]
+    health = client.get("/health").json()
+    assert "LLF" in health["algorithms"]
+    assert health["default_time_budget_ms"] == 10000
+    assert health["large_scenario_time_budget_ms"] == 2000
+    assert health["small_scenario_request_limit"] == 300
+    assert health["decompose_threshold"] == 250
     resp=client.post("/ai/optimize",json=snapshot())
     assert resp.status_code==200 and resp.json()["schedules"]
     assert resp.json()["kpi"]["cap_violations"]==0 and resp.headers["x-request-id"]

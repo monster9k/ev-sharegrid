@@ -6,14 +6,16 @@ from collections.abc import Mapping
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, model_validator
 import pandas as pd
 
 try:
+    from backend.auth import AuthUser, require_roles
     from backend.db import connect, dict_cursor
     from backend.ai_contract import AIUpstreamError, pick_request_result, trigger_cluster_reoptimize
 except ModuleNotFoundError:  # Support `python backend/main.py` as well as package imports.
+    from auth import AuthUser, require_roles
     from db import connect, dict_cursor
     from ai_contract import AIUpstreamError, pick_request_result, trigger_cluster_reoptimize
 
@@ -111,7 +113,7 @@ def get_stations(
         cur.close()
         conn.close()
         return {"status": "success", "count": len(stations), "data": stations}
-    except Exception as e:
+    except Exception:
         # Fallback đọc từ file CSV
         csv_path = os.path.join(DATA_DIR, "charging_station_cleaned.csv")
         if os.path.exists(csv_path):
@@ -119,7 +121,7 @@ def get_stations(
             if status:
                 df = df[df["status"] == status]
             return {"status": "success", "count": len(df), "data": df.to_dict("records")}
-        raise HTTPException(status_code=500, detail=f"Lỗi truy vấn trạm sạc: {str(e)}")
+        raise HTTPException(status_code=500, detail="Lỗi truy vấn trạm sạc")
 
 
 @router.get("/stations/{station_id}")
@@ -143,14 +145,22 @@ def get_station_detail(station_id: int):
         return {"status": "success", "data": station}
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Không thể tải chi tiết trạm sạc")
 
 
 @router.post("/requests")
-def create_booking_request(req: BookingRequestSchema):
+def create_booking_request(
+    req: BookingRequestSchema,
+    user: AuthUser = Depends(require_roles("USER")),
+):
     """Persist a pending request, publish its outbox event, then optimize its cluster."""
-    connection = connect()
+    if req.user_id != user.user_id:
+        raise HTTPException(status_code=403, detail="A user can only create requests for their own account")
+    try:
+        connection = connect()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Request database is unavailable") from exc
     request_id: int
     cluster_id: int
     outbox_event_id: int
@@ -291,7 +301,10 @@ def create_booking_request(req: BookingRequestSchema):
         )
         picked = pick_request_result(result, request_id)
     except AIUpstreamError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail=f"{exc.detail}; request {request_id} remains PENDING",
+        ) from exc
     except LookupError as exc:
         raise HTTPException(
             status_code=502,
@@ -306,9 +319,15 @@ def create_booking_request(req: BookingRequestSchema):
 
 
 @router.get("/requests/{request_id}/schedule")
-def get_request_schedule(request_id: int):
+def get_request_schedule(
+    request_id: int,
+    user: AuthUser = Depends(require_roles("USER")),
+):
     """Return the request's active 15-minute Gantt slots."""
-    connection = connect()
+    try:
+        connection = connect()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Request database is unavailable") from exc
     try:
         with dict_cursor(connection) as cursor:
             cursor.execute(
@@ -318,10 +337,10 @@ def get_request_schedule(request_id: int):
                 FROM charging_request cr
                 LEFT JOIN schedule sc
                   ON sc.request_id = cr.request_id AND sc.is_active = TRUE
-                WHERE cr.request_id = %s
+                WHERE cr.request_id = %s AND cr.user_id = %s
                 ORDER BY sc.slot_start, sc.schedule_id
                 """,
-                (request_id,),
+                (request_id, user.user_id),
             )
             rows = cursor.fetchall()
             if not rows:

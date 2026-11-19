@@ -1,264 +1,363 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../data/mock_data.dart';
+import '../../data/api.dart';
+import '../../data/models.dart';
 import '../../theme.dart';
 import '../../widgets/charts.dart';
 import '../../widgets/common.dart';
 import '../../widgets/glass.dart';
 
-/// U6 – Kết quả lịch & giải thích: trạng thái solver, cổng được gán,
-/// Gantt slot 15 phút, SOC dự kiến, shortfall, chi phí, explanation, version.
-class ScheduleResultScreen extends StatelessWidget {
-  const ScheduleResultScreen({super.key});
+/// U6 – Hiển thị lịch và KPI nhận trực tiếp từ API đặt lịch.
+class ScheduleResultScreen extends StatefulWidget {
+  const ScheduleResultScreen({super.key, this.bookingResult});
+
+  final Map<String, dynamic>? bookingResult;
+
+  @override
+  State<ScheduleResultScreen> createState() => _ScheduleResultScreenState();
+}
+
+class _ScheduleResultScreenState extends State<ScheduleResultScreen> {
+  Map<String, dynamic>? _schedule;
+  bool _loading = false;
+  bool _working = false;
+  String? _error;
+  String? _actionError;
+
+  int? get _requestId {
+    final value = widget.bookingResult?['request_id'];
+    return value is num ? value.toInt() : int.tryParse(value?.toString() ?? '');
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (_requestId case final id?) _loadSchedule(id);
+  }
+
+  Future<void> _loadSchedule(int requestId) async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final schedule = await apiClient.getRequestSchedule(requestId);
+      if (mounted) setState(() => _schedule = schedule);
+    } catch (error) {
+      if (mounted) setState(() => _error = _errorMessage(error));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  String _errorMessage(Object error) => error is ApiException
+      ? '${error.message} (HTTP ${error.statusCode})'
+      : 'Không thể tải lịch từ máy chủ: $error';
+
+  Map<String, dynamic> get _data {
+    final root = _schedule ?? const <String, dynamic>{};
+    final nested = root['data'];
+    return nested is Map ? Map<String, dynamic>.from(nested) : root;
+  }
+
+  Map<String, dynamic> get _summary {
+    final root = _data;
+    final summary = root['summary'] ?? root['request_result'];
+    final result = widget.bookingResult ?? const <String, dynamic>{};
+    return {
+      ...result,
+      if (summary is Map) ...Map<String, dynamic>.from(summary),
+      ...root,
+    };
+  }
+
+  List<Map<String, dynamic>> get _slotRows {
+    final root = _data;
+    final raw = root['slots'] ?? root['schedules'] ?? root['schedule'];
+    if (raw is! List) return const [];
+    return raw.whereType<Map>().map(Map<String, dynamic>.from).toList()
+      ..sort((a, b) => _slotTime(a).compareTo(_slotTime(b)));
+  }
+
+  DateTime _slotTime(Map<String, dynamic> slot) =>
+      DateTime.tryParse(
+        (slot['slot_start'] ?? slot['start_time'] ?? slot['start'])
+                ?.toString() ??
+            '',
+      ) ??
+      DateTime.fromMillisecondsSinceEpoch(0);
+
+  double _power(Map<String, dynamic> slot) =>
+      ((slot['power_kw'] ?? slot['allocated_kw'] ?? slot['kw']) as num?)
+          ?.toDouble() ??
+      0;
+
+  List<ScheduleSlot> get _chartSlots {
+    final rows = _slotRows;
+    if (rows.isEmpty) return const [];
+    final first = _slotTime(rows.first);
+    return [
+      for (final row in rows)
+        ScheduleSlot(
+          _slotTime(row).difference(first).inMinutes / 60,
+          _power(row),
+        ),
+    ];
+  }
+
+  double get _chartEnd {
+    if (_slotRows.isEmpty) return 1;
+    final last = _slotTime(_slotRows.last);
+    final first = _slotTime(_slotRows.first);
+    return (last.difference(first).inMinutes / 60) + .25;
+  }
+
+  double get _maxPower => _slotRows.fold<double>(
+    1,
+    (maxPower, slot) => _power(slot) > maxPower ? _power(slot) : maxPower,
+  );
+
+  String _fmtNumber(Object? value, {int fractionDigits = 2}) {
+    if (value == null) return '—';
+    if (value is num) return value.toStringAsFixed(fractionDigits);
+    return value.toString();
+  }
+
+  String _fmtTime(DateTime value) =>
+      '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+
+  Future<void> _changeRequest({required bool confirm}) async {
+    final id = _requestId;
+    if (id == null) return;
+    setState(() {
+      _working = true;
+      _actionError = null;
+    });
+    try {
+      if (confirm) {
+        await apiClient.confirmRequest(id);
+      } else {
+        await apiClient.cancelRequest(id);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(confirm ? 'Đã xác nhận lịch.' : 'Đã gửi yêu cầu hủy.'),
+        ),
+      );
+      if (!confirm) context.go('/sessions');
+    } catch (error) {
+      if (mounted) setState(() => _actionError = _errorMessage(error));
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final id = _requestId;
+    final summary = _summary;
+    final slots = _slotRows;
+    final status = (_data['status'] ?? summary['status'])?.toString() ?? '—';
+    final algorithm = (_data['algorithm'] ?? summary['algorithm'])?.toString();
+    final firstStart = slots.isEmpty ? null : _slotTime(slots.first);
+    final lastStart = slots.isEmpty ? null : _slotTime(slots.last);
+    final firstPort = slots.isEmpty
+        ? '—'
+        : (slots.first['port_code'] ?? slots.first['port_id'] ?? '—')
+              .toString();
+    final actionBar = id == null
+        ? null
+        : GlassActionBar(
+            children: [
+              Expanded(
+                child: AppButton(
+                  label: 'Hủy yêu cầu',
+                  kind: AppButtonKind.ghost,
+                  radius: 999,
+                  fontSize: 14,
+                  onPressed: _working ? null : () => _confirmCancel(context),
+                ),
+              ),
+              Expanded(
+                child: AppButton(
+                  label: _working ? 'Đang gửi…' : 'Xác nhận lịch',
+                  radius: 999,
+                  fontSize: 14,
+                  onPressed: _working
+                      ? null
+                      : () => _changeRequest(confirm: true),
+                ),
+              ),
+            ],
+          );
+
     return UserScaffold(
       gap: 12,
       tab: UserTab.smart,
-      actionBar: GlassActionBar(
-        children: [
-          Expanded(
-            flex: 8,
-            child: AppButton(
-              label: 'Hủy',
-              kind: AppButtonKind.ghost,
-              radius: 999,
-              fontSize: 14,
-              onPressed: () => _confirmCancel(context),
-            ),
-          ),
-          Expanded(
-            flex: 10,
-            child: _OutlineBlue(
-              label: 'Sửa',
-              onTap: () => context.go('/booking'),
-            ),
-          ),
-          Expanded(
-            flex: 16,
-            child: AppButton(
-              label: 'Xác nhận lịch',
-              radius: 999,
-              fontSize: 15,
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Đã xác nhận lịch v3 · trạng thái CONFIRMED'),
-                  ),
-                );
-                context.go('/sessions');
-              },
-            ),
-          ),
-        ],
-      ),
+      actionBar: actionBar,
       children: [
         MobileHeader(
           title: 'Kết quả lịch sạc',
           onBack: () => context.go('/booking'),
           trailing: const Pill(
-            'Mô phỏng',
-            bg: AppColors.border,
-            fg: AppColors.muted,
+            'Dữ liệu máy chủ',
+            bg: AppColors.successBg,
+            fg: AppColors.success,
             radius: 6,
             size: 11,
           ),
         ),
-        const _Stepper(),
-        MutedText('Request #R-5012 · Job #J-2291 · Run #1042', size: 11),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
+        if (_loading || _working) const LinearProgressIndicator(minHeight: 3),
+        if (_error != null || _actionError != null)
+          _Notice(
+            text: _error ?? _actionError!,
+            error: true,
+            onRetry: id == null ? null : () => _loadSchedule(id),
+          ),
+        if (id == null)
+          const _Notice(
+            text:
+                'Chưa có kết quả đặt lịch từ máy chủ. Hãy gửi yêu cầu ở màn Đặt lịch.',
+          )
+        else if (!_loading && _error == null && _schedule != null) ...[
+          AppCard(
             color: AppColors.sky200,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  const Pill(
-                    'OPTIMAL',
-                    bg: AppColors.success,
-                    fg: Colors.white,
-                  ),
-                  MutedText(
-                    'MILP_MPC · 142 ms · lịch v3',
-                    size: 12,
-                    color: AppColors.skyInk,
-                  ),
-                ],
-              ),
-              const Gap(12),
-              Row(
-                children: [
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: AppColors.blue,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'CỔNG',
-                          style: AppFonts.body(
-                            size: 10,
-                            weight: FontWeight.w700,
-                            color: AppColors.sky100,
-                          ),
-                        ),
-                        Text(
-                          'P3',
-                          style: AppFonts.numbers(
-                            size: 22,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Gap(14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const BoldText(
-                          'CCS2 · liên tục · tối đa 11 kW',
-                          size: 16,
-                          color: AppColors.skyInk,
-                        ),
-                        MutedText(
-                          'Sạc 08:00–09:30 và 11:30–12:15',
-                          color: AppColors.skyInk,
-                        ),
-                        MutedText(
-                          'Đỗ 08:00 → lấy xe 17:30 (05/12)',
-                          color: AppColors.skyInk,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: const [
-              Expanded(child: _Metric('SOC dự kiến', '80%', 'lúc 12:15')),
-              Gap(8),
-              Expanded(
-                child: _Metric(
-                  'Điện thiếu',
-                  '0,00',
-                  'kWh',
-                  color: AppColors.success,
-                ),
-              ),
-              Gap(8),
-              Expanded(
-                child: _Metric('Chi phí điện', '54.700', 'đ + phí DV 10.000'),
-              ),
-            ],
-          ),
-        ),
-        AppCard(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Lịch theo slot 15 phút',
-                      style: AppFonts.display(size: 17),
-                    ),
-                  ),
-                  MutedText('kW tại cổng P3', size: 12),
-                ],
-              ),
-              const Gap(10),
-              const SlotScheduleChart(slots: Mock.schedule),
-              const Gap(8),
-              const Wrap(
-                spacing: 12,
-                runSpacing: 4,
-                children: [
-                  LegendDot(AppColors.blue, 'Công suất cấp'),
-                  LegendDot(AppColors.border, 'Bình thường 2.400 đ'),
-                  LegendDot(Color(0xFFF3C9A5), 'Cao điểm 4.000 đ'),
-                ],
-              ),
-              const Gap(6),
-              const _SlotLine('08:00–08:30 · 11 kW', '5,50 kWh'),
-              const _SlotLine(
-                '08:30–09:00 · 7,4 kW',
-                '3,70 kWh',
-                note: '(trạm chạm trần)',
-              ),
-              const _SlotLine('09:00–09:30 · 11 kW', '5,50 kWh'),
-              const _SlotLine(
-                '11:30–12:15 · 11 / 11 / 10,3 kW',
-                '8,07 kWh',
-                last: true,
-              ),
-            ],
-          ),
-        ),
-        const ExplainBox(
-          title: 'Lý do xếp lịch',
-          lines: [
-            'Xếp vào 08:00–09:30 và 11:30–12:15 ở cổng P3 với giá 2.400 đ/kWh, tránh khung cao điểm 09:30–11:30 (4.000 đ/kWh).',
-            'Slot 08:30–09:00 giảm còn 7,4 kW vì trạm đã chạm trần 40 kW.',
-            'Dự kiến đạt 80% lúc 12:15, trước giờ lấy xe 17:30.',
-          ],
-        ),
-        AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const BoldText('Tối ưu chung với các yêu cầu khác', size: 14),
-              const Gap(6),
-              Text.rich(
-                TextSpan(
-                  style: AppFonts.body(
-                    size: 13,
-                    color: AppColors.body,
-                    height: 1.45,
-                  ),
+            borderColor: null,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    const TextSpan(text: 'Lần chạy này xếp cùng lúc '),
-                    TextSpan(
-                      text: '38 yêu cầu',
-                      style: AppFonts.body(
-                        size: 13,
-                        weight: FontWeight.w700,
-                        color: AppColors.ink,
-                      ),
+                    Pill(
+                      status,
+                      bg: status == 'OPTIMAL' || status == 'FEASIBLE'
+                          ? AppColors.success
+                          : AppColors.warning,
+                      fg: Colors.white,
                     ),
-                    const TextSpan(
-                      text:
-                          ' đang hoạt động của cụm Hải Châu (cả yêu cầu cũ và mới). Không vượt trần trạm 40 kW, trần cụm 500 kW; các slot đã sạc được giữ nguyên.',
+                    MutedText(
+                      [
+                            if (algorithm != null && algorithm != '—')
+                              algorithm,
+                            if (_data['solve_ms'] != null)
+                              '${_fmtNumber(_data['solve_ms'])} ms',
+                          ].join(' · ').isEmpty
+                          ? 'Thông tin bộ giải chưa được trả về'
+                          : [
+                              if (algorithm != null && algorithm != '—')
+                                algorithm,
+                              if (_data['solve_ms'] != null)
+                                '${_fmtNumber(_data['solve_ms'])} ms',
+                            ].join(' · '),
+                      size: 12,
+                      color: AppColors.skyInk,
                     ),
                   ],
                 ),
-              ),
-            ],
+                const Gap(12),
+                BoldText('Yêu cầu #$id', size: 18, color: AppColors.skyInk),
+                const Gap(4),
+                MutedText(
+                  slots.isEmpty
+                      ? 'Máy chủ chưa phân bổ slot sạc cho yêu cầu này.'
+                      : 'Cổng $firstPort · ${_fmtTime(firstStart!)}–${_fmtTime(lastStart!.add(const Duration(minutes: 15)))}',
+                  color: AppColors.skyInk,
+                ),
+              ],
+            ),
           ),
-        ),
+          LayoutBuilder(
+            builder: (context, constraints) => Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _Metric(
+                  label: summary['expected_soc'] == null
+                      ? 'Đáp ứng nhu cầu'
+                      : 'SOC dự kiến',
+                  value: summary['expected_soc'] == null
+                      ? '—'
+                      : '${_fmtNumber(summary['expected_soc'])}%',
+                  note: 'theo kết quả API',
+                  width: (constraints.maxWidth - 16) / 3,
+                ),
+                _Metric(
+                  label: 'Điện thiếu',
+                  value: _fmtNumber(summary['shortfall_kwh']),
+                  note: 'kWh',
+                  width: (constraints.maxWidth - 16) / 3,
+                ),
+                _Metric(
+                  label: 'Chi phí điện',
+                  value: _fmtNumber(summary['estimated_cost_vnd']),
+                  note: 'VND',
+                  width: (constraints.maxWidth - 16) / 3,
+                ),
+              ],
+            ),
+          ),
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Lịch theo slot 15 phút',
+                        style: AppFonts.display(size: 17),
+                      ),
+                    ),
+                    MutedText('${slots.length} slot', size: 12),
+                  ],
+                ),
+                const Gap(10),
+                if (slots.isEmpty)
+                  const MutedText('API chưa trả về slot sạc.', size: 13)
+                else ...[
+                  SlotScheduleChart(
+                    slots: _chartSlots,
+                    from: 0,
+                    to: _chartEnd,
+                    maxKw: _maxPower,
+                    showTariffBands: false,
+                  ),
+                  const Gap(8),
+                  for (var index = 0; index < slots.length; index++)
+                    _SlotLine(
+                      start: _slotTime(slots[index]),
+                      powerKw: _power(slots[index]),
+                      port:
+                          (slots[index]['port_code'] ??
+                                  slots[index]['port_id'] ??
+                                  '—')
+                              .toString(),
+                      last: index == slots.length - 1,
+                    ),
+                ],
+              ],
+            ),
+          ),
+          if ((summary['explanation'] ?? _data['explanation']) is String)
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const BoldText('Giải thích từ máy chủ', size: 14),
+                  const Gap(6),
+                  Text(
+                    (summary['explanation'] ?? _data['explanation']).toString(),
+                    style: AppFonts.body(size: 13, color: AppColors.body),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ],
     );
   }
@@ -266,24 +365,23 @@ class ScheduleResultScreen extends StatelessWidget {
   void _confirmCancel(BuildContext context) {
     showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Hủy yêu cầu R-5012?'),
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Hủy yêu cầu #$_requestId?'),
         content: const Text(
-          'Lịch tương lai sẽ chuyển is_active = false và giải phóng cổng P3. '
-          'Các yêu cầu khác trong cụm có thể được xếp lại.',
+          'Yêu cầu hủy sẽ được gửi tới máy chủ. Lịch chỉ được cập nhật khi máy chủ xác nhận.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Giữ lịch'),
           ),
           TextButton(
             onPressed: () {
-              Navigator.pop(ctx);
-              context.go('/sessions');
+              Navigator.pop(dialogContext);
+              _changeRequest(confirm: false);
             },
             style: TextButton.styleFrom(foregroundColor: AppColors.red),
-            child: const Text('Hủy yêu cầu'),
+            child: const Text('Gửi yêu cầu hủy'),
           ),
         ],
       ),
@@ -291,139 +389,79 @@ class ScheduleResultScreen extends StatelessWidget {
   }
 }
 
-class _OutlineBlue extends StatelessWidget {
-  const _OutlineBlue({required this.label, required this.onTap});
-  final String label;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 52,
-    child: OutlinedButton(
-      onPressed: onTap,
-      style: OutlinedButton.styleFrom(
-        backgroundColor: Colors.white.withValues(alpha: .75),
-        side: const BorderSide(color: AppColors.blue, width: 1.5),
-        shape: const StadiumBorder(),
-        foregroundColor: AppColors.blue,
-      ),
-      child: Text(
-        label,
-        style: AppFonts.body(
-          size: 14,
-          weight: FontWeight.w700,
-          color: AppColors.blue,
-        ),
-      ),
-    ),
-  );
-}
+class _Notice extends StatelessWidget {
+  const _Notice({required this.text, this.error = false, this.onRetry});
 
-class _Stepper extends StatelessWidget {
-  const _Stepper();
-
-  @override
-  Widget build(BuildContext context) {
-    Widget step(String label, {String? n}) => Flexible(
-      flex: 3,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 18,
-            height: 18,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: n == null ? AppColors.successBg : AppColors.bg,
-              shape: BoxShape.circle,
-            ),
-            child: n == null
-                ? const Icon(
-                    Icons.check_rounded,
-                    size: 12,
-                    color: AppColors.success,
-                  )
-                : Text(
-                    n,
-                    style: AppFonts.body(
-                      size: 10,
-                      weight: FontWeight.w700,
-                      color: AppColors.muted,
-                    ),
-                  ),
-          ),
-          const Gap(6),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppFonts.body(
-                size: 11,
-                weight: FontWeight.w700,
-                color: n == null ? AppColors.success : AppColors.muted,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-    Widget line(Color c) => Container(
-      width: 14,
-      height: 2,
-      margin: const EdgeInsets.symmetric(horizontal: 5),
-      color: c,
-    );
-    return AppCard(
-      radius: 14,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Row(
-        children: [
-          step('Đã nhận'),
-          line(AppColors.success),
-          step('Đã xếp lịch'),
-          line(AppColors.border),
-          step('Chờ xác nhận', n: '3'),
-        ],
-      ),
-    );
-  }
-}
-
-class _Metric extends StatelessWidget {
-  const _Metric(this.label, this.value, this.note, {this.color});
-  final String label;
-  final String value;
-  final String note;
-  final Color? color;
+  final String text;
+  final bool error;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) => AppCard(
-    radius: 16,
-    padding: const EdgeInsets.all(12),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    color: error ? AppColors.redBg : AppColors.sky100,
+    child: Row(
       children: [
-        MutedText(label, size: 11, weight: FontWeight.w600, maxLines: 1),
-        const Gap(2),
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
+        Expanded(
           child: Text(
-            value,
-            style: AppFonts.numbers(size: 20, color: color ?? AppColors.ink),
+            text,
+            style: AppFonts.body(
+              size: 13,
+              color: error ? AppColors.red : AppColors.skyInk,
+            ),
           ),
         ),
-        MutedText(note, size: 11, maxLines: 2),
+        if (onRetry != null)
+          TextButton(onPressed: onRetry, child: const Text('Thử lại')),
       ],
     ),
   );
 }
 
+class _Metric extends StatelessWidget {
+  const _Metric({
+    required this.label,
+    required this.value,
+    required this.note,
+    required this.width,
+  });
+
+  final String label;
+  final String value;
+  final String note;
+  final double width;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: width,
+    child: AppCard(
+      padding: const EdgeInsets.all(10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          MutedText(label, size: 11, maxLines: 1),
+          const Gap(3),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(value, style: AppFonts.numbers(size: 16)),
+          ),
+          MutedText(note, size: 10),
+        ],
+      ),
+    ),
+  );
+}
+
 class _SlotLine extends StatelessWidget {
-  const _SlotLine(this.left, this.right, {this.note, this.last = false});
-  final String left;
-  final String right;
-  final String? note;
+  const _SlotLine({
+    required this.start,
+    required this.powerKw,
+    required this.port,
+    required this.last,
+  });
+
+  final DateTime start;
+  final double powerKw;
+  final String port;
   final bool last;
 
   @override
@@ -437,26 +475,19 @@ class _SlotLine extends StatelessWidget {
     child: Row(
       children: [
         Expanded(
-          child: Text.rich(
-            TextSpan(
-              style: AppFonts.body(size: 13),
-              children: [
-                TextSpan(text: left),
-                if (note != null)
-                  TextSpan(
-                    text: ' $note',
-                    style: AppFonts.body(
-                      size: 13,
-                      weight: FontWeight.w700,
-                      color: AppColors.warning,
-                    ),
-                  ),
-              ],
-            ),
+          child: Text(
+            '${_time(start)} · Cổng $port · ${powerKw.toString()} kW',
+            style: AppFonts.body(size: 12),
           ),
         ),
-        Text(right, style: AppFonts.body(size: 13, weight: FontWeight.w600)),
+        Text(
+          '${(powerKw * .25).toStringAsFixed(3)} kWh',
+          style: AppFonts.body(size: 12, weight: FontWeight.w600),
+        ),
       ],
     ),
   );
+
+  static String _time(DateTime time) =>
+      '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
 }

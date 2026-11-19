@@ -13,7 +13,7 @@ from pydantic import ValidationError
 
 from ai_engine import schemas
 from ai_engine.schemas import (
-    Algorithm, BenchmarkRequest, BenchmarkResponse, ForecastModel, ForecastRequest,
+    Algorithm, BenchmarkRequest, BenchmarkResponse, ConnectorType, ForecastModel, ForecastRequest,
     ForecastResponse, OptimizeRequest, OptimizeResponse, export_json_schemas,
 )
 
@@ -39,6 +39,63 @@ def test_parse_sample_files() -> None:
     ):
         parsed = model.model_validate_json((SAMPLES / filename).read_text(encoding="utf-8"))
         assert model.model_validate_json(parsed.model_dump_json()) == parsed
+
+
+@pytest.mark.parametrize(
+    ("connector", "canonical"),
+    [
+        ("CCS2_DC", "CCS2"),
+        ("CCS2", "CCS2"),
+        ("AC_HOME_VINFAST_ADAPTER", "AC_HOME"),
+        ("AC_HOME", "AC_HOME"),
+    ],
+)
+def test_connector_aliases_normalize_in_requests_and_ports(
+    snapshot: dict[str, Any], connector: str, canonical: str,
+) -> None:
+    """Tên đầu nối trong CSV và tên chuẩn đều parse thành cùng enum."""
+    data = snapshot
+    station_by_id = {str(station["station_id"]): station for station in data["stations"]}
+    pair = None
+    for request in data["requests"]:
+        station = station_by_id[str(request["station_id"])]
+        port = next((
+            port for port in station["ports"]
+            if port["connector_type"] == canonical
+        ), None)
+        if request["connector_type"] == canonical and port is not None:
+            pair = request, port
+            break
+    if pair is None and canonical == "AC_HOME":
+        data = json.loads((SAMPLES / "page20_input.json").read_text(encoding="utf-8"))
+        station_by_id = {str(station["station_id"]): station for station in data["stations"]}
+        for request in data["requests"]:
+            station = station_by_id[str(request["station_id"])]
+            port = next((p for p in station["ports"] if p["connector_type"] == canonical), None)
+            if request["connector_type"] == canonical and port is not None:
+                pair = request, port
+                break
+    assert pair is not None, f"Thiếu cặp request/cổng {canonical} trong fixture"
+    request, port = pair
+    request["connector_type"] = connector
+    port["connector_type"] = connector
+
+    parsed = OptimizeRequest.model_validate(data)
+    parsed_request = next(r for r in parsed.requests if r.request_id == request["request_id"])
+    parsed_station = next(s for s in parsed.stations if s.station_id == str(request["station_id"]))
+    parsed_port = next(p for p in parsed_station.ports if p.port_id == str(port["port_id"]))
+    expected = ConnectorType(canonical)
+    assert parsed_request.connector_type == expected
+    assert parsed_port.connector_type == expected
+
+
+def test_unknown_connector_has_clear_validation_error(snapshot: dict[str, Any]) -> None:
+    """Tên lạ vẫn bị từ chối với tên trường và các giá trị chuẩn được nêu rõ."""
+    snapshot["requests"][0]["connector_type"] = "CCS1"
+    with pytest.raises(ValidationError) as error:
+        OptimizeRequest.model_validate(snapshot)
+    message = str(error.value)
+    assert "connector_type" in message and "CCS2" in message and "AC_HOME" in message
 
 
 def test_sample_topology_and_kpi(snapshot: dict[str, Any], output: dict[str, Any]) -> None:

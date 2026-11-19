@@ -434,6 +434,7 @@ def save_schedule_version(
     snapshot: Mapping[str, Any],
     ai_response: Mapping[str, Any] | OptimizeResponse,
     snapshot_time: datetime,
+    trigger_type: str = "NEW_BOOKING",
     new_request_ids: Iterable[int] = (),
 ) -> int:
     """Persist one AI run, its request KPIs, and only future schedule slots."""
@@ -536,13 +537,14 @@ def save_schedule_version(
         INSERT INTO optimization_run (
             cluster_id, job_id, algorithm, trigger_type, status, solve_ms,
             seed, slot_minutes, n_requests, input_json, kpi_json
-        ) VALUES (%s, %s, %s, 'NEW_BOOKING', %s, %s, 42, 15, %s, %s::jsonb, %s::jsonb)
+        ) VALUES (%s, %s, %s, %s, %s, %s, 42, 15, %s, %s::jsonb, %s::jsonb)
         RETURNING run_id
         """,
         (
             cluster_id,
             job_id,
             str(algorithm),
+            trigger_type,
             status,
             int(_decimal(response["solve_ms"]).quantize(Decimal("1"), rounding=ROUND_HALF_UP)),
             len(snapshot["requests"]),
@@ -643,7 +645,7 @@ def save_schedule_version(
 def _call_ai(snapshot: Mapping[str, Any]) -> OptimizeResponse:
     ai_url = os.getenv("AI_URL", "").strip().rstrip("/")
     if not ai_url:
-        raise AIUpstreamError(503, "AI_URL is not configured; request remains PENDING")
+        raise AIUpstreamError(503, "AI_URL is not configured")
     try:
         response = httpx.post(
             f"{ai_url}/ai/optimize",
@@ -651,14 +653,13 @@ def _call_ai(snapshot: Mapping[str, Any]) -> OptimizeResponse:
             timeout=AI_TIMEOUT_SECONDS,
         )
     except httpx.TimeoutException as exc:
-        raise AIUpstreamError(503, "AI Engine timed out after 15 seconds; request remains PENDING") from exc
+        raise AIUpstreamError(503, "AI Engine timed out after 15 seconds") from exc
     except httpx.RequestError as exc:
-        raise AIUpstreamError(503, "AI Engine is unavailable; request remains PENDING") from exc
+        raise AIUpstreamError(503, "AI Engine is unavailable") from exc
     if response.status_code >= 500 or response.status_code == 429:
-        raise AIUpstreamError(503, f"AI Engine returned HTTP {response.status_code}; request remains PENDING")
+        raise AIUpstreamError(503, f"AI Engine returned HTTP {response.status_code}")
     if response.status_code >= 400:
-        detail = response.text[:500]
-        raise AIUpstreamError(502, f"AI Engine rejected the snapshot (HTTP {response.status_code}): {detail}")
+        raise AIUpstreamError(502, f"AI Engine rejected the snapshot (HTTP {response.status_code})")
     try:
         result = OptimizeResponse.model_validate(response.json())
     except (ValueError, ValidationError) as exc:
@@ -674,8 +675,9 @@ def trigger_cluster_reoptimize(
     new_request_ids: Iterable[int] = (),
     trigger_event_id: int | None = None,
     snapshot_time: datetime | None = None,
+    trigger_type: str = "NEW_BOOKING",
 ) -> OptimizeResponse:
-    """Serialize one cluster run, keeping a failed booking PENDING for retry."""
+    """Serialize one cluster run and persist job/outbox failures for retry."""
     connection = connect()
     failure: Exception | None = None
     result: OptimizeResponse | None = None
@@ -708,7 +710,12 @@ def trigger_cluster_reoptimize(
                 (
                     int(cluster_id),
                     job_id,
-                    _json({"job_id": job_id, "cluster_id": int(cluster_id), "input_version": input_version}),
+                    _json({
+                        "job_id": job_id,
+                        "cluster_id": int(cluster_id),
+                        "input_version": input_version,
+                        "trigger_type": trigger_type,
+                    }),
                     f"optimization:{cluster_id}:{input_version}",
                 ),
             )
@@ -731,6 +738,7 @@ def trigger_cluster_reoptimize(
                     snapshot=snapshot,
                     ai_response=result,
                     snapshot_time=now,
+                    trigger_type=trigger_type,
                     new_request_ids=new_request_ids,
                 )
                 cursor.execute(
@@ -775,7 +783,7 @@ def trigger_cluster_reoptimize(
             raise failure
         if isinstance(failure, (ValueError, ValidationError)):
             raise AIUpstreamError(502, f"Could not build or save the AI schedule: {failure}") from failure
-        raise AIUpstreamError(503, f"Optimization failed; request remains PENDING: {type(failure).__name__}") from failure
+        raise AIUpstreamError(503, f"Optimization failed: {type(failure).__name__}") from failure
     if result is None:
-        raise AIUpstreamError(503, "Optimization did not produce a result; request remains PENDING")
+        raise AIUpstreamError(503, "Optimization did not produce a result")
     return result

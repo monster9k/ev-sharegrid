@@ -9,7 +9,14 @@ from enum import Enum
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from .settings import DEFAULT_TIME_BUDGET_MS, EPS_KW, is_leq, is_zero
+from .settings import (
+    DEFAULT_TIME_BUDGET_MS,
+    LARGE_SCENARIO_TIME_BUDGET_MS,
+    SMALL_SCENARIO_REQUEST_LIMIT,
+    EPS_KW,
+    is_leq,
+    is_zero,
+)
 
 from pydantic import (
     AfterValidator, AliasChoices,
@@ -29,6 +36,17 @@ class ConnectorType(str, Enum):
     TYPE2 = "Type2"
     CHADEMO = "CHAdeMO"
     AC_HOME = "AC_HOME"
+
+
+def _canonical_connector(value: Any) -> Any:
+    """Map catalog connector spellings to the AI Engine's canonical names."""
+    return {
+        "CCS2_DC": ConnectorType.CCS2.value,
+        "AC_HOME_VINFAST_ADAPTER": ConnectorType.AC_HOME.value,
+    }.get(value, value) if isinstance(value, str) else value
+
+
+ConnectorInput = Annotated[ConnectorType, BeforeValidator(_canonical_connector)]
 
 
 class ControlType(str, Enum):
@@ -154,7 +172,7 @@ class Port(APIModel):
     """Thông số và trạng thái một cổng sạc."""
 
     port_id: Identifier = Field(description="Mã cổng duy nhất trong toàn cụm.")
-    connector_type: ConnectorType = Field(description="Chuẩn đầu nối của cổng.")
+    connector_type: ConnectorInput = Field(description="Chuẩn đầu nối của cổng.")
     control_type: ControlType = Field(description="Kiểu điều khiển công suất.")
     min_power_kw: NonNegativeFloat = Field(description="Công suất nhỏ nhất khi bật, kW.")
     max_power_kw: PositiveFloat = Field(description="Công suất định mức lớn nhất, kW.")
@@ -220,7 +238,7 @@ class ChargingRequestIn(APIModel):
 
     request_id: Identifier = Field(description="Mã yêu cầu sạc duy nhất trong snapshot.")
     station_id: Identifier = Field(description="Mã trạm xe đăng ký sạc.")
-    connector_type: ConnectorType = Field(description="Chuẩn đầu nối xe yêu cầu.")
+    connector_type: ConnectorInput = Field(description="Chuẩn đầu nối xe yêu cầu.")
     battery_capacity_kwh: PositiveFloat | None = Field(default=None, description="Dung lượng pin sử dụng được, kWh.")
     current_soc_pct: float | None = Field(default=None, ge=0, le=100, description="SOC tại thời điểm snapshot, phần trăm.")
     previous_port_id: Identifier | None = Field(default=None, description="Cổng trước khi Backend chuyển phiên sang cổng hiện tại.")
@@ -286,6 +304,24 @@ class OptimizeRequest(APIModel):
     stations: list[Station] = Field(description="Danh sách trạm và cổng thuộc cụm.")
     tariffs: list[Tariff] = Field(description="Các khoảng giá điện không chồng lấn; phủ thời gian cần tính phí.")
     requests: list[ChargingRequestIn] = Field(description="Các yêu cầu sạc trong snapshot, mã không trùng.")
+
+    @model_validator(mode="before")
+    @classmethod
+    def apply_scale_time_budget(cls, value: Any) -> Any:
+        """Dùng mặc định 10 giây cho snapshot nhỏ và chặn ngân sách mặc định ở tải lớn."""
+        if not isinstance(value, dict):
+            return value
+        payload = dict(value)
+        requests = payload.get("requests")
+        count = len(requests) if isinstance(requests, list) else 0
+        if count >= SMALL_SCENARIO_REQUEST_LIMIT:
+            if "time_budget_ms" not in payload:
+                payload["time_budget_ms"] = LARGE_SCENARIO_TIME_BUDGET_MS
+            else:
+                budget = payload["time_budget_ms"]
+                if isinstance(budget, int) and not isinstance(budget, bool):
+                    payload["time_budget_ms"] = min(budget, LARGE_SCENARIO_TIME_BUDGET_MS)
+        return payload
 
     @model_validator(mode="after")
     def validate_references(self) -> OptimizeRequest:
