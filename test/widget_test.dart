@@ -32,6 +32,22 @@ const routes = [
 void main() {
   setUpAll(() => AppFonts.enabled = false);
 
+  testWidgets('lịch không có response không hiển thị lịch mẫu', (tester) async {
+    await tester.pumpWidget(EvShareGridApp(initialLocation: '/schedule'));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(
+      find.text(
+        'Chưa có kết quả đặt lịch từ máy chủ. Hãy gửi yêu cầu ở màn Đặt lịch.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Request #R-5012 · Job #J-2291 · Run #1042'),
+      findsNothing,
+    );
+  });
+
   for (final size in const [Size(390, 844), Size(1440, 900)]) {
     for (final r in routes) {
       testWidgets('dựng $r ở ${size.width.toInt()}px', (tester) async {
