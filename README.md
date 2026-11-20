@@ -103,11 +103,22 @@ python -m ai_engine.scripts.benchmark_real --dataset-ref b0fc3f7
 
 ## Liên hệ chủ đề WEFE (Smart Campus 2026)
 
-Trong trụ cột **Năng lượng xanh và Giao thông thông minh**, lịch sạc là một phụ tải có thể điều phối. Ở mốc 100 request với TOU, đỉnh MILP là **681,0700 kW**, giảm **3,0176 kW (0,4411%)** so với LLF và **92,5612 kW (11,9645%)** so với ASAP. Cả ba đạt 94% đúng hạn trong lượt đo này.
+Trong trụ cột **Năng lượng xanh và Giao thông thông minh**, lịch sạc là một phụ tải có thể điều phối. Bảng dùng biểu giá TOU giả định và chỉ so sánh các cụm thực sự chạy `MILP_MPC`. `FCFS` là baseline phục vụ theo thứ tự đến (FIFO).
 
-Ở cùng mốc, MILP tiết kiệm **18.305,36 đ** so với LLF với cùng lượng điện cấp ở độ chính xác hiển thị. Kết quả này phù hợp với việc ưu tiên sạc trong các khung giá thấp hơn khi cửa sổ đỗ cho phép. Báo cáo hiện chỉ có KPI tổng hợp, nên chưa xác định được bao nhiêu kWh thực sự chuyển vào khung thấp điểm 1.600 đ/kWh.
+| Phạm vi | Baseline | Chi phí baseline → MILP (đ) | Giảm chi phí | Đỉnh baseline → MILP (kW) | Giảm đỉnh (kW) | Điện thấp điểm baseline → MILP (kWh) | Chênh thấp điểm (kWh) |
+|---|---|---:|---:|---:|---:|---:|---:|
+| 100, cả hai cụm | LLF | 7.190.587,84 → 7.172.282,48 | 0,2546% | 684,0876 → 681,0700 | 3,0176 | 36,7166 → 43,3181 | +6,6015 |
+| 100, cả hai cụm | FCFS | 7.207.205,28 → 7.172.282,48 | 0,4846% | 773,6312 → 681,0700 | 92,5612 | 36,7166 → 43,3181 | +6,6015 |
+| 500, chỉ cụm 2 | LLF | 14.012.044,80 → 13.956.668,88 | 0,3952% | 350 → 350 | 0 | 750,9023 → 771,0990 | +20,1967 |
+| 500, chỉ cụm 2 | FCFS | 12.869.194,32 → 13.956.668,88 | −8,4502% | 350 → 350 | 0 | 367,7960 → 771,0990 | +403,3030 |
 
-Đây là kết quả **mô phỏng các yêu cầu sạc sinh từ catalog trạm và mẫu xe khảo sát dùng cho kịch bản Đà Nẵng**. Giảm đỉnh và dời giờ sạc có thể giảm áp lực lên lưới và tạo dư địa phối hợp với nguồn tái tạo. Benchmark chưa đo công suất phát tái tạo, nhu cầu nâng cấp lưới hay tác động lên nước và thực phẩm.
+Chi phí và đỉnh lấy từ [benchmark_real.json](ai_engine/benchmark_real.json). Tỷ lệ giảm chi phí = `(chi phí baseline − chi phí MILP) / chi phí baseline × 100%`. Giảm đỉnh = `đỉnh baseline − đỉnh MILP`. Đỉnh của hai cụm là tải lớn nhất sau khi cộng công suất hai cụm theo cùng slot.
+
+Báo cáo JSON lưu KPI tổng hợp. Để tính điện thấp điểm, chạy lại `POST /ai/benchmark` với snapshot dựng bằng [script benchmark](ai_engine/scripts/benchmark_real.py), cùng CSV tại `b0fc3f7`, seed 42 và biểu giá TOU. Lần chạy lại khớp chi phí, đỉnh, điện thiếu và đúng hạn đã công bố ở độ chính xác hiển thị. Cộng `power_kw × 0,25 giờ` của các slot trong khung giá 1.600 đ/kWh (22:00–04:00, giờ Việt Nam), rồi lấy điện thấp điểm của MILP trừ baseline.
+
+Ở mốc 100, ba thuật toán đạt 94% đúng hạn và cấp cùng lượng điện ở độ chính xác hiển thị. Chênh lệch **6,6015 kWh** là lượng điện tăng ròng ở giờ thấp điểm với cùng lượng điện cấp. Ở mốc 500, cụm 2 cấp nhiều điện hơn khi dùng MILP, nên chênh lệch thấp điểm gồm cả điện cấp thêm. So với FCFS, MILP giảm điện thiếu **604,6444 kWh** ở cụm này, đồng thời chi phí tổng tăng.
+
+Đây là kết quả **mô phỏng các yêu cầu sạc sinh từ catalog trạm và mẫu xe khảo sát dùng cho kịch bản Đà Nẵng**. Giảm đỉnh và dời giờ sạc có thể giảm áp lực lên lưới và tạo dư địa phối hợp với nguồn tái tạo. Chưa có dữ liệu phát điện theo giờ hoặc hệ số phát thải xác minh cho kịch bản, nên chưa quy đổi sang CO₂ hay lượng năng lượng tái tạo sử dụng.
 
 ## Kiểm thử tự động
 
