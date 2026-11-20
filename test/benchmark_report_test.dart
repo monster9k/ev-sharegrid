@@ -24,17 +24,15 @@ void main() {
         '1000',
         '10000',
       });
+      final tariffMetadata = report['tariffs'] as Map<String, dynamic>;
+      expect(tariffMetadata, hasLength(2));
+      expect(tariffMetadata.keys, contains('fixed_2000_vnd_kwh'));
       var offset = 0;
       for (final milestone in report['milestones'] as List) {
         final tariffs = milestone['tariffs'] as List;
-        expect(tariffs, hasLength(2));
         expect(
           tariffs.map((row) => row['tariff']),
-          contains('fixed_2000_vnd_kwh'),
-        );
-        expect(
-          tariffs.map((row) => row['tariff']),
-          contains(endsWith('tou_1600_2400_4000_vnd_kwh')),
+          unorderedEquals(tariffMetadata.keys),
         );
         for (final tariff in tariffs) {
           final algorithms = tariff['algorithms'] as List;

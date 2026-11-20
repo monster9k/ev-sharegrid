@@ -151,7 +151,7 @@ def _build_tariffs(
         SELECT day_type, start_time, end_time, price_vnd_kwh, valid_from, valid_to
         FROM tariff_window
         WHERE cluster_id = %s
-          AND day_type IN ('WEEKDAY', 'WEEKEND')
+          AND day_type IN ('MON_SAT', 'SUNDAY', 'WEEKDAY', 'WEEKEND')
           AND valid_from <= %s::date
           AND valid_to >= %s::date
         ORDER BY valid_from, start_time, tariff_id
@@ -161,12 +161,15 @@ def _build_tariffs(
     result: list[dict[str, Any]] = []
     day = start.date()
     while datetime.combine(day, time.min, start.tzinfo) < end:
-        day_type = "WEEKDAY" if day.weekday() < 5 else "WEEKEND"
-        date_rows = [
+        evn_day = "MON_SAT" if day.weekday() < 6 else "SUNDAY"
+        legacy_day = "WEEKDAY" if day.weekday() < 5 else "WEEKEND"
+        active = [
             row for row in rows
-            if row["day_type"] == day_type
-            and row["valid_from"] <= day <= row["valid_to"]
+            if row["valid_from"] <= day <= row["valid_to"]
         ]
+        date_rows = [row for row in active if row["day_type"] == evn_day]
+        if not date_rows:
+            date_rows = [row for row in active if row["day_type"] == legacy_day]
         selected: dict[tuple[time, time], dict[str, Any]] = {}
         for row in date_rows:
             interval_key = (_as_time(row["start_time"]), _as_time(row["end_time"]))

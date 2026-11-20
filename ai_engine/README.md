@@ -1,6 +1,6 @@
 # EV ShareGrid AI Engine
 
-Service HTTP JSON điều phối sạc theo slot 15 phút và dự báo lượt xe theo giờ. Chạy các lệnh từ thư mục **chứa** `ai_engine/`, với Python 3.10 trở lên.
+Service HTTP JSON điều phối sạc theo slot 15 phút và dự báo lượt xe theo giờ. Chạy các lệnh từ thư mục **chứa** `ai_engine/`. Kiểm thử ngoài Docker dùng Python 3.12. Image Docker dùng Python 3.13.
 
 ## Cài và chạy
 
@@ -30,68 +30,55 @@ curl -sS http://localhost:8001/ai/forecast \
   -d '{"cluster_id":"demo","history":[{"hour_start":"2026-11-18T08:00:00+07:00","arrivals":7}],"horizon_hours":24,"model":"BEST"}'
 ```
 
-Optimize trả 422 khi payload sai schema. Với payload hợp lệ, đọc `status` trong body HTTP 200. Khi solver lỗi, service thử LLF rồi kiểm tra lịch. Worker chạy trong tiến trình riêng. Khi vượt hạn `time_budget_ms + 500` ms tính từ lúc handler bắt đầu, service dừng worker và trả `ERROR`. `algorithm=null` khi không có kết quả để công bố. KPI trong phản hồi ERROR là giá trị giữ chỗ. Trường `fallback_reason` ghi `THRESHOLD_EXCEEDED`, `TIME_BUDGET_EXHAUSTED`, `SEED_NOT_IMPROVED`, `SOLVER_ERROR` hoặc `NONE`. `solve_ms` của nghiệm thành công đo thời gian chuẩn hóa, giải và kiểm tra trong worker. Tổng độ trễ HTTP còn có thời gian khởi động Python, mã hóa phản hồi và truyền mạng. Header X-Request-ID dùng để đối chiếu với log.
+Optimize trả 422 khi payload sai schema. Với payload hợp lệ, đọc `status` trong body HTTP 200. Worker chạy trong tiến trình riêng. Khi hết hạn `time_budget_ms + 500` ms tính từ lúc handler bắt đầu, service kill worker nếu còn chạy rồi chạy LLF ngay trong tiến trình phục vụ API. Nếu kết quả qua Validator, API trả lịch với `status=FALLBACK`, `algorithm=LLF` và `fallback_reason=TIME_BUDGET_EXHAUSTED`. Trong trường hợp hết hạn, API chỉ trả `ERROR` nếu LLF thất bại hoặc lịch không qua Validator. Khi đó `algorithm=null` và KPI là giá trị giữ chỗ. Trường `fallback_reason` có các giá trị `THRESHOLD_EXCEEDED`, `TIME_BUDGET_EXHAUSTED`, `SEED_NOT_IMPROVED`, `SOLVER_ERROR` và `NONE`. `solve_ms` của nghiệm thành công đo thời gian chuẩn hóa, giải và kiểm tra của lượt trả kết quả. Tổng độ trễ HTTP còn có thời gian khởi động worker, chờ tiến trình, mã hóa phản hồi và truyền mạng. Header `X-Request-ID` dùng để đối chiếu với log.
 
 Solver hiện dùng SCIP cho biến nguyên, GLOP khi miền nghiệm tuyến tính chính xác. `LP_MPC` có thể dùng SCIP nếu còn cổng đóng/ngắt, có công suất sàn hoặc hai xe có khả năng tranh cổng. Trường algorithm phản ánh backend thực tế. Slot đã chạy được giữ nguyên khi có previous_schedule. Điện năng còn lại phải bao gồm toàn bộ điện của slot freeze nếu gửi slot đó trong lịch cũ. Bản này chưa tích hợp Master LP với các worker theo trạm.
 
-Ngân sách mặc định là `DEFAULT_TIME_BUDGET_MS=10000` cho snapshot dưới 300 request. Từ 300 request, ngân sách dùng `LARGE_SCENARIO_TIME_BUDGET_MS=2000` và request gửi ngân sách cao hơn bị chặn ở mức này. Khi số request cần giải vượt `DECOMPOSE_THRESHOLD=250`, optimizer chuyển sang LLF trên toàn cụm. Tách MILP theo trạm sẽ làm mất ràng buộc trần cụm giữa các phần; LLF giữ trần đó và kết quả vẫn qua Validator. Vì vậy đây là fallback có kiểm soát, không phải bằng chứng MILP giải được 10.000 request.
+Ngân sách mặc định là `DEFAULT_TIME_BUDGET_MS=10000` cho snapshot dưới 300 request. Từ 300 request, mặc định là `LARGE_SCENARIO_TIME_BUDGET_MS=2000`, đồng thời đây là giới hạn trên cho ngân sách người gọi gửi vào. Khi số request cần giải sau chuẩn hóa vượt `DECOMPOSE_THRESHOLD=250`, optimizer chuyển sang LLF trên toàn cụm với `THRESHOLD_EXCEEDED`. Cách này giữ ràng buộc trần chung của cụm và kết quả vẫn qua Validator.
 
 Benchmark nhận một trong hai nguồn dữ liệu: snapshot inline hoặc scenario_id tương ứng với `ai_engine/data/scenarios/<id>.json`. Ví dụ demo đã có sẵn. Các lượt chạy tuần tự trên cùng snapshot và cùng seed. Bảng `summary` có KPI trung bình, số lần vượt trần lớn nhất, thời gian trung bình và độ lệch chuẩn tổng thể. `actual_algorithms` cho biết nếu MILP đã rơi về LLF. ASAP được phép vượt giới hạn trạm và cụm để đo tác dụng của điều phối. NSGA_II trả NOT_IMPLEMENTED.
 
 ### Số đo trên dữ liệu scenario đã commit
 
-Chẩn đoán trước khi sửa MILP trên CSV tại `b0fc3f7`, seed 42 và ngân sách 10.000 ms mỗi cụm. Cả bốn lượt đều trả `LLF / FALLBACK / SEED_NOT_IMPROVED`.
-
-| Biểu giá | Cụm 1 (59 request), solve_ms | Cụm 2 (41 request), solve_ms |
-|---|---:|---:|
-| Cố định 2.000 đ/kWh | 3063.4715000051074 | 3230.1406000042334 |
-| TOU giả định | 3334.9094000004698 | 3041.2056000059238 |
-
-Tầng điện thiếu tìm được nghiệm khả thi nhưng chưa cải thiện seed trong dung sai. Code cũ kết thúc ngay ở tầng này.
-
-`benchmark_real.json` được đo lại từ CSV tại `b0fc3f7`, với seed 42 cho sinh dữ liệu và benchmark. JSON lưu SHA-256 của từng CSV. Chạy lại từ thư mục gốc:
+Kết quả ngày 20/11/2026 lấy từ [benchmark_real.json](benchmark_real.json), đo với seed 42 trên CSV tại `14cec6f`. JSON lưu SHA-256 của từng CSV. Chạy lại từ thư mục gốc:
 
 ```sh
-python -m ai_engine.scripts.benchmark_real --dataset-ref b0fc3f7
+python -m ai_engine.scripts.benchmark_real --dataset-ref 14cec6f
 ```
 
-Mỗi cụm dùng một lượt `POST /ai/benchmark` qua FastAPI TestClient cho mỗi biểu giá. Script cộng chi phí, điện thiếu, số lần vượt trần và `solve_ms` của hai cụm. Tỷ lệ đúng hạn được tính theo số request. Đỉnh lấy từ tổng tải hai cụm ở cùng slot. `solve_ms` gồm thời gian chuẩn hóa, giải và kiểm tra, phụ thuộc máy và tải khi chạy. JSON giữ cấu trúc `milestones → tariffs → algorithms`, ghi thuật toán thực tế, trạng thái và lý do fallback cho từng cụm. Mã biểu giá TOU được giữ để tương thích. Các mức 1.600/2.400/4.000 đ/kWh là biểu giá giả định.
+Mỗi cụm dùng một lượt `POST /ai/benchmark` qua FastAPI TestClient cho mỗi biểu giá. Script cộng chi phí, điện thiếu, số lần vượt trần và `solve_ms` của hai cụm. Tỷ lệ đúng hạn được tính theo số request. Đỉnh lấy từ tổng tải hai cụm ở cùng slot. `solve_ms` phụ thuộc máy và tải khi chạy. JSON giữ cấu trúc `milestones → tariffs → algorithms`, ghi thuật toán thực tế, trạng thái và lý do fallback theo cụm khi có dữ liệu chi tiết.
 
-MILP được yêu cầu ở mốc 100 và 500 theo ngân sách chuẩn và vẫn dùng ngưỡng 250. Solver giới hạn tổng điện thiếu và điện thiếu có trọng số theo seed LLF. Khi chưa chứng minh tối ưu toàn bộ các tầng, nó trả nghiệm MILP tốt nhất đã kiểm tra dưới trạng thái `FEASIBLE` nếu có. Các mốc 1.000 và 10.000 chỉ chạy LLF, EDF, FCFS, EQUAL_SHARE và ASAP để đo thông lượng.
-
-`data/scenario_10000_llf_measurement.json` ghi một lần đo LLF riêng với giá cố định. CSV trong Git dùng LF (SHA-256 bắt đầu bằng `4539c0b7`). Đổi dấu xuống dòng sang CRLF cho đúng SHA-256 của lần đo riêng (`472f4cb5`). Benchmark này đo lại LLF ở cả hai biểu giá. Bộ 10.000 mang nhãn `LLF_THROUGHPUT_ONLY` vì nhu cầu vượt khả năng cấp 24 giờ.
+Benchmark yêu cầu MILP ở mốc 100 và 500. Ở mốc 1.000 và 10.000, benchmark chỉ chạy LLF, EDF, FCFS, EQUAL_SHARE và ASAP để đo thông lượng. Bộ 10.000 mang nhãn `LLF_THROUGHPUT_ONLY` vì nhu cầu vượt khả năng cấp trong 24 giờ.
 
 ### MILP so với LLF trên cùng request
 
-Ở mốc 100, cả hai cụm đều trả nghiệm MILP ở trạng thái `FEASIBLE`. Ở mốc 500, cụm 1 (294 request) vượt ngưỡng 250 nên dùng LLF với `FALLBACK / THRESHOLD_EXCEEDED`. Cụm 2 (206 request) trả nghiệm MILP với `FEASIBLE / NONE`. Bảng so sánh chỉ tính những cụm có nghiệm MILP. Phần trăm giảm dùng LLF làm mẫu số. Chênh lệch đúng hạn tính bằng điểm phần trăm.
+Ở mốc 100, cả hai cụm trả nghiệm MILP ở trạng thái `FEASIBLE`. Ở mốc 500, cụm 1 (294 request) vượt ngưỡng 250 nên dùng LLF với `FALLBACK / THRESHOLD_EXCEEDED`. Cụm 2 (206 request) trả nghiệm MILP với `FEASIBLE / NONE`. Bảng so sánh chỉ tính những cụm có nghiệm MILP. Phần trăm giảm dùng LLF làm mẫu số. Chênh lệch đúng hạn tính bằng điểm phần trăm.
 
 | Mốc và phạm vi | Giá (đ/kWh) | Giảm chi phí | Giảm đỉnh | Chênh đúng hạn |
 |---|---|---:|---:|---:|
-| 100, cả hai cụm | 2.000 | ≈0% | 0,4411% | 0 |
-| 100, cả hai cụm | TOU | 0,2546% | 0,4411% | 0 |
-| 500, chỉ cụm 2 | 2.000 | −0,0124% | ≈0% | +0,4854 |
-| 500, chỉ cụm 2 | TOU | 0,3952% | ≈0% | +0,9709 |
-
-Lượt đo ngày 19/11/2026 thấp hơn các mức giảm 22–25% chi phí và 64–66% đỉnh từng được báo cáo. Với giá cố định ở cụm 2 mốc 500, MILP cấp thêm 0,6504 kWh và chi phí tăng khoảng 1.301 đồng. Ở mốc 1.000 và 10.000, danh sách thuật toán đo thông lượng loại MILP ngay từ đầu.
+| 100, cả hai cụm | 2.000 | 0% | 0,4411% | 0 |
+| 100, cả hai cụm | TOU | 0% | 0,4411% | 0 |
+| 500, chỉ cụm 2 | 2.000 | -0,0124% | 0% | +0,4854 |
+| 500, chỉ cụm 2 | TOU | 0,4817% | 0% | +0,9709 |
 
 ### KPI của hai cụm gộp lại
 
-Đơn vị giá cố định là 2.000 đ/kWh, TOU là 1.600/2.400/4.000 đ/kWh. Dòng “LLF + MILP” ghi kết quả khi yêu cầu MILP ở mốc 500, theo thứ tự cụm 1 rồi cụm 2. Tất cả các dòng dưới đây đều có 0 lần vượt trần. Bảng làm tròn khi hiển thị, JSON giữ nguyên kết quả đo.
+Giá cố định là 2.000 đ/kWh, TOU dùng ba mức 1.620/2.700/4.212 đ/kWh từ `data/tariff_window_cleaned.csv`. Dòng “LLF + MILP” ghi kết quả khi yêu cầu MILP ở mốc 500, theo thứ tự cụm 1 rồi cụm 2. Tất cả các dòng dưới đây đều có 0 lần vượt trần. Bảng làm tròn khi hiển thị, JSON giữ nguyên kết quả đo.
 
 | Request | Giá | Thực chạy | Đúng hạn | Thiếu (kWh) | Chi phí (đ) | Đỉnh (kW) | solve_ms |
 |---:|---|---|---:|---:|---:|---:|---:|
-| 100 | Cố định | MILP | 94% | 17,5719 | 4.909.489,60 | 681,0700 | 15.961,31 |
-| 100 | Cố định | LLF | 94% | 17,5719 | 4.909.489,60 | 684,0876 | 12,43 |
-| 100 | TOU | MILP | 94% | 17,5719 | 7.172.282,48 | 681,0700 | 15.708,39 |
-| 100 | TOU | LLF | 94% | 17,5719 | 7.190.587,84 | 684,0876 | 10,14 |
-| 500 | Cố định | LLF + MILP | 68,2% | 2.613,4802 | 27.413.039,20 | 850 | 10.441,34 |
-| 500 | Cố định | LLF | 68% | 2.614,1306 | 27.411.738,40 | 850 | 70,17 |
-| 500 | TOU | LLF + MILP | 68,4% | 2.613,4802 | 37.246.807,04 | 850 | 11.331,22 |
-| 500 | TOU | LLF | 68% | 2.614,1306 | 37.302.182,96 | 850 | 59,23 |
-| 1.000 | Cố định | LLF | 52,2% | 5.184,4282 | 22.271.142,20 | 850 | 77,56 |
-| 1.000 | TOU | LLF | 52,2% | 5.184,4282 | 30.135.059,84 | 850 | 91,86 |
-| 10.000 | Cố định | LLF | 1,74% | 224.282,5779 | 42.161.966,00 | 850 | 707,04 |
-| 10.000 | TOU | LLF | 1,74% | 224.282,5779 | 54.107.690,00 | 850 | 939,15 |
+| 100 | Cố định | MILP | 94% | 17,5719 | 4.909.489,60 | 681,0700 | 16.475,60 |
+| 100 | Cố định | LLF | 94% | 17,5719 | 4.909.489,60 | 684,0876 | 15,65 |
+| 100 | TOU | MILP | 94% | 17,5719 | 8.276.432,26 | 681,0700 | 16.496,86 |
+| 100 | TOU | LLF | 94% | 17,5719 | 8.276.432,26 | 684,0876 | 17,23 |
+| 500 | Cố định | LLF + MILP | 68,2% | 2.613,4802 | 27.413.039,20 | 850,0000 | 12.138,71 |
+| 500 | Cố định | LLF | 68% | 2.614,1306 | 27.411.738,40 | 850,0000 | 101,51 |
+| 500 | TOU | LLF + MILP | 68,4% | 2.613,4802 | 42.054.657,06 | 850,0000 | 11.421,22 |
+| 500 | TOU | LLF | 68% | 2.614,1306 | 42.133.018,13 | 850,0000 | 98,56 |
+| 1.000 | Cố định | LLF | 52,2% | 5.184,4282 | 22.271.142,20 | 850,0000 | 117,31 |
+| 1.000 | TOU | LLF | 52,2% | 5.184,4282 | 34.134.439,81 | 850,0000 | 122,53 |
+| 10.000 | Cố định | LLF | 1,74% | 224.282,5779 | 42.161.966,00 | 850,0000 | 1.052,56 |
+| 10.000 | TOU | LLF | 1,74% | 224.282,5779 | 58.341.803,90 | 850,0000 | 2.327,44 |
 
 Ở mốc 10.000, nhu cầu là 245.363,5609 kWh trên khả năng cấp 20.400 kWh trong 24 giờ. Tỷ lệ đúng hạn 1,74% đi kèm với mức quá tải này.
 
@@ -112,7 +99,7 @@ for name in ("HOURLY_MEAN", "RANDOM_FOREST", "XGBOOST"):
 points = predict("demo", history, horizon_hours=24, model="BEST")
 ```
 
-Gói bàn giao có hai artifact demo cho cluster `synthetic-demo` (Hourly Mean và Random Forest, 90 ngày giả, seed 42). Huấn luyện lại bằng dữ liệu cụm trước khi dùng thực tế.
+Dùng lịch sử của từng cụm để huấn luyện và lưu artifact trước khi chọn mô hình đã huấn luyện.
 
 Có thể truyền lịch sử dưới dạng list hoặc DataFrame. Nếu có cột cluster_id, huấn luyện/lấy dự báo theo đúng cụm. Tính feature theo giờ Việt Nam: giờ trong ngày, thứ, cuối tuần, lễ, số lượt đúng 24/168 giờ trước và trung bình 24 giờ trước. Lag thiếu dùng -1, giờ thiếu trong lịch sử không được coi là 0 lượt. Danh sách ngày lễ cấu hình qua tham số holidays hoặc biến môi trường EV_VN_HOLIDAYS (YYYY-MM-DD phân cách bằng dấu phẩy). Mặc định danh sách rỗng. Cần truyền ngày nghỉ thực tế cho từng năm.
 
