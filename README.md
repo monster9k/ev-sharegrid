@@ -1,187 +1,148 @@
 # EV ShareGrid
 
-EV ShareGrid là nguyên mẫu điều phối lịch sạc xe điện cho Đà Nẵng, chuẩn bị tham dự Smart Campus 2026 – ISSCEI. Ứng dụng có ba phân hệ USER, HOST và ADMIN.
+EV ShareGrid là nguyên mẫu điều phối sạc xe điện tại Đà Nẵng cho Smart Campus 2026 – ISSCEI. Hệ thống xếp lịch sạc theo cửa sổ đỗ xe, công suất cổng, trần công suất cụm và biểu giá.
 
-## Trạng thái đã kiểm tra
+## Trạng thái tích hợp
 
 | Thành phần | Trạng thái hiện tại |
 |---|---|
-| Flutter USER, HOST, ADMIN | Giao diện và dữ liệu mẫu; chưa gọi backend. Các giá trị mô phỏng cần được hiểu theo nhãn trên từng màn. |
-| Admin Benchmark | Không còn KPI cứng. Hiện thông báo chưa có artifact benchmark quy mô thực; chưa có `benchmark_real.json`. |
-| Backend FastAPI | Có danh mục trạm/mẫu xe và `POST /api/v1/requests`; chưa nối request tới AI Engine, chưa có đăng nhập/phân quyền hoàn chỉnh. |
-| AI Engine FastAPI | Chạy độc lập trên cổng 8001; có `/ai/optimize`, `/ai/benchmark`, `/ai/forecast` và `/health`. |
-| PostgreSQL/PostGIS | Schema 19 bảng và catalog; cấu hình local nằm trong `.env` không commit. |
+| Flutter | Đăng nhập, tải xe và trạm, đặt lịch, xem lịch, xác nhận và hủy lịch qua API. Các màn như bản đồ, lịch sử phiên sạc, quản lý cổng của HOST và dự báo của ADMIN vẫn có dữ liệu mô phỏng. |
+| Admin Benchmark | Màn ADMIN đọc `GET /api/v1/admin/benchmark`. Trong Compose, backend đọc [báo cáo benchmark](ai_engine/benchmark_real.json) được mount chỉ đọc. |
+| Backend FastAPI | JWT và phân quyền USER/HOST/ADMIN. CORS cho `https://ev-sharegrid.web.app` và `http://localhost` với cổng tùy chọn. `POST /api/v1/requests` trả HTTP 422 nếu khung sạc vượt cửa sổ tối ưu 24 giờ và HTTP 409 nếu trùng `idempotency_key`. |
+| AI Engine FastAPI | Backend gửi snapshot qua `/ai/optimize`. Solver dùng OR-Tools SCIP cho `MILP_MPC`, GLOP cho `LP_MPC` và LLF khi cần fallback. Bài kiểm chuẩn Trang 20 trả `MILP_MPC / OPTIMAL`, chi phí 5.500 đ, thiếu điện 0 kWh. |
+| PostgreSQL/PostGIS | [Schema 19 bảng](database/schema_19_tables.sql). Backend lưu yêu cầu, lần tối ưu và lịch theo slot 15 phút, rồi trả lịch cho Flutter. |
 
-Docker Compose khởi động ba dịch vụ, nhưng hiện backend không gọi AI Engine. Vì vậy việc cả ba dịch vụ cùng chạy không đồng nghĩa với luồng đặt lịch Flutter → Backend → AI đã hoàn chỉnh.
+```mermaid
+flowchart LR
+    U["Flutter Web / Mobile"] -->|"JWT, REST"| B["Backend FastAPI · 8000"]
+    B -->|"POST /ai/optimize · snapshot cụm"| A["AI Engine FastAPI · 8001"]
+    A -->|"Lịch, KPI, trạng thái solver"| B
+    B <-->|"Yêu cầu, lịch 15 phút, phân quyền"| D[("PostgreSQL / PostGIS · 19 bảng")]
+    R["benchmark_real.json"] -->|"Mount chỉ đọc"| B
+```
 
-## Chạy toàn hệ thống bằng Docker Compose
+## Chạy nhanh bằng Docker Compose
 
-Cần Docker Engine với Docker Compose plugin. Tạo file cấu hình local rồi thay mật khẩu mẫu bằng giá trị ngẫu nhiên riêng:
+Cài Docker Engine với Docker Compose plugin và mở terminal ở thư mục gốc của repo. Tạo `.env` từ [file mẫu](.env.example).
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-Hoặc trên macOS/Linux:
+Trên macOS/Linux, dùng `cp .env.example .env`.
 
-```sh
-cp .env.example .env
-```
-
-Sau khi cập nhật `POSTGRES_PASSWORD` trong `.env`, chạy:
-
-```sh
-docker compose up --build
-```
-
-Compose khởi tạo PostGIS từ `database/schema_19_tables.sql`, nạp catalog từ các workbook trong `docs/dataofanh/`, rồi khởi động Backend và AI Engine. Địa chỉ local:
-
-| Dịch vụ | Địa chỉ |
+| Biến bắt buộc | Cách cấu hình |
 |---|---|
-| Backend | <http://localhost:8000> |
-| AI Engine | <http://localhost:8001> |
-| AI health | <http://localhost:8001/health> |
-| AI OpenAPI | <http://localhost:8001/docs> |
+| `POSTGRES_PASSWORD` | Thay chuỗi mẫu bằng mật khẩu riêng cho PostgreSQL local. |
+| `JWT_SECRET` | Sinh khóa riêng bằng `python -c "import secrets; print(secrets.token_urlsafe(48))"` và dán giá trị vào `.env`. Backend yêu cầu tối thiểu 32 byte. |
+| `AUTH_PASSWORD_HASHES_JSON` | Điền một JSON object ánh xạ email sang hash mật khẩu. Đặt JSON trong dấu nháy đơn ở `.env` để giữ nguyên ký tự `$` của hash. |
 
-Dừng stack bằng `docker compose down`; thêm `-v` nếu muốn xóa cả dữ liệu Postgres local. `.env` bị loại khỏi Git; chỉ commit `.env.example`.
+Script nạp catalog tạo các tài khoản sau. Mật khẩu do người chạy chọn khi tạo hash.
 
-## Chạy ứng dụng Flutter
+| Vai trò | Email demo |
+|---|---|
+| USER | `user1@sharegrid.vn` |
+| HOST | `host1@sharegrid.vn` |
+| ADMIN | `admin@sharegrid.vn` |
+
+Nếu Python local chưa có thư viện backend, cài bằng `python -m pip install -r backend/requirements.txt`. Lệnh sau hỏi mật khẩu cho ba tài khoản và in ra dòng `AUTH_PASSWORD_HASHES_JSON=...` để dán vào `.env`.
+
+```sh
+python -c "import getpass,json; from backend.auth import hash_password; emails=('user1@sharegrid.vn','host1@sharegrid.vn','admin@sharegrid.vn'); hashes={e:hash_password(getpass.getpass(e+' password: ')) for e in emails}; print('AUTH_PASSWORD_HASHES_JSON='+chr(39)+json.dumps(hashes)+chr(39))"
+```
+
+```sh
+docker compose up --build -d
+docker compose ps -a
+curl -fsS http://localhost:8001/health
+curl -fsS http://localhost:8000/
+```
+
+Trong Windows PowerShell có thể gọi `curl.exe`. Khi sẵn sàng, PostgreSQL, AI Engine và backend chạy, còn `catalog-seed` thoát mã 0 sau khi nạp catalog. AI Engine có tài liệu API tại [localhost:8001/docs](http://localhost:8001/docs) và backend tại [localhost:8000/docs](http://localhost:8000/docs). Đăng nhập qua Flutter hoặc `POST /api/v1/auth/login` bằng email seed và mật khẩu đã chọn. File `.env` được Git ignore. Dùng `docker compose down` để dừng.
+
+### Chạy Flutter Web kết nối backend local
 
 ```sh
 flutter pub get
-flutter run -d chrome
+flutter run -d chrome --dart-define=API_BASE=http://localhost:8000
 ```
 
-Các màn USER/HOST/ADMIN hiện dùng dữ liệu mô phỏng. Chưa có tích hợp đặt lịch Flutter với Backend. Kiểm tra giao diện bằng các đường dẫn:
+Đăng nhập bằng tài khoản USER để đặt lịch và xem các slot sạc. Đăng nhập bằng ADMIN để xem báo cáo tại `/admin/benchmark`. API đọc lịch trả trạng thái yêu cầu, các slot sạc và, khi đã có kết quả tối ưu, các trường `solver_status`, `algorithm`, `solve_ms` và `explanation`.
 
-Các số mẫu UI là fixture cố định trong `lib/data/mock_data.dart`, có nhãn mô phỏng trên khung USER/HOST/ADMIN; chúng không phải đầu ra được sinh bởi benchmark seed 42. Không dùng chúng làm kết quả đo. Để mọi số UI tái sinh theo seed cần nối màn với API/artifact benchmark, việc này chưa hoàn tất.
+## Benchmark thực đo
 
-| Đường dẫn | Màn |
-|---|---|
-| `/`, `/home`, `/map`, `/station`, `/booking`, `/schedule`, `/sessions`, `/notifications`, `/garage`, `/profile` | USER |
-| `/host/stations`, `/host/ports`, `/host/schedule` | HOST |
-| `/admin/clusters`, `/admin/review`, `/admin/tariff`, `/admin/solver`, `/admin/benchmark`, `/admin/forecast` | ADMIN |
+[Báo cáo sau PR #31](ai_engine/benchmark_real.json) ghi kết quả ngày 19/11/2026 với seed 42, dùng CSV tại commit `b0fc3f7`. Script gọi `POST /ai/benchmark` theo từng cụm với giá cố định 2.000 đ/kWh và **biểu giá TOU giả định theo khung giờ cao/thấp điểm** 1.600/2.400/4.000 đ/kWh. Các hàng dưới đây gộp hai cụm. Đỉnh là tổng công suất cao nhất của hai cụm ở cùng một slot, còn `solve_ms` là tổng thời gian hai lượt đo. Bảng làm tròn để dễ đọc. JSON giữ số đầy đủ.
 
-## Benchmark tái lập
+| Request | Giá | Thuật toán thực chạy | Đúng hạn | Thiếu (kWh) | Chi phí (đ) | Đỉnh (kW) | Vượt trần | solve_ms |
+|---:|---|---|---:|---:|---:|---:|---:|---:|
+| 100 | TOU | MILP_MPC | 94% | 17,5719 | 7.172.282,48 | 681,0700 | 0 | 15.708,39 |
+| 100 | TOU | LLF | 94% | 17,5719 | 7.190.587,84 | 684,0876 | 0 | 10,14 |
+| 100 | TOU | ASAP | 94% | 17,5719 | 7.207.205,28 | 773,6312 | 0 | 8,53 |
+| 500 | TOU | LLF (cụm 1) + MILP_MPC (cụm 2) | 68,4% | 2.613,4802 | 37.246.807,04 | 850 | 0 | 11.331,22 |
+| 500 | TOU | LLF | 68% | 2.614,1306 | 37.302.182,96 | 850 | 0 | 59,23 |
+| 1.000 | TOU | LLF | 52,2% | 5.184,4282 | 30.135.059,84 | 850 | 0 | 91,86 |
+| 10.000 | Cố định | LLF | 1,74% | 224.282,5779 | 42.161.966,00 | 850 | 0 | 707,04 |
+| 10.000 | TOU | LLF | 1,74% | 224.282,5779 | 54.107.690,00 | 850 | 0 | 939,15 |
 
-Lệnh dưới đây gọi cùng snapshot `demo` và seed 42 trên bảy thuật toán. Nó trả KPI của ba request tổng hợp trong `ai_engine/data/scenarios/demo.json`; đây không phải dữ liệu vận hành của trường/cụm sạc. `solve_ms` phụ thuộc máy và tải chạy nên sẽ thay đổi giữa các lần đo.
+- **100 request.** Cả hai cụm chạy `MILP_MPC / FEASIBLE`. Với TOU, MILP giảm chi phí **0,2546% so với LLF** và **0,4846% so với ASAP**, trong khi tỷ lệ đúng hạn và điện thiếu bằng nhau ở độ chính xác hiển thị. Với giá cố định, chi phí của ba thuật toán bằng nhau ở độ chính xác hiển thị.
+- **500 request.** Cụm 1 có 294 request, vượt ngưỡng 250 nên rơi về LLF (`THRESHOLD_EXCEEDED`). Cụm 2 có 206 request và trả `MILP_MPC / FEASIBLE`. Chỉ xét cụm 2 ở giá TOU, MILP giảm chi phí **0,3952%** so với LLF, cùng đỉnh 350 kW. Với giá cố định, MILP cấp thêm 0,6504 kWh và chi phí tăng 1.300,80 đ so với LLF ở cụm này.
+- **Thông lượng.** Báo cáo chỉ đo nhóm thuật toán nhanh ở 1.000 và 10.000 request. Mốc 10.000 mang nhãn `LLF_THROUGHPUT_ONLY`. Đầu vào cần 245.363,5609 kWh trên khả năng cấp 20.400 kWh trong 24 giờ. Số liệu ở mốc này dùng để đọc thông lượng trong điều kiện quá tải.
+- **Vượt trần.** Các lượt MILP và LLF trong báo cáo đều ghi 0 lần vượt trần. ASAP ở mốc 500 ghi 53 lần vượt trần trên hai cụm cho mỗi biểu giá. KPI của ASAP cần được đọc cùng điện thiếu và số lần vượt trần.
+
+Từ thư mục gốc, với các thư viện AI Engine đã cài, chạy lệnh sau để tái đo và ghi lại `ai_engine/benchmark_real.json`. Thời gian giải và nghiệm khả thi khi hết ngân sách có thể thay đổi theo máy.
 
 ```sh
-curl.exe -sS -X POST http://localhost:8001/ai/benchmark -H "Content-Type: application/json" -d '{"scenario_id":"demo","algorithms":["MILP_MPC","LP_MPC","LLF","EDF","FCFS","EQUAL_SHARE","ASAP"],"seed":42,"repeats":1}'
+python -m ai_engine.scripts.benchmark_real --dataset-ref b0fc3f7
 ```
 
-Đo ngày 19/11/2026 trên Windows, Python 3.12, một lần chạy, kết quả thực trả về:
+## Liên hệ chủ đề WEFE (Smart Campus 2026)
 
-| Thuật toán yêu cầu | Thuật toán thực tế | Status | Đúng hạn | Thiếu điện (kWh) | Chi phí (VND) | Đỉnh (kW) | Vượt trần | solve_ms |
-|---|---|---:|---:|---:|---:|---:|---:|---:|
-| MILP_MPC | MILP_MPC | OPTIMAL | 1.0 | 0.0 | 19000.0 | 13.5 | 0 | 152.15270000044256 |
-| LP_MPC | MILP_MPC | OPTIMAL | 1.0 | 0.0 | 19000.0 | 13.5 | 0 | 103.79280000051949 |
-| LLF | LLF | FEASIBLE | 1.0 | 0.0 | 19000.0 | 38.0 | 0 | 0.40979999994306127 |
-| EDF | EDF | FEASIBLE | 1.0 | 0.0 | 19000.0 | 38.0 | 0 | 0.28790000033040997 |
-| FCFS | FCFS | FEASIBLE | 1.0 | 0.0 | 19000.0 | 38.0 | 0 | 0.2687999995032442 |
-| EQUAL_SHARE | EQUAL_SHARE | FEASIBLE | 1.0 | 0.0 | 19000.0 | 38.0 | 0 | 0.44160000015835976 |
-| ASAP | ASAP | FEASIBLE | 1.0 | 0.0 | 19000.0 | 38.0 | 0 | 0.2733000001171604 |
+Trong trụ cột **Năng lượng xanh và Giao thông thông minh**, lịch sạc là một phụ tải có thể điều phối. Ở mốc 100 request với TOU, đỉnh MILP là **681,0700 kW**, giảm **3,0176 kW (0,4411%)** so với LLF và **92,5612 kW (11,9645%)** so với ASAP. Cả ba đạt 94% đúng hạn trong lượt đo này.
 
-Kết quả cho biết `LP_MPC` hiện thực tế được báo là `MILP_MPC`; không diễn giải dòng đó như một phép đo LP độc lập. Đây là benchmark demo nhỏ, không thay thế `benchmark_real.json`. Hiện repo chưa có artifact đo cho các mốc 100/500/1.000/10.000 request, nên không công bố các KPI đó.
+Ở cùng mốc, MILP tiết kiệm **18.305,36 đ** so với LLF với cùng lượng điện cấp ở độ chính xác hiển thị. Kết quả này phù hợp với việc ưu tiên sạc trong các khung giá thấp hơn khi cửa sổ đỗ cho phép. Báo cáo hiện chỉ có KPI tổng hợp, nên chưa xác định được bao nhiêu kWh thực sự chuyển vào khung thấp điểm 1.600 đ/kWh.
 
-Có thể tái sinh các CSV kịch bản tổng hợp với seed cố định 42 bằng một lệnh (sau khi catalog, xe và cụm đã có trong `data/`):
+Đây là kết quả **mô phỏng các yêu cầu sạc sinh từ catalog trạm và mẫu xe khảo sát dùng cho kịch bản Đà Nẵng**. Giảm đỉnh và dời giờ sạc có thể giảm áp lực lên lưới và tạo dư địa phối hợp với nguồn tái tạo. Benchmark chưa đo công suất phát tái tạo, nhu cầu nâng cấp lưới hay tác động lên nước và thực phẩm.
 
-```sh
-python scripts/generate_100k_data.py --scenarios-only
-```
+## Kiểm thử tự động
 
-Mỗi request được sinh từ SOC đến, SOC mục tiêu, dung lượng pin và hiệu suất sạc; năng lượng nằm trong dải 15–40 kWh. Generator chỉ ghép xe với trạm có cổng `ACTIVE` cùng đầu nối và dừng nếu tìm thấy sai khớp. Chạy lại benchmark LLF riêng cho bài thông lượng 10.000 request bằng:
+Kết quả chạy ngày 20/11/2026 trên Windows từ bản code `15c600b`.
 
-```sh
-python scripts/measure_llf_throughput.py
-```
+| Thành phần | Lệnh tại thư mục gốc | Kết quả |
+|---|---|---:|
+| AI Engine | `python -m pytest ai_engine/tests -q` | 190 passed |
+| Backend | `python -m pytest backend/tests -q` | 52 passed |
+| Flutter | `flutter test` | 57 passed |
 
-Các CSV được sinh bằng seed 42. Hiện chỉ cụm 1 (500 kW) và cụm 2 (350 kW) có trạm ACTIVE; tổng khả năng cấp 24 giờ là 20.400 kWh. Số liệu đọc từ các file CSV hiện tại:
+Cài dependency theo [requirements AI Engine](ai_engine/requirements.txt) và [requirements backend](backend/requirements.txt) trong hai môi trường Python riêng, cùng với `pytest`. Với Flutter, chạy `flutter pub get` trước khi kiểm tra. `dart format --output=none --set-exit-if-changed lib test` kiểm tra 39 file, không đổi file. `flutter analyze` báo `No issues found!`.
 
-| Requests | Nhãn trong CSV | Tổng nhu cầu (kWh) | Tỷ lệ tải 24h | TB/xe (kWh) | Min/xe | Max/xe | Sai đầu nối |
-|---:|---|---:|---:|---:|---:|---:|---:|
-| 100 | `CAPACITY_LIMITED_SAMPLE` | 2.472,3167 | 12,1192% | 24,7232 | 15,1339 | 39,8866 | 0 |
-| 500 | `LOAD_CONTROLLED_QUALITY` | 16.319,9998 | 80,0000% | 32,6400 | 16,5614 | 39,9870 | 0 |
-| 1.000 | `LOAD_CONTROLLED_QUALITY` | 16.319,9993 | 80,0000% | 16,3200 | 15,0005 | 18,4094 | 0 |
-| 2.500 | `THROUGHPUT_OVERLOAD` | 61.459,9220 | 301,2741% | 24,5840 | 15,0041 | 39,9919 | 0 |
-| 5.000 | `THROUGHPUT_OVERLOAD` | 122.688,3395 | 601,4134% | 24,5377 | 15,0013 | 39,9671 | 0 |
-| 10.000 | `LLF_THROUGHPUT_ONLY` | 245.363,5609 | 1.202,7626% | 24,5364 | 15,0005 | 39,9884 | 0 |
+## Giới hạn hiện tại và nguồn dữ liệu
 
-Mốc 100 không thể đạt tải 60% với 100 request: ngay cả mức trần 40 kWh mỗi xe chỉ tương đương 4.000/20.400 kWh (19,6078%); còn giới hạn pin/SOC của mẫu hiện sinh đạt tối đa 3.477,8 kWh. Các mốc 500 và 1.000 được hiệu chỉnh theo từng xe trong giới hạn pin để mỗi cụm nằm ở 80%. Các mốc 2.500 trở lên là tải quá trần; không dùng để kết luận chất lượng điều phối.
-
-Mốc 10.000 được gắn `LLF_THROUGHPUT_ONLY` trong mọi dòng CSV. Đo thật bằng AI Engine `POST /ai/benchmark`, chỉ chạy LLF với biểu giá cố định 2.000 đ/kWh, trên máy Windows/Python 3.12 ngày 19/11/2026; kết quả lưu tại `data/scenario_10000_llf_measurement.json`:
-
-| Thuật toán | Status | solve_ms | Đúng hạn | Thiếu điện (kWh) | Đỉnh (kW) | Số lần vượt trần |
-|---|---|---:|---:|---:|---:|---:|
-| LLF | FEASIBLE | 823,9341000007698 | 0,0174 | 224.282,57789999997 | 850,0000000000002 | 0 |
-
-Thời gian giải phụ thuộc máy; AI Engine ghi nhận 0 lần vượt trần trong lịch LLF, trong khi đầu vào yêu cầu 245.363,5609 kWh (1.202,7626% khả năng cấp 24 giờ). Đây là bài test thông lượng LLF, không phải phép đo chất lượng điều phối; tỷ lệ đúng hạn thấp và thiếu điện lớn là hệ quả của tải đầu vào quá mức.
-
-## Đóng góp vào liên kết WEFE (trụ cột Năng lượng xanh và Giao thông thông minh)
-
-ShareGrid hướng tới phối hợp thời điểm sạc xe điện để hạn chế sạc đồng thời vào giờ cao điểm và chuyển một phần nhu cầu sang các khung giá thấp hơn. Nếu triển khai cùng trần công suất cụm, cách điều phối này có thể giúp sử dụng hạ tầng hiện hữu hiệu quả hơn và tạo thêm dư địa tiếp nhận năng lượng tái tạo.
-
-Các tác động trên hiện là **giả thuyết thiết kế**, chưa phải kết quả đo được. Repo không có `benchmark_real.json`; solver chỉ xét trần công suất cố định và biểu giá mô phỏng, không có dữ liệu phát điện tái tạo hoặc mô hình chi phí nâng cấp lưới. Do đó chưa công bố mức cắt đỉnh, điện chuyển giờ, khoản đầu tư tránh được hay lượng năng lượng tái tạo tiếp nhận.
-
-## Chất lượng và nguồn dữ liệu
-
-- Catalog có 107 trạm; 92 trạm thiếu ít nhất một tọa độ. Các trạm này không ở trạng thái `ACTIVE`; không tự gán tọa độ. Danh sách nằm trong `data/stations_missing_coordinates.csv` để người phụ trách dữ liệu đối chiếu.
-- Cột `rating` để trống vì chưa có đánh giá khảo sát đáng tin cậy. Các giá trị suy ra/giả định được ghi trong `qa_notes` hoặc `data_note`, gồm `station_power_kw`, phân cụm, trạng thái và giờ hoạt động.
-- Connector trong catalog dùng bốn mã `CCS2`, `Type2`, `CHAdeMO`, `AC_HOME`; tên cũ được chuẩn hóa khi nhập. Ghi chú xe giữ lại mã nguồn khi có chuẩn hóa.
-- Nguồn của biểu giá được ghi thống nhất là **"biểu giá TOU giả định theo khung giờ cao/thấp điểm"**. Repo không có số và ngày văn bản xác minh, nên các mức giá này không được giới thiệu là biểu giá chính thức của EVN.
-- Không commit `.env`. Quét file Git hiện hành không tìm thấy `.env` được track; `.env.example` chỉ chứa giá trị thay thế, không phải thông tin xác thực.
+- Catalog có **19 mẫu xe và 107 trạm**, trong đó **92 trạm thiếu tọa độ** ở trạng thái `PENDING` và 15 trạm `ACTIVE`. Danh sách cần xác minh nằm trong [stations_missing_coordinates.csv](data/stations_missing_coordinates.csv). Công suất, phân cụm, giờ hoạt động và các trường suy ra được ghi trong ghi chú dữ liệu. `rating` để trống.
+- Cửa sổ tối ưu dài **24 giờ**, gồm 96 slot 15 phút tính từ mốc 15 phút ngay trước hoặc bằng thời điểm lập snapshot. Toàn bộ khung sạc phải nằm trong cửa sổ này. Lịch vượt mốc kết thúc nhận HTTP 422 trước bước ghi yêu cầu.
+- Nguồn biểu giá trong [script nạp catalog](scripts/import_catalog.py) được ghi là **biểu giá TOU giả định theo khung giờ cao/thấp điểm**. Repo chưa có số và ngày văn bản EVN đã xác minh cho các mức giá này.
+- [ev-sharegrid.web.app](https://ev-sharegrid.web.app) là bản Flutter trên Firebase Hosting. Workflow hiện build web với `API_BASE` mặc định `http://localhost:8000`. Nếu chưa có backend HTTPS công khai và bản web chưa được build với URL đó, dùng bản Hosting để xem giao diện và chạy Flutter cùng Compose cục bộ để demo luồng API.
+- Một số màn USER, HOST và ADMIN vẫn hiển thị dữ liệu mô phỏng. Các KPI benchmark lấy từ báo cáo JSON của AI Engine.
 
 ## Ảnh chụp màn hình
 
-Chưa có ảnh chụp màn hình sản phẩm trong repo. Thay các dòng dưới bằng ảnh chụp sau khi chạy demo; không dùng ảnh icon ứng dụng làm ảnh sản phẩm.
-
 | Màn hình | Ảnh |
 |---|---|
-| USER – đặt lịch/kết quả | Chưa chụp |
-| HOST – lịch cổng sạc | Chưa chụp |
-| ADMIN – benchmark | Chưa chụp |
-
-## Sơ đồ kiến trúc hiện trạng
-
-```mermaid
-flowchart LR
-    U[Flutter USER / HOST / ADMIN<br/>dữ liệu mô phỏng] -. chưa nối .-> B[Backend FastAPI<br/>localhost:8000]
-    B --> DB[(PostgreSQL + PostGIS<br/>19 bảng)]
-    AI[AI Engine FastAPI<br/>localhost:8001<br/>optimize / benchmark / forecast]
-    B -. chưa gọi AI .-> AI
-    C[Docker Compose] --> DB
-    C --> B
-    C --> AI
-```
-
-## Kiểm tra
-
-```sh
-pytest ai_engine/tests -q
-pytest backend -q
-dart format lib test
-flutter analyze
-flutter test
-docker compose up --build
-```
-
-Backend hiện chưa có bộ test pytest riêng; `pytest backend -q` báo không tìm thấy test. Docker Compose cần chạy trên máy có Docker Engine; kết quả thực thi phụ thuộc môi trường.
+| USER – đặt lịch và kết quả | Chưa bổ sung |
+| HOST – lịch cổng sạc | Chưa bổ sung |
+| ADMIN – benchmark | Chưa bổ sung |
 
 ## Checklist nộp Smart Campus 2026
 
-- [ ] Điền biểu mẫu và gửi hồ sơ trên cổng ISSCEI trước hạn 24/11/2026; kiểm tra lại thể lệ và trường bắt buộc trực tiếp trên cổng.
-- [ ] Quay video demo dự phòng, kiểm tra âm thanh, các màn USER/HOST/ADMIN và lưu bản offline.
-- [ ] Chụp ảnh màn hình thật và bổ sung vào README.
-- [ ] Có dữ liệu benchmark quy mô phù hợp và artifact tái lập trước khi đưa KPI quy mô lớn vào thuyết minh.
-- [ ] Người phụ trách dữ liệu xác minh 92 trạm thiếu tọa độ; không tự suy đoán.
-- [ ] Nếu nhóm có số và ngày văn bản EVN đã xác minh, cập nhật `source_ref` và rà lại nhãn biểu giá; hiện nguồn dữ liệu được ghi là giả định.
-- [ ] Mô tả rõ giới hạn hiện tại: Flutter chưa nối Backend; Backend chưa gọi AI; chưa có kết quả tác động WEFE đo thực tế.
-
-Thông báo Smart Campus 2026 của [Trung tâm Đổi mới sáng tạo NTU](https://trungtamdmst.ntu.edu.vn/thong-bao/thong-bao-cuoc-thi-smart-campus-2026) nêu lĩnh vực Năng lượng xanh và Giao thông thông minh cùng hạn gửi hồ sơ 24/11/2026.
+- [x] Có báo cáo benchmark tái lập, ghi rõ thuật toán thực chạy, fallback và phạm vi so sánh.
+- [x] Ghi số lượng test đã chạy và cách chạy demo cục bộ.
+- [ ] Đối chiếu biểu mẫu, hạn nộp và trường bắt buộc trên cổng ISSCEI.
+- [ ] Chuẩn bị slide, ảnh màn hình và video demo dự phòng.
+- [ ] Xác minh tọa độ 92 trạm và cập nhật nguồn biểu giá nếu có số, ngày văn bản EVN đã đối chiếu.
+- [ ] Xác nhận backend HTTPS công khai và cấu hình `API_BASE` nếu demo qua Firebase Hosting.
 
 ## Tài liệu và quy trình
 
-- `CLAUDE.md` – nghiệp vụ và phạm vi hệ thống.
-- `AGENTS.md`, `git.md` – cấu trúc code, quy ước nhánh/commit và quy trình Git.
-- `ai_engine/README.md` – chạy riêng AI Engine.
-- `.github/workflows/pr-check.yml` – kiểm tra PR.
+- [CLAUDE.md](CLAUDE.md) mô tả nghiệp vụ và phạm vi hệ thống.
+- [AGENTS.md](AGENTS.md) và [git.md](git.md) mô tả cấu trúc repo và quy ước Git.
+- [README của AI Engine](ai_engine/README.md) có hướng dẫn chạy riêng và phân tích benchmark theo cụm.
+- [Workflow kiểm tra PR](.github/workflows/pr-check.yml) và [workflow Firebase Hosting](.github/workflows/deploy-hosting.yml) mô tả quy trình kiểm tra và triển khai web.
