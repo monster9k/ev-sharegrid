@@ -141,7 +141,8 @@ Cài dependency theo [requirements AI Engine](ai_engine/requirements.txt) và [r
 
 ## Giới hạn đã biết và nguồn dữ liệu
 
-- Catalog có **19 mẫu xe và 107 trạm**, trong đó **92 trạm thiếu tọa độ** ở trạng thái `PENDING` và 15 trạm `ACTIVE`. Danh sách cần xác minh nằm trong [stations_missing_coordinates.csv](data/stations_missing_coordinates.csv). Công suất, phân cụm, giờ hoạt động và các trường suy ra được ghi trong ghi chú dữ liệu. `rating` để trống.
+- Catalog có **19 mẫu xe và 107/107 trạm có tọa độ tham khảo**. Dữ liệu demo giữ **15 trạm `ACTIVE`** và **92 trạm `PENDING` có `verified=False`**. Xem [catalog trạm](data/charging_station_cleaned.csv). Công suất, phân cụm, giờ hoạt động và các trường suy ra được ghi trong ghi chú dữ liệu. `rating` để trống.
+- Tọa độ tham khảo chưa được xác minh thực địa. Cột `qa_notes` trong Excel vẫn giữ ghi chú cũ về tọa độ thiếu và có thể khác dữ liệu hiện tại.
 - Cửa sổ tối ưu dài **24 giờ**, gồm 96 slot 15 phút tính từ mốc 15 phút ngay trước hoặc bằng thời điểm lập snapshot. Toàn bộ khung sạc phải nằm trong cửa sổ này. Lịch vượt mốc kết thúc nhận HTTP 422 trước bước ghi yêu cầu.
 - Cụm demo **1–4** dùng giả định hạ áp `UP_TO_1KV`. Giá trước VAT từ 01/11/2026 là **1.620 / 2.700 / 4.212 đ/kWh** theo thứ tự thấp điểm, bình thường và cao điểm. Theo giờ Việt Nam, thấp điểm là 00:00–06:00 mỗi ngày. `MON_SAT` (thứ Hai đến thứ Bảy) có cao điểm từ 17:30 đến 22:30, các giờ còn lại là bình thường. `SUNDAY` (Chủ nhật) dùng giá bình thường từ 06:00 đến 24:00. Backend dùng `WEEKDAY` hoặc `WEEKEND` khi thiếu biểu giá EVN có hiệu lực cho ngày cần tính. Cấp điện áp và hợp đồng tại điểm đo cần được xác minh trước khi áp dụng ngoài demo. [Biểu giá đã nạp](data/tariff_window_cleaned.csv) · [Khung giờ của EVN](https://evn.com.vn/d/vi-VN/news/Ap-dung-bieu-gia-ban-le-dien-rieng-cho-sac-xe-dien-60-3557-510231)
 - AI Engine mặc định dùng `HOURLY_MEAN` cho cụm có dưới 336 giờ quan sát (14 ngày) hoặc chưa có mô hình đã huấn luyện phù hợp.
@@ -164,7 +165,7 @@ Cài dependency theo [requirements AI Engine](ai_engine/requirements.txt) và [r
 - [x] Ghi số lượng test đã chạy và cách chạy demo cục bộ.
 - [ ] Đối chiếu biểu mẫu, hạn nộp và trường bắt buộc trên cổng ISSCEI.
 - [ ] Chuẩn bị slide, ảnh màn hình và video demo dự phòng.
-- [ ] Xác minh tọa độ 92 trạm.
+- [ ] Đối chiếu tọa độ tham khảo ngoài thực địa.
 
 ## Tài liệu và quy trình
 
