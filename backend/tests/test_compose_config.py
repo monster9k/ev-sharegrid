@@ -16,7 +16,7 @@ def test_compose_backend_has_required_ai_auth_and_seed_dependencies():
         "${AUTH_PASSWORD_HASHES_JSON:?Set AUTH_PASSWORD_HASHES_JSON in .env}"
     )
     assert backend["depends_on"]["catalog-seed"]["condition"] == "service_completed_successfully"
-    assert backend["depends_on"]["ai-engine"]["condition"] == "service_started"
+    assert backend["depends_on"]["ai-engine"]["condition"] == "service_healthy"
 
 
 def test_env_example_documents_compose_auth_values_without_secrets():

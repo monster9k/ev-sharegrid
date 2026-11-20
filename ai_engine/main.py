@@ -13,8 +13,10 @@ from uuid import uuid4
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
+from .baselines import solve_llf
 from .schemas import (BenchmarkRequest, BenchmarkResponse, BenchmarkRun, BenchmarkSummary,
-                      FallbackReason, ForecastRequest, ForecastResponse, KPI, OptimizeRequest, OptimizeResponse)
+                      FallbackReason, ForecastRequest, ForecastResponse, KPI, OptimizeRequest,
+                      OptimizeResponse, SolverStatus)
 from .optimizer_milp import BENCHMARK_SEED
 from .settings import (
     WORKERS,
@@ -83,12 +85,22 @@ def optimize(body: OptimizeRequest, request: Request) -> OptimizeResponse:
         if perf_counter() > deadline:
             raise TimeoutError("Hết thời gian trả kết quả")
         return result
+    except (TimeoutError, subprocess.TimeoutExpired):
+        LOG.warning("request_id=%s worker optimize hết thời gian, thử LLF", request.state.request_id)
+        try:
+            result = evaluate(body, solve_llf)
+            if result.status != SolverStatus.ERROR:
+                return result.model_copy(update={
+                    "status": SolverStatus.FALLBACK,
+                    "fallback_reason": FallbackReason.TIME_BUDGET_EXHAUSTED,
+                })
+            LOG.warning("request_id=%s LLF không tạo được lịch hợp lệ", request.state.request_id)
+        except Exception:
+            LOG.exception("request_id=%s LLF thất bại sau khi worker hết thời gian", request.state.request_id)
+        return failure((perf_counter()-start)*1000, FallbackReason.TIME_BUDGET_EXHAUSTED)
     except Exception as exc:
         LOG.warning("request_id=%s optimize thất bại: %s",request.state.request_id,type(exc).__name__)
-        reason = (FallbackReason.TIME_BUDGET_EXHAUSTED
-                  if isinstance(exc, (TimeoutError, subprocess.TimeoutExpired))
-                  else FallbackReason.SOLVER_ERROR)
-        return failure((perf_counter()-start)*1000, reason)
+        return failure((perf_counter()-start)*1000)
 
 
 @app.post("/ai/benchmark",response_model=BenchmarkResponse)
