@@ -25,10 +25,13 @@ services:
     restart: unless-stopped
     ports:
       - "8001:8001"
+    volumes:
+      - ./ai_engine/models:/app/ai_engine/models
     environment:
-      WORKERS: ${WORKERS:-1}
-      DEFAULT_TIME_BUDGET_MS: ${DEFAULT_TIME_BUDGET_MS:-2000}
-      DECOMPOSE_THRESHOLD: ${DECOMPOSE_THRESHOLD:-1000}
+      WORKERS: "1"
+      DEFAULT_TIME_BUDGET_MS: "10000"
+      DECOMPOSE_THRESHOLD: "250"
+      EV_VN_HOLIDAYS: "2026-01-01,2026-04-30,2026-05-01,2026-09-02"
       LOG_LEVEL: ${LOG_LEVEL:-info}
 
   catalog-seed:
@@ -75,7 +78,7 @@ services:
       catalog-seed:
         condition: service_completed_successfully
       ai-engine:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/', timeout=3).close()"]
       interval: 10s
