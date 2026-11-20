@@ -95,48 +95,46 @@ flutter run -d chrome --dart-define=API_BASE=http://localhost:8000
 
 ## Benchmark thực đo
 
-[Báo cáo sau PR #31](ai_engine/benchmark_real.json) ghi kết quả ngày 19/11/2026 với seed 42, dùng CSV tại commit `b0fc3f7`. Script gọi `POST /ai/benchmark` theo từng cụm với giá cố định 2.000 đ/kWh và **biểu giá TOU giả định theo khung giờ cao/thấp điểm** 1.600/2.400/4.000 đ/kWh. Các hàng dưới đây gộp hai cụm. Đỉnh là tổng công suất cao nhất của hai cụm ở cùng một slot, còn `solve_ms` là tổng thời gian hai lượt đo. Bảng làm tròn để dễ đọc. JSON giữ số đầy đủ.
+[Báo cáo benchmark](ai_engine/benchmark_real.json) ghi kết quả ngày 20/11/2026 với seed 42, dùng CSV tại commit `14cec6f`. So với mốc cũ `b0fc3f7`, đầu vào khác duy nhất là CSV biểu giá. Script gọi `POST /ai/benchmark` theo từng cụm với giá cố định 2.000 đ/kWh và TOU EVN hạ áp **1.620 / 2.700 / 4.212 đ/kWh** trước VAT. Đây là kịch bản mô phỏng nhu cầu sạc. Bảng gộp hai cụm, tính đỉnh từ tổng tải theo slot và cộng `solve_ms` của hai lượt đo.
 
 | Request | Giá | Thuật toán thực chạy | Đúng hạn | Thiếu (kWh) | Chi phí (đ) | Đỉnh (kW) | Vượt trần | solve_ms |
 |---:|---|---|---:|---:|---:|---:|---:|---:|
-| 100 | TOU | MILP_MPC | 94% | 17,5719 | 7.172.282,48 | 681,0700 | 0 | 15.708,39 |
-| 100 | TOU | LLF | 94% | 17,5719 | 7.190.587,84 | 684,0876 | 0 | 10,14 |
-| 100 | TOU | ASAP | 94% | 17,5719 | 7.207.205,28 | 773,6312 | 0 | 8,53 |
-| 500 | TOU | LLF (cụm 1) + MILP_MPC (cụm 2) | 68,4% | 2.613,4802 | 37.246.807,04 | 850 | 0 | 11.331,22 |
-| 500 | TOU | LLF | 68% | 2.614,1306 | 37.302.182,96 | 850 | 0 | 59,23 |
-| 1.000 | TOU | LLF | 52,2% | 5.184,4282 | 30.135.059,84 | 850 | 0 | 91,86 |
-| 10.000 | Cố định | LLF | 1,74% | 224.282,5779 | 42.161.966,00 | 850 | 0 | 707,04 |
-| 10.000 | TOU | LLF | 1,74% | 224.282,5779 | 54.107.690,00 | 850 | 0 | 939,15 |
+| 100 | TOU EVN | MILP_MPC | 94% | 17,5719 | 8.276.432,26 | 681,0700 | 0 | 16.496,86 |
+| 100 | TOU EVN | LLF | 94% | 17,5719 | 8.276.432,26 | 684,0876 | 0 | 17,23 |
+| 100 | TOU EVN | ASAP | 94% | 17,5719 | 8.276.432,26 | 773,6312 | 0 | 23,08 |
+| 500 | TOU EVN | LLF (cụm 1) + MILP_MPC (cụm 2) | 68,4% | 2.613,4802 | 42.054.657,06 | 850 | 0 | 11.421,22 |
+| 500 | TOU EVN | LLF | 68% | 2.614,1306 | 42.133.018,13 | 850 | 0 | 98,56 |
+| 1.000 | TOU EVN | LLF | 52,2% | 5.184,4282 | 34.134.439,81 | 850 | 0 | 122,53 |
+| 10.000 | Cố định | LLF | 1,74% | 224.282,5779 | 42.161.966,00 | 850 | 0 | 1.052,56 |
+| 10.000 | TOU EVN | LLF | 1,74% | 224.282,5779 | 58.341.803,90 | 850 | 0 | 2.327,44 |
 
-- **100 request.** Cả hai cụm chạy `MILP_MPC / FEASIBLE`. Với TOU, MILP giảm chi phí **0,2546% so với LLF** và **0,4846% so với ASAP**, trong khi tỷ lệ đúng hạn và điện thiếu bằng nhau ở độ chính xác hiển thị. Với giá cố định, chi phí của ba thuật toán bằng nhau ở độ chính xác hiển thị.
-- **500 request.** Cụm 1 có 294 request, vượt ngưỡng 250 nên rơi về LLF (`THRESHOLD_EXCEEDED`). Cụm 2 có 206 request và trả `MILP_MPC / FEASIBLE`. Chỉ xét cụm 2 ở giá TOU, MILP giảm chi phí **0,3952%** so với LLF, cùng đỉnh 350 kW. Với giá cố định, MILP cấp thêm 0,6504 kWh và chi phí tăng 1.300,80 đ so với LLF ở cụm này.
-- **Thông lượng.** Báo cáo chỉ đo nhóm thuật toán nhanh ở 1.000 và 10.000 request. Mốc 10.000 mang nhãn `LLF_THROUGHPUT_ONLY`. Đầu vào cần 245.363,5609 kWh trên khả năng cấp 20.400 kWh trong 24 giờ. Số liệu ở mốc này dùng để đọc thông lượng trong điều kiện quá tải.
-- **Vượt trần.** Các lượt MILP và LLF trong báo cáo đều ghi 0 lần vượt trần. ASAP ở mốc 500 ghi 53 lần vượt trần trên hai cụm cho mỗi biểu giá. KPI của ASAP cần được đọc cùng điện thiếu và số lần vượt trần.
+- **100 request.** Cả hai cụm chạy `MILP_MPC / FEASIBLE`. MILP, LLF và ASAP có cùng chi phí TOU, tỷ lệ đúng hạn và điện thiếu ở độ chính xác hiển thị. Đỉnh của MILP thấp hơn LLF **3,0176 kW** và thấp hơn ASAP **92,5612 kW**.
+- **500 request.** Cụm 1 có 294 request, vượt ngưỡng 250 nên dùng LLF (`THRESHOLD_EXCEEDED`). Cụm 2 có 206 request và trả `MILP_MPC / FEASIBLE`. Tại cụm 2, MILP giảm chi phí TOU **0,4817%** so với LLF, cùng đỉnh 350 kW. Với giá cố định, MILP cấp thêm 0,6504 kWh và chi phí tăng 1.300,80 đ so với LLF ở cụm này.
+- **Thông lượng.** Báo cáo chỉ đo nhóm thuật toán nhanh ở mốc 1.000 và 10.000 request. Mốc 10.000 mang nhãn `LLF_THROUGHPUT_ONLY`. Đầu vào cần 245.363,5609 kWh trên khả năng cấp 20.400 kWh trong 24 giờ.
+- **Vượt trần.** Các lượt MILP và LLF ghi 0 vi phạm. ASAP ở mốc 500 ghi 53 vi phạm trên hai cụm ở mỗi biểu giá. Đối chiếu chi phí với điện thiếu và số vi phạm công suất khi đọc KPI này.
 
-Một [lần đo thông lượng riêng](data/scenario_10000_llf_measurement.json) với giá cố định 2.000 đ/kWh ghi nhận LLF chạy **823,9 ms** ở mốc 10.000 yêu cầu, đỉnh **850 kW** và **0 lần vượt trần**. Thời gian này thuộc lần đo riêng, còn giá trị 707,04 ms trong bảng lấy từ báo cáo benchmark sau PR #31.
+Một [lần đo thông lượng riêng](data/scenario_10000_llf_measurement.json) với giá cố định 2.000 đ/kWh ghi nhận LLF chạy **823,9 ms**, đỉnh **850 kW** và **0 vi phạm** ở mốc 10.000 yêu cầu. Bảng trên dùng lần đo ngày 20/11/2026.
 
-Từ thư mục gốc, với các thư viện AI Engine đã cài, chạy lệnh sau để tái đo và ghi lại `ai_engine/benchmark_real.json`. Thời gian giải và nghiệm khả thi khi hết ngân sách có thể thay đổi theo máy.
+Chạy lệnh dưới đây từ thư mục gốc để tái đo với cùng dữ liệu. Thời gian giải và nghiệm khả thi khi hết ngân sách có thể thay đổi theo máy.
 
 ```sh
-python -m ai_engine.scripts.benchmark_real --dataset-ref b0fc3f7
+python -m ai_engine.scripts.benchmark_real --dataset-ref 14cec6f
 ```
 
 ## Liên hệ chủ đề WEFE (Smart Campus 2026)
 
-Trong trụ cột **Năng lượng xanh và Giao thông thông minh**, lịch sạc là một phụ tải có thể điều phối. Bảng dùng biểu giá TOU giả định và chỉ so sánh các cụm thực sự chạy `MILP_MPC`. `FCFS` là baseline phục vụ theo thứ tự đến (FIFO).
+Trong trụ cột **Năng lượng xanh và Giao thông thông minh**, lịch sạc là một phụ tải có thể điều phối. Bảng dùng TOU EVN hạ áp và chỉ so sánh các cụm thực sự chạy `MILP_MPC`. `FCFS` là baseline phục vụ theo thứ tự đến (FIFO).
 
 | Phạm vi | Baseline | Chi phí baseline → MILP (đ) | Giảm chi phí | Đỉnh baseline → MILP (kW) | Giảm đỉnh (kW) | Điện thấp điểm baseline → MILP (kWh) | Chênh thấp điểm (kWh) |
 |---|---|---:|---:|---:|---:|---:|---:|
-| 100, cả hai cụm | LLF | 7.190.587,84 → 7.172.282,48 | 0,2546% | 684,0876 → 681,0700 | 3,0176 | 36,7166 → 43,3181 | +6,6015 |
-| 100, cả hai cụm | FCFS | 7.207.205,28 → 7.172.282,48 | 0,4846% | 773,6312 → 681,0700 | 92,5612 | 36,7166 → 43,3181 | +6,6015 |
-| 500, chỉ cụm 2 | LLF | 14.012.044,80 → 13.956.668,88 | 0,3952% | 350 → 350 | 0 | 750,9023 → 771,0990 | +20,1967 |
-| 500, chỉ cụm 2 | FCFS | 12.869.194,32 → 13.956.668,88 | −8,4502% | 350 → 350 | 0 | 367,7960 → 771,0990 | +403,3030 |
+| 100, cả hai cụm | LLF | 8.276.432,26 → 8.276.432,26 | 0,0000% | 684,0876 → 681,0700 | 3,0176 | 0,0000 → 0,0000 | 0,0000 |
+| 100, cả hai cụm | FCFS | 8.276.432,26 → 8.276.432,26 | 0,0000% | 773,6312 → 681,0700 | 92,5612 | 0,0000 → 0,0000 | 0,0000 |
+| 500, chỉ cụm 2 | LLF | 16.266.140,79 → 16.187.779,72 | 0,4817% | 350,0000 → 350,0000 | 0,0000 | 480,6857 → 517,0828 | +36,3971 |
+| 500, chỉ cụm 2 | FCFS | 14.751.488,70 → 16.187.779,72 | -9,7366% | 350,0000 → 350,0000 | 0,0000 | 369,1739 → 517,0828 | +147,9089 |
 
-Chi phí và đỉnh lấy từ [benchmark_real.json](ai_engine/benchmark_real.json). Tỷ lệ giảm chi phí = `(chi phí baseline − chi phí MILP) / chi phí baseline × 100%`. Giảm đỉnh = `đỉnh baseline − đỉnh MILP`. Đỉnh của hai cụm là tải lớn nhất sau khi cộng công suất hai cụm theo cùng slot.
+Chi phí và đỉnh lấy từ [benchmark_real.json](ai_engine/benchmark_real.json). Mức giảm là `(baseline − MILP) / baseline × 100%` cho chi phí và `đỉnh baseline − đỉnh MILP` cho công suất. Điện thấp điểm lấy từ lịch cùng lượt chạy, cộng `power_kw × 0,25 giờ` cho các slot 00:00–06:00 theo giờ Việt Nam.
 
-Báo cáo JSON lưu KPI tổng hợp. Để tính điện thấp điểm, chạy lại `POST /ai/benchmark` với snapshot dựng bằng [script benchmark](ai_engine/scripts/benchmark_real.py), cùng CSV tại `b0fc3f7`, seed 42 và biểu giá TOU. Lần chạy lại khớp chi phí, đỉnh, điện thiếu và đúng hạn đã công bố ở độ chính xác hiển thị. Cộng `power_kw × 0,25 giờ` của các slot trong khung giá 1.600 đ/kWh (22:00–04:00, giờ Việt Nam), rồi lấy điện thấp điểm của MILP trừ baseline.
-
-Ở mốc 100, ba thuật toán đạt 94% đúng hạn và cấp cùng lượng điện ở độ chính xác hiển thị. Chênh lệch **6,6015 kWh** là lượng điện tăng ròng ở giờ thấp điểm với cùng lượng điện cấp. Ở mốc 500, cụm 2 cấp nhiều điện hơn khi dùng MILP, nên chênh lệch thấp điểm gồm cả điện cấp thêm. So với FCFS, MILP giảm điện thiếu **604,6444 kWh** ở cụm này, đồng thời chi phí tổng tăng.
+Ở mốc 100, MILP, LLF và FCFS đều đạt 94% đúng hạn và có 0 kWh sạc trong khung thấp điểm mới. Ở mốc 500, cụm 2 cấp nhiều điện hơn khi dùng MILP. So với FCFS, MILP giảm điện thiếu **604,6444 kWh** và tăng chi phí tổng **1.436.291,03 đ**. Chênh điện thấp điểm ở cụm này gồm cả điện cấp thêm.
 
 Đây là kết quả **mô phỏng các yêu cầu sạc sinh từ catalog trạm và mẫu xe khảo sát dùng cho kịch bản Đà Nẵng**. Giảm đỉnh và dời giờ sạc có thể giảm áp lực lên lưới và tạo dư địa phối hợp với nguồn tái tạo. Chưa có dữ liệu phát điện theo giờ hoặc hệ số phát thải xác minh cho kịch bản, nên chưa quy đổi sang CO₂ hay lượng năng lượng tái tạo sử dụng.
 

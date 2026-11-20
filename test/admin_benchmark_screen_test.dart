@@ -71,7 +71,10 @@ void main() {
     expect(find.text('Nguồn: benchmark_real.json'), findsOneWidget);
     expect(find.text('Chưa có benchmark thật'), findsNothing);
     expect(find.text('Cố định 2.000 đ/kWh'), findsWidgets);
-    expect(find.text('TOU giả định 1.600 / 2.400 / 4.000 đ/kWh'), findsWidgets);
+    expect(
+      find.text('TOU EVN hạ áp 1.620 / 2.700 / 4.212 đ/kWh'),
+      findsWidgets,
+    );
     expect(find.text('MILP_MPC'), findsWidgets);
     expect(find.text('LLF + MILP_MPC'), findsWidgets);
     expect(
@@ -81,6 +84,27 @@ void main() {
     expect(find.text('10000\nbài test thông lượng LLF'), findsWidgets);
     expect(find.text('—'), findsWidgets);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('labels historical TOU as simulated', (tester) async {
+    await _open(
+      tester,
+      (_) async => _json({
+        'source': 'benchmark_result',
+        'results': [
+          {
+            'scenario_id': 1,
+            'algorithm': 'LLF',
+            'metrics_json': {'tariff': 'evn_tou_1600_2400_4000_vnd_kwh'},
+          },
+        ],
+      }),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text('TOU giả định 1.600 / 2.400 / 4.000 đ/kWh'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('hides prior results if reloading returns a malformed report', (

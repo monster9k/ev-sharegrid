@@ -75,6 +75,8 @@ class _AdminBenchmarkScreenState extends State<AdminBenchmarkScreen> {
 
   String _tariff(String? value) => switch (value) {
     'fixed_2000_vnd_kwh' => 'Cố định 2.000 đ/kWh',
+    'evn_tou_1620_2700_4212_vnd_kwh' =>
+      'TOU EVN hạ áp 1.620 / 2.700 / 4.212 đ/kWh',
     'evn_tou_1600_2400_4000_vnd_kwh' ||
     'simulated_tou_1600_2400_4000_vnd_kwh' =>
       'TOU giả định 1.600 / 2.400 / 4.000 đ/kWh',
