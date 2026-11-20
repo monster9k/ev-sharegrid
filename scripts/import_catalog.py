@@ -31,6 +31,9 @@ CONNECTOR_ALIASES = {
     "AC_HOME_VINFAST_ADAPTER": "AC_HOME",
 }
 CONNECTOR_TYPES = {"CCS2", "Type2", "CHAdeMO", "AC_HOME"}
+# Biểu giá dùng cho mô phỏng và demo, chưa có căn cứ để gắn nhãn biểu giá EVN.
+# TODO(tariff-source): đối chiếu mức giá và khung giờ, rồi ghi số hiệu, ngày
+# văn bản và phạm vi áp dụng nếu có nguồn chính thức đã xác minh.
 TARIFF_SOURCE_REF = "biểu giá TOU giả định theo khung giờ cao/thấp điểm"
 
 
