@@ -76,44 +76,50 @@ class OnboardingScreen extends StatelessWidget {
               Expanded(
                 child: SafeArea(
                   top: false,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _Dots(index: i),
-                        const Gap(14),
-                        Text(
-                          _titles[i],
-                          style: AppFonts.display(size: 30, height: 1.2),
-                        ),
-                        const Gap(14),
-                        Flexible(
-                          child: SingleChildScrollView(
-                            child: MutedText(_bodies[i], size: 15),
+                  child: CustomScrollView(
+                    slivers: [
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _Dots(index: i),
+                              const Gap(14),
+                              Text(
+                                _titles[i],
+                                style: AppFonts.display(size: 30, height: 1.2),
+                              ),
+                              const Gap(14),
+                              MutedText(_bodies[i], size: 15),
+                              const Gap(12),
+                              const Spacer(),
+                              AppButton(
+                                label: step == 3 ? 'Bắt đầu' : 'Tiếp tục',
+                                trailingIcon: step == 3
+                                    ? null
+                                    : Icons.arrow_forward_rounded,
+                                onPressed: () => context.go(
+                                  step == 3
+                                      ? '/login'
+                                      : '/onboarding/${step + 1}',
+                                ),
+                              ),
+                              if (step == 3) ...[
+                                const Gap(8),
+                                Center(
+                                  child: LinkText(
+                                    'Tôi đã có tài khoản',
+                                    onTap: () => context.go('/login'),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
-                        const Spacer(),
-                        AppButton(
-                          label: step == 3 ? 'Bắt đầu' : 'Tiếp tục',
-                          trailingIcon: step == 3
-                              ? null
-                              : Icons.arrow_forward_rounded,
-                          onPressed: () => context.go(
-                            step == 3 ? '/login' : '/onboarding/${step + 1}',
-                          ),
-                        ),
-                        if (step == 3) ...[
-                          const Gap(8),
-                          Center(
-                            child: LinkText(
-                              'Tôi đã có tài khoản',
-                              onTap: () => context.go('/login'),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
