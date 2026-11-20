@@ -1,6 +1,6 @@
 """Run reproducible API benchmarks against committed CSV scenario data.
 
-The benchmark uses the regenerated data commit directly so it does not depend
+The benchmark uses a committed data snapshot so it does not depend
 on which data branch happens to be checked out. Each cluster is submitted as
 its own POST /ai/benchmark snapshot, then cluster KPI are combined by request
 count and by slot. The CSV lacks delivered-energy and priority fields, so the
@@ -87,20 +87,26 @@ def tariffs_for(
     end: datetime,
     tou_rows: list[dict[str, str]],
 ) -> list[dict[str, Any]]:
-    """Build full-horizon fixed or source-CSV weekday/weekend tariff intervals."""
+    """Build full-horizon fixed or source-CSV tariff intervals."""
     if tariff_mode == "fixed_2000_vnd_kwh":
         return [{"start_time": iso(start), "end_time": iso(end), "price_vnd_kwh": 2000.0}]
 
     result: list[dict[str, Any]] = []
     day = start.date()
     while datetime.combine(day, time(), LOCAL_TZ) < end:
-        day_type = "WEEKDAY" if day.weekday() < 5 else "WEEKEND"
-        rows = [
+        evn_day = "MON_SAT" if day.weekday() < 6 else "SUNDAY"
+        legacy_day = "WEEKDAY" if day.weekday() < 5 else "WEEKEND"
+        day_iso = day.isoformat()
+        active = [
             row for row in tou_rows
-            if int(row["cluster_id"]) == cluster_id and row["day_type"] == day_type
+            if int(row["cluster_id"]) == cluster_id
+            and (row.get("valid_from") or day_iso) <= day_iso <= (row.get("valid_to") or day_iso)
         ]
+        rows = [row for row in active if row["day_type"] == evn_day]
         if not rows:
-            raise ValueError(f"Thiếu biểu giá {day_type} cho cụm {cluster_id} trong CSV nguồn")
+            rows = [row for row in active if row["day_type"] == legacy_day]
+        if not rows:
+            raise ValueError(f"Thiếu biểu giá cho cụm {cluster_id} ngày {day_iso} trong CSV nguồn")
         for row in sorted(rows, key=lambda item: item["start_time"]):
             interval_start = parse_date_time(day, row["start_time"])
             interval_end = parse_date_time(day, row["end_time"])
@@ -362,20 +368,28 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--dataset-ref",
-        default="b0fc3f7",
-        help="Git ref with 15–40 kWh scenarios and catalog (default: b0fc3f7)",
+        default="HEAD",
+        help="Git ref with scenarios, catalog and tariff CSV (default: HEAD)",
     )
     args = parser.parse_args()
-    tables, hashes = read_inputs(args.dataset_ref)
+    dataset_ref = subprocess.check_output(
+        ["git", "-C", str(ROOT), "rev-parse", f"{args.dataset_ref}^{{commit}}"], text=True
+    ).strip()
+    tables, hashes = read_inputs(dataset_ref)
+    tou_rows = tables["tariff_window_cleaned.csv"]
+    tou_rates = sorted({float(row["price_vnd_kwh"]) for row in tou_rows})
+    rates_key = "_".join(f"{rate:g}" for rate in tou_rates)
+    tou_mode = f"evn_tou_{rates_key}_vnd_kwh"
+    tou_sources = sorted({row["source_ref"] for row in tou_rows})
     client = TestClient(app)
     milestones = []
 
     for count in SCENARIOS:
-        snapshots, scenario = build_scenario(count, tables, hashes, args.dataset_ref)
+        snapshots, scenario = build_scenario(count, tables, hashes, dataset_ref)
         tariff_results = []
         algorithms = FAST_ALGORITHMS if count in THROUGHPUT_COUNTS else ALL_ALGORITHMS
         request_counts = scenario["requests_by_cluster"]
-        for tariff_mode in ("fixed_2000_vnd_kwh", "evn_tou_1600_2400_4000_vnd_kwh"):
+        for tariff_mode in ("fixed_2000_vnd_kwh", tou_mode):
             responses = {}
             for cluster_id, snapshot in snapshots.items():
                 snapshot["tariffs"] = tariffs_for(
@@ -384,7 +398,7 @@ def main() -> None:
                     datetime.fromisoformat(snapshot["snapshot_time"]),
                     datetime.fromisoformat(snapshot["snapshot_time"])
                     + int(snapshot["horizon_slots"]) * SLOT,
-                    tables["tariff_window_cleaned.csv"],
+                    tou_rows,
                 )
                 response = client.post("/ai/benchmark", json={
                     "scenario_id": f"scenario-{count}-cluster-{cluster_id}-{tariff_mode}",
@@ -413,7 +427,7 @@ def main() -> None:
         "measured_on": datetime.now(LOCAL_TZ).date().isoformat(),
         "seed": SEED,
         "source": {
-            "dataset_ref": args.dataset_ref,
+            "dataset_ref": dataset_ref,
             "scenario_generation_seed": SEED,
             "benchmark_seed": SEED,
             "request_files": [f"data/scenario_{count}_requests.csv" for count in SCENARIOS],
@@ -431,10 +445,10 @@ def main() -> None:
         },
         "tariffs": {
             "fixed_2000_vnd_kwh": {"price_vnd_kwh": 2000.0},
-            "evn_tou_1600_2400_4000_vnd_kwh": {
+            tou_mode: {
                 "source": "data/tariff_window_cleaned.csv",
-                "rates_vnd_kwh": [1600.0, 2400.0, 4000.0],
-                "source_ref": "biểu giá TOU giả định theo khung giờ cao/thấp điểm",
+                "rates_vnd_kwh": tou_rates,
+                "source_ref": " | ".join(tou_sources),
             },
         },
         "algorithms": list(ALL_ALGORITHMS),

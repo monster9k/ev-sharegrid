@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from backend.ai_contract import (
+    _build_tariffs,
     build_cluster_snapshot,
     pick_request_result,
     to_ai_connector,
@@ -12,6 +13,52 @@ from backend.ai_contract import (
 
 
 TZ = ZoneInfo("Asia/Ho_Chi_Minh")
+
+
+class TariffCursor:
+    def __init__(self, rows):
+        self.rows = rows
+
+    def execute(self, query, params):
+        assert "FROM tariff_window" in query
+
+    def fetchall(self):
+        return self.rows
+
+
+def tariff_row(day_type, price, start="00:00", end="24:00", valid_from=date(2026, 11, 1)):
+    return {
+        "day_type": day_type,
+        "start_time": start,
+        "end_time": end,
+        "price_vnd_kwh": Decimal(price),
+        "valid_from": valid_from,
+        "valid_to": date(2099, 12, 31),
+    }
+
+
+@pytest.mark.parametrize(("day", "expected_price"), [(21, 4212), (22, 2700)])
+def test_tariffs_prefer_evn_on_saturday_and_sunday(day, expected_price):
+    cursor = TariffCursor([
+        tariff_row("MON_SAT", 4212, "17:30", "22:30"),
+        tariff_row("SUNDAY", 2700, "06:00"),
+        tariff_row("WEEKEND", 2400),
+    ])
+    start = datetime(2026, 11, day, 17, 30, tzinfo=TZ)
+    end = start + timedelta(hours=5)
+    assert _build_tariffs(cursor, 1, start, end) == [{
+        "start_time": start.isoformat(),
+        "end_time": end.isoformat(),
+        "price_vnd_kwh": expected_price,
+    }]
+
+
+@pytest.mark.parametrize(("day", "expected_price"), [(20, 1600), (21, 2400), (22, 2400)])
+def test_tariffs_fall_back_to_legacy_day_types(day, expected_price):
+    cursor = TariffCursor([tariff_row("WEEKDAY", 1600), tariff_row("WEEKEND", 2400)])
+    start = datetime(2026, 11, day, 17, 30, tzinfo=TZ)
+    tariffs = _build_tariffs(cursor, 1, start, start + timedelta(hours=1))
+    assert [row["price_vnd_kwh"] for row in tariffs] == [expected_price]
 
 
 class SnapshotCursor:

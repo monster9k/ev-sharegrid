@@ -106,12 +106,11 @@ CREATE TABLE port (
 );
 
 -- 7. tariff_window
--- TODO: source_ref must contain the verified EVN decision number and date.
--- Leave it NULL until the official document is supplied; do not infer an identifier.
 CREATE TABLE tariff_window (
     tariff_id BIGSERIAL PRIMARY KEY,
     cluster_id BIGINT REFERENCES grid_cluster(cluster_id),
-    day_type VARCHAR(20) CHECK (day_type IN ('WEEKDAY', 'WEEKEND', 'HOLIDAY')),
+    day_type VARCHAR(20) CONSTRAINT tariff_window_day_type_check
+        CHECK (day_type IN ('WEEKDAY', 'WEEKEND', 'HOLIDAY', 'MON_SAT', 'SUNDAY')),
     band VARCHAR(20) CHECK (band IN ('OFF_PEAK', 'NORMAL', 'PEAK')),
     source_ref VARCHAR(100),
     start_time TIME NOT NULL,

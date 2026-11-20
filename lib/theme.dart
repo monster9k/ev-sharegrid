@@ -44,11 +44,11 @@ class AppColors {
 }
 
 /// Font: Bricolage Grotesque cho tiêu đề, Plus Jakarta Sans cho nội dung.
-/// [enabled] = false trong test để không tải font qua mạng.
+/// Demo offline và widget test dùng font mặc định.
 class AppFonts {
   AppFonts._();
 
-  static bool enabled = true;
+  static bool enabled = !const bool.fromEnvironment('DEMO_OFFLINE');
 
   static TextStyle display({
     double size = 22,

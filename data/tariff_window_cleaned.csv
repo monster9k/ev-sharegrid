@@ -1,57 +1,25 @@
-tariff_id,cluster_id,day_type,band,start_time,end_time,price_vnd_kwh,source_ref
-1,1,WEEKDAY,OFF_PEAK,00:00,04:00,1600.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-2,1,WEEKEND,OFF_PEAK,00:00,04:00,1600.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-3,1,WEEKDAY,NORMAL,04:00,09:30,2400.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-4,1,WEEKEND,NORMAL,04:00,09:30,2400.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-5,1,WEEKDAY,PEAK,09:30,11:30,4000.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-6,1,WEEKEND,PEAK,09:30,11:30,4000.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-7,1,WEEKDAY,NORMAL,11:30,17:00,2400.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-8,1,WEEKEND,NORMAL,11:30,17:00,2400.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-9,1,WEEKDAY,PEAK,17:00,20:00,4000.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-10,1,WEEKEND,PEAK,17:00,20:00,4000.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-11,1,WEEKDAY,NORMAL,20:00,22:00,2400.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-12,1,WEEKEND,NORMAL,20:00,22:00,2400.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-13,1,WEEKDAY,OFF_PEAK,22:00,24:00,1600.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-14,1,WEEKEND,OFF_PEAK,22:00,24:00,1600.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-15,2,WEEKDAY,OFF_PEAK,00:00,04:00,1600.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-16,2,WEEKEND,OFF_PEAK,00:00,04:00,1600.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-17,2,WEEKDAY,NORMAL,04:00,09:30,2400.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-18,2,WEEKEND,NORMAL,04:00,09:30,2400.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-19,2,WEEKDAY,PEAK,09:30,11:30,4000.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-20,2,WEEKEND,PEAK,09:30,11:30,4000.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-21,2,WEEKDAY,NORMAL,11:30,17:00,2400.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-22,2,WEEKEND,NORMAL,11:30,17:00,2400.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-23,2,WEEKDAY,PEAK,17:00,20:00,4000.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-24,2,WEEKEND,PEAK,17:00,20:00,4000.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-25,2,WEEKDAY,NORMAL,20:00,22:00,2400.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-26,2,WEEKEND,NORMAL,20:00,22:00,2400.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-27,2,WEEKDAY,OFF_PEAK,22:00,24:00,1600.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-28,2,WEEKEND,OFF_PEAK,22:00,24:00,1600.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-29,3,WEEKDAY,OFF_PEAK,00:00,04:00,1600.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-30,3,WEEKEND,OFF_PEAK,00:00,04:00,1600.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-31,3,WEEKDAY,NORMAL,04:00,09:30,2400.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-32,3,WEEKEND,NORMAL,04:00,09:30,2400.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-33,3,WEEKDAY,PEAK,09:30,11:30,4000.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-34,3,WEEKEND,PEAK,09:30,11:30,4000.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-35,3,WEEKDAY,NORMAL,11:30,17:00,2400.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-36,3,WEEKEND,NORMAL,11:30,17:00,2400.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-37,3,WEEKDAY,PEAK,17:00,20:00,4000.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-38,3,WEEKEND,PEAK,17:00,20:00,4000.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-39,3,WEEKDAY,NORMAL,20:00,22:00,2400.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-40,3,WEEKEND,NORMAL,20:00,22:00,2400.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-41,3,WEEKDAY,OFF_PEAK,22:00,24:00,1600.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-42,3,WEEKEND,OFF_PEAK,22:00,24:00,1600.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-43,4,WEEKDAY,OFF_PEAK,00:00,04:00,1600.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-44,4,WEEKEND,OFF_PEAK,00:00,04:00,1600.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-45,4,WEEKDAY,NORMAL,04:00,09:30,2400.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-46,4,WEEKEND,NORMAL,04:00,09:30,2400.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-47,4,WEEKDAY,PEAK,09:30,11:30,4000.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-48,4,WEEKEND,PEAK,09:30,11:30,4000.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-49,4,WEEKDAY,NORMAL,11:30,17:00,2400.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-50,4,WEEKEND,NORMAL,11:30,17:00,2400.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-51,4,WEEKDAY,PEAK,17:00,20:00,4000.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-52,4,WEEKEND,PEAK,17:00,20:00,4000.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-53,4,WEEKDAY,NORMAL,20:00,22:00,2400.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-54,4,WEEKEND,NORMAL,20:00,22:00,2400.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-55,4,WEEKDAY,OFF_PEAK,22:00,24:00,1600.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
-56,4,WEEKEND,OFF_PEAK,22:00,24:00,1600.0,biểu giá TOU giả định theo khung giờ cao/thấp điểm
+tariff_id,cluster_id,day_type,band,start_time,end_time,price_vnd_kwh,source_ref,valid_from
+1,1,MON_SAT,OFF_PEAK,00:00,06:00,1620,"QĐ 2892/QĐ-BCT & QĐ 963/QĐ-BCT (EVN, hiệu lực 01/11/2026)",2026-11-01
+2,1,MON_SAT,NORMAL,06:00,17:30,2700,"QĐ 2892/QĐ-BCT & QĐ 963/QĐ-BCT (EVN, hiệu lực 01/11/2026)",2026-11-01
+3,1,MON_SAT,PEAK,17:30,22:30,4212,"QĐ 2892/QĐ-BCT & QĐ 963/QĐ-BCT (EVN, hiệu lực 01/11/2026)",2026-11-01
+4,1,MON_SAT,NORMAL,22:30,24:00,2700,"QĐ 2892/QĐ-BCT & QĐ 963/QĐ-BCT (EVN, hiệu lực 01/11/2026)",2026-11-01
+5,1,SUNDAY,OFF_PEAK,00:00,06:00,1620,"QĐ 2892/QĐ-BCT & QĐ 963/QĐ-BCT (EVN, hiệu lực 01/11/2026)",2026-11-01
+6,1,SUNDAY,NORMAL,06:00,24:00,2700,"QĐ 2892/QĐ-BCT & QĐ 963/QĐ-BCT (EVN, hiệu lực 01/11/2026)",2026-11-01
+7,2,MON_SAT,OFF_PEAK,00:00,06:00,1620,"QĐ 2892/QĐ-BCT & QĐ 963/QĐ-BCT (EVN, hiệu lực 01/11/2026)",2026-11-01
+8,2,MON_SAT,NORMAL,06:00,17:30,2700,"QĐ 2892/QĐ-BCT & QĐ 963/QĐ-BCT (EVN, hiệu lực 01/11/2026)",2026-11-01
+9,2,MON_SAT,PEAK,17:30,22:30,4212,"QĐ 2892/QĐ-BCT & QĐ 963/QĐ-BCT (EVN, hiệu lực 01/11/2026)",2026-11-01
+10,2,MON_SAT,NORMAL,22:30,24:00,2700,"QĐ 2892/QĐ-BCT & QĐ 963/QĐ-BCT (EVN, hiệu lực 01/11/2026)",2026-11-01
+11,2,SUNDAY,OFF_PEAK,00:00,06:00,1620,"QĐ 2892/QĐ-BCT & QĐ 963/QĐ-BCT (EVN, hiệu lực 01/11/2026)",2026-11-01
+12,2,SUNDAY,NORMAL,06:00,24:00,2700,"QĐ 2892/QĐ-BCT & QĐ 963/QĐ-BCT (EVN, hiệu lực 01/11/2026)",2026-11-01
+13,3,MON_SAT,OFF_PEAK,00:00,06:00,1620,"QĐ 2892/QĐ-BCT & QĐ 963/QĐ-BCT (EVN, hiệu lực 01/11/2026)",2026-11-01
+14,3,MON_SAT,NORMAL,06:00,17:30,2700,"QĐ 2892/QĐ-BCT & QĐ 963/QĐ-BCT (EVN, hiệu lực 01/11/2026)",2026-11-01
+15,3,MON_SAT,PEAK,17:30,22:30,4212,"QĐ 2892/QĐ-BCT & QĐ 963/QĐ-BCT (EVN, hiệu lực 01/11/2026)",2026-11-01
+16,3,MON_SAT,NORMAL,22:30,24:00,2700,"QĐ 2892/QĐ-BCT & QĐ 963/QĐ-BCT (EVN, hiệu lực 01/11/2026)",2026-11-01
+17,3,SUNDAY,OFF_PEAK,00:00,06:00,1620,"QĐ 2892/QĐ-BCT & QĐ 963/QĐ-BCT (EVN, hiệu lực 01/11/2026)",2026-11-01
+18,3,SUNDAY,NORMAL,06:00,24:00,2700,"QĐ 2892/QĐ-BCT & QĐ 963/QĐ-BCT (EVN, hiệu lực 01/11/2026)",2026-11-01
+19,4,MON_SAT,OFF_PEAK,00:00,06:00,1620,"QĐ 2892/QĐ-BCT & QĐ 963/QĐ-BCT (EVN, hiệu lực 01/11/2026)",2026-11-01
+20,4,MON_SAT,NORMAL,06:00,17:30,2700,"QĐ 2892/QĐ-BCT & QĐ 963/QĐ-BCT (EVN, hiệu lực 01/11/2026)",2026-11-01
+21,4,MON_SAT,PEAK,17:30,22:30,4212,"QĐ 2892/QĐ-BCT & QĐ 963/QĐ-BCT (EVN, hiệu lực 01/11/2026)",2026-11-01
+22,4,MON_SAT,NORMAL,22:30,24:00,2700,"QĐ 2892/QĐ-BCT & QĐ 963/QĐ-BCT (EVN, hiệu lực 01/11/2026)",2026-11-01
+23,4,SUNDAY,OFF_PEAK,00:00,06:00,1620,"QĐ 2892/QĐ-BCT & QĐ 963/QĐ-BCT (EVN, hiệu lực 01/11/2026)",2026-11-01
+24,4,SUNDAY,NORMAL,06:00,24:00,2700,"QĐ 2892/QĐ-BCT & QĐ 963/QĐ-BCT (EVN, hiệu lực 01/11/2026)",2026-11-01

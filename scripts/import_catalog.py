@@ -7,9 +7,11 @@ Từ dữ liệu khảo sát thực tế của Ánh:
 Tác giả: Thắng (thangchien1607@gmail.com)
 """
 
+import argparse
 import math
 import os
 import sys
+from contextlib import closing
 import pandas as pd
 import psycopg2
 from psycopg2.extras import execute_values
@@ -31,10 +33,16 @@ CONNECTOR_ALIASES = {
     "AC_HOME_VINFAST_ADAPTER": "AC_HOME",
 }
 CONNECTOR_TYPES = {"CCS2", "Type2", "CHAdeMO", "AC_HOME"}
-# Biểu giá dùng cho mô phỏng và demo, chưa có căn cứ để gắn nhãn biểu giá EVN.
-# TODO(tariff-source): đối chiếu mức giá và khung giờ, rồi ghi số hiệu, ngày
-# văn bản và phạm vi áp dụng nếu có nguồn chính thức đã xác minh.
-TARIFF_SOURCE_REF = "biểu giá TOU giả định theo khung giờ cao/thấp điểm"
+TARIFF_SOURCE_REF = "QĐ 2892/QĐ-BCT & QĐ 963/QĐ-BCT (EVN, hiệu lực 01/11/2026)"
+TARIFF_VALID_FROM = "2026-11-01"
+DEMO_TARIFF_WINDOWS = (
+    ("MON_SAT", "OFF_PEAK", "00:00", "06:00", 1620),
+    ("MON_SAT", "NORMAL", "06:00", "17:30", 2700),
+    ("MON_SAT", "PEAK", "17:30", "22:30", 4212),
+    ("MON_SAT", "NORMAL", "22:30", "24:00", 2700),
+    ("SUNDAY", "OFF_PEAK", "00:00", "06:00", 1620),
+    ("SUNDAY", "NORMAL", "06:00", "24:00", 2700),
+)
 
 
 def _configure_console_encoding():
@@ -321,51 +329,61 @@ def clean_and_extract_catalogs():
     df_ports.to_csv(os.path.join(DATA_DIR, "port_cleaned.csv"), index=False, encoding="utf-8")
     print(f"✅ Đã sinh & xuất {len(cleaned_ports)} cổng sạc chuẩn hóa -> {os.path.join(DATA_DIR, 'port_cleaned.csv')}")
 
-    # 3. Tạo biểu giá TOU giả định theo khung giờ cao/thấp điểm cho 4 cụm
+    return df_models, df_stations, df_ports, export_tariffs()
+
+
+def export_tariffs():
+    """Xuất biểu giá hạ áp EVN (chưa VAT) cho bốn cụm demo."""
+    _configure_console_encoding()
     tariffs = []
-    t_id = 1
-    bands = [
-        ("OFF_PEAK", "00:00", "04:00", 1600.00),
-        ("NORMAL",   "04:00", "09:30", 2400.00),
-        ("PEAK",     "09:30", "11:30", 4000.00),
-        ("NORMAL",   "11:30", "17:00", 2400.00),
-        ("PEAK",     "17:00", "20:00", 4000.00),
-        ("NORMAL",   "20:00", "22:00", 2400.00),
-        ("OFF_PEAK", "22:00", "24:00", 1600.00),
-    ]
-    for c_id in [1, 2, 3, 4]:
-        for b_name, start, end, price in bands:
+    for cluster_id in (1, 2, 3, 4):
+        for day_type, band, start, end, price in DEMO_TARIFF_WINDOWS:
             tariffs.append({
-                "tariff_id": t_id,
-                "cluster_id": c_id,
-                "day_type": "WEEKDAY",
-                "band": b_name,
+                "tariff_id": len(tariffs) + 1,
+                "cluster_id": cluster_id,
+                "day_type": day_type,
+                "band": band,
                 "start_time": start,
                 "end_time": end,
                 "price_vnd_kwh": price,
-                "source_ref": TARIFF_SOURCE_REF
+                "source_ref": TARIFF_SOURCE_REF,
+                "valid_from": TARIFF_VALID_FROM,
             })
-            t_id += 1
-            tariffs.append({
-                "tariff_id": t_id,
-                "cluster_id": c_id,
-                "day_type": "WEEKEND",
-                "band": b_name,
-                "start_time": start,
-                "end_time": end,
-                "price_vnd_kwh": price,
-                "source_ref": TARIFF_SOURCE_REF
-            })
-            t_id += 1
 
     df_tariff = pd.DataFrame(tariffs)
     df_tariff.to_csv(os.path.join(DATA_DIR, "tariff_window_cleaned.csv"), index=False, encoding="utf-8")
-    print(
-        f"✅ Đã xuất {len(tariffs)} khung biểu giá TOU giả định -> "
-        f"{os.path.join(DATA_DIR, 'tariff_window_cleaned.csv')}"
-    )
+    print(f"Đã xuất {len(tariffs)} khung biểu giá EVN.")
+    return df_tariff
 
-    return df_models, df_stations, df_ports, df_tariff
+
+def seed_tariffs(cursor, tariffs):
+    """Thêm khung EVN một lần, giữ lịch sử biểu giá và ID trong DB."""
+    if tariffs.empty:
+        return
+    # Bản seed cũ gán ID trực tiếp nên sequence có thể nằm sau các ID đã dùng.
+    cursor.execute("LOCK TABLE tariff_window IN SHARE ROW EXCLUSIVE MODE")
+    cursor.execute("""
+        SELECT setval('tariff_window_tariff_id_seq', GREATEST(
+            COALESCE((SELECT MAX(tariff_id) FROM tariff_window), 1),
+            (SELECT last_value FROM tariff_window_tariff_id_seq)
+        ))
+    """)
+    fields = ("cluster_id", "day_type", "band", "start_time", "end_time",
+              "price_vnd_kwh", "source_ref", "valid_from")
+    execute_values(cursor, """
+        WITH seed(cluster_id, day_type, band, start_time, end_time, price_vnd_kwh, source_ref, valid_from)
+        AS (VALUES %s)
+        INSERT INTO tariff_window (cluster_id, day_type, band, start_time, end_time,
+                                   price_vnd_kwh, source_ref, valid_from)
+        SELECT * FROM seed
+        WHERE NOT EXISTS (
+            SELECT 1 FROM tariff_window AS existing
+            WHERE (existing.cluster_id, existing.day_type, existing.start_time,
+                   existing.end_time, existing.valid_from)
+                = (seed.cluster_id, seed.day_type, seed.start_time, seed.end_time, seed.valid_from)
+        )
+    """, tariffs.loc[:, list(fields)].itertuples(index=False, name=None),
+        template="(%s, %s, %s, %s::time, %s::time, %s, %s, %s::date)")
 
 
 def seed_postgres_database(df_models, df_stations, df_ports, df_tariff):
@@ -484,14 +502,7 @@ def seed_postgres_database(df_models, df_stations, df_ports, df_tariff):
             """, (int(p["port_id"]), int(p["station_id"]), p["port_code"], p["connector_type"],
                   p["control_type"], p["status"], float(p["min_power_kw"]), float(p["max_power_kw"])))
 
-        # 6. Nạp tariff_window
-        for _, t in df_tariff.iterrows():
-            cur.execute("""
-                INSERT INTO tariff_window (tariff_id, cluster_id, day_type, band, start_time, end_time, price_vnd_kwh, source_ref)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (tariff_id) DO UPDATE SET price_vnd_kwh = EXCLUDED.price_vnd_kwh;
-            """, (int(t["tariff_id"]), int(t["cluster_id"]), t["day_type"], t["band"],
-                  t["start_time"], t["end_time"], float(t["price_vnd_kwh"]), t["source_ref"]))
+        seed_tariffs(cur, df_tariff)
 
         conn.commit()
     except Exception as e:
@@ -515,5 +526,11 @@ def seed_postgres_database(df_models, df_stations, df_ports, df_tariff):
 
 
 if __name__ == "__main__":
-    df_models, df_stations, df_ports, df_tariff = clean_and_extract_catalogs()
-    seed_postgres_database(df_models, df_stations, df_ports, df_tariff)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--tariffs-only", action="store_true", help="Chỉ xuất và nạp tariff_window.")
+    if parser.parse_args().tariffs_only:
+        tariffs = export_tariffs()
+        with closing(psycopg2.connect(**DB_CONFIG)) as conn, conn, conn.cursor() as cursor:
+            seed_tariffs(cursor, tariffs)
+    else:
+        seed_postgres_database(*clean_and_extract_catalogs())
