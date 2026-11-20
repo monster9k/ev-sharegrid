@@ -137,6 +137,7 @@ Cài dependency theo [requirements AI Engine](ai_engine/requirements.txt) và [r
 - Catalog có **19 mẫu xe và 107 trạm**, trong đó **92 trạm thiếu tọa độ** ở trạng thái `PENDING` và 15 trạm `ACTIVE`. Danh sách cần xác minh nằm trong [stations_missing_coordinates.csv](data/stations_missing_coordinates.csv). Công suất, phân cụm, giờ hoạt động và các trường suy ra được ghi trong ghi chú dữ liệu. `rating` để trống.
 - Cửa sổ tối ưu dài **24 giờ**, gồm 96 slot 15 phút tính từ mốc 15 phút ngay trước hoặc bằng thời điểm lập snapshot. Toàn bộ khung sạc phải nằm trong cửa sổ này. Lịch vượt mốc kết thúc nhận HTTP 422 trước bước ghi yêu cầu.
 - Nguồn biểu giá trong [script nạp catalog](scripts/import_catalog.py) được ghi là **biểu giá TOU giả định theo khung giờ cao/thấp điểm**. Repo chưa có số và ngày văn bản EVN đã xác minh cho các mức giá này.
+- TODO(tariff-source) điền số hiệu, ngày và phạm vi áp dụng của văn bản sau khi đã đối chiếu mức giá và khung giờ với nguồn chính thức.
 - [ev-sharegrid.web.app](https://ev-sharegrid.web.app) là bản xem trước Flutter trên Firebase Hosting. Workflow hiện build web với `API_BASE` mặc định `http://localhost:8000` và chưa cấu hình URL backend công khai. Chạy Flutter cùng Compose cục bộ để demo luồng API.
 - Một số màn USER, HOST và ADMIN vẫn hiển thị dữ liệu mô phỏng. Các KPI benchmark lấy từ báo cáo JSON của AI Engine.
 
