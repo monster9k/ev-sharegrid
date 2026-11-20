@@ -139,6 +139,7 @@ Cài dependency theo [requirements AI Engine](ai_engine/requirements.txt) và [r
 - Nguồn biểu giá trong [script nạp catalog](scripts/import_catalog.py) được ghi là **biểu giá TOU giả định theo khung giờ cao/thấp điểm**. Repo chưa có số và ngày văn bản EVN đã xác minh cho các mức giá này.
 - TODO(tariff-source) điền số hiệu, ngày và phạm vi áp dụng của văn bản sau khi đã đối chiếu mức giá và khung giờ với nguồn chính thức.
 - [ev-sharegrid.web.app](https://ev-sharegrid.web.app) là bản xem trước Flutter trên Firebase Hosting. Workflow hiện build web với `API_BASE` mặc định `http://localhost:8000` và chưa cấu hình URL backend công khai. Chạy Flutter cùng Compose cục bộ để demo luồng API.
+- AI Engine mặc định dùng `HOURLY_MEAN` cho cụm có dưới 336 giờ quan sát (14 ngày) hoặc chưa có mô hình đã huấn luyện phù hợp.
 - Một số màn USER, HOST và ADMIN vẫn hiển thị dữ liệu mô phỏng. Các KPI benchmark lấy từ báo cáo JSON của AI Engine.
 
 ## Ảnh chụp màn hình
