@@ -48,6 +48,47 @@ void main() {
     );
   });
 
+  testWidgets('onboarding đọc được hết mô tả trên màn nhỏ và web', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.padding = const FakeViewPadding(top: 24, bottom: 24);
+    addTearDown(tester.view.reset);
+
+    for (final size in const [Size(360, 640), Size(1440, 900)]) {
+      tester.view.physicalSize = size;
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpWidget(EvShareGridApp(initialLocation: '/'));
+      await tester.pumpAndSettle();
+
+      for (final (phrase, button) in const [
+        ('Trạm công cộng và điểm sạc', 'Tiếp tục'),
+        ('Cho biết pin hiện tại', 'Tiếp tục'),
+        ('Có trụ sạc ở nhà', 'Bắt đầu'),
+      ]) {
+        final description = find.textContaining(phrase);
+        final viewport = find.ancestor(
+          of: description,
+          matching: find.byType(Scrollable),
+        );
+        await tester.ensureVisible(description);
+        await tester.pumpAndSettle();
+
+        final textRect = tester.getRect(description);
+        final scrollRect = tester.getRect(viewport.first);
+        expect(textRect.top, greaterThanOrEqualTo(scrollRect.top - 0.01));
+        expect(textRect.bottom, lessThanOrEqualTo(scrollRect.bottom + 0.01));
+        expect(tester.takeException(), isNull);
+        final action = find.text(button);
+        await tester.ensureVisible(action);
+        await tester.pumpAndSettle();
+        expect(action.hitTestable(), findsOneWidget);
+        await tester.tap(action);
+        await tester.pumpAndSettle();
+      }
+    }
+  });
+
   for (final size in const [Size(390, 844), Size(1440, 900)]) {
     for (final r in routes) {
       testWidgets('dựng $r ở ${size.width.toInt()}px', (tester) async {
