@@ -2,7 +2,11 @@
 
 import json
 from pathlib import Path
+from subprocess import TimeoutExpired
 from time import sleep
+from unittest.mock import MagicMock
+
+import pytest
 
 from fastapi.testclient import TestClient
 from ai_engine import main
@@ -58,13 +62,47 @@ def test_solver_error(monkeypatch) -> None:
 
 
 def test_deadline(monkeypatch) -> None:
-    """Solver bị treo phải bị chấm dứt và trả HTTP 200."""
+    """Worker thật bị treo phải bị chấm dứt và trả lịch LLF."""
     monkeypatch.setattr(main,"SOLVER_ENTRY",__name__+":slow_solver")
     data=snapshot()
     data["time_budget_ms"]=20
     response=client.post("/ai/optimize",json=data)
-    assert response.status_code==200 and response.json()["status"]=="ERROR"
-    assert response.json()["fallback_reason"] == "TIME_BUDGET_EXHAUSTED"
+    assert response.status_code == 200
+    result = response.json()
+    assert (result["status"], result["algorithm"]) == ("FALLBACK", "LLF")
+    assert result["fallback_reason"] == "TIME_BUDGET_EXHAUSTED"
+    assert result["schedules"]
+
+
+@pytest.fixture
+def timed_out_worker(monkeypatch):
+    worker = MagicMock()
+    worker.__enter__.return_value = worker
+    worker.communicate.side_effect = [TimeoutExpired("solver", 0.01), (b"", None)]
+    monkeypatch.setattr(main.subprocess, "Popen", MagicMock(return_value=worker))
+    return worker
+
+
+def test_worker_timeout_returns_valid_llf(timed_out_worker) -> None:
+    response = client.post("/ai/optimize", json=dict(snapshot(), time_budget_ms=10))
+    assert response.status_code == 200
+    result = response.json()
+    assert (result["status"], result["algorithm"]) == ("FALLBACK", "LLF")
+    assert result["fallback_reason"] == "TIME_BUDGET_EXHAUSTED"
+    assert result["schedules"]
+    assert result["kpi"]["cap_violations"] == 0
+    timed_out_worker.kill.assert_called_once_with()
+    assert timed_out_worker.communicate.call_count == 2
+
+
+def test_worker_timeout_returns_error_if_llf_fails(monkeypatch, timed_out_worker) -> None:
+    monkeypatch.setattr(main, "evaluate", MagicMock(side_effect=RuntimeError("LLF failed")))
+    response = client.post("/ai/optimize", json=snapshot())
+    assert response.status_code == 200
+    result = response.json()
+    assert result["status"] == "ERROR"
+    assert result["fallback_reason"] == "TIME_BUDGET_EXHAUSTED"
+    assert not result["schedules"]
 
 
 def test_benchmark() -> None:
