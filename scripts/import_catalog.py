@@ -121,6 +121,8 @@ def clean_and_extract_catalogs():
     cleaned_stations = []
     cleaned_ports = []
     port_id_counter = 1001
+    # Danh sách trạm ACTIVE của catalog demo trước khi bổ sung tọa độ tham khảo.
+    demo_active_station_ids = {2, 3, 5, 6, 8, 9, 11, 12, 13, 14, 15, 20, 21, 22, 26}
 
     for r in s_rows:
         st = dict(zip(s_headers, r))
@@ -145,15 +147,14 @@ def clean_and_extract_catalogs():
         else:
             cluster_id = 1  # Mặc định cụm 1 cho các trạm vệ tinh
 
-        # Trạng thái xác minh: 15 trạm có tọa độ GPS là ACTIVE & verified = True
         has_coords = (
             lat is not None
             and lng is not None
             and math.isfinite(lat)
             and math.isfinite(lng)
         )
-        status = "ACTIVE" if has_coords else "PENDING"
-        verified = True if has_coords else False
+        verified = station_id in demo_active_station_ids and has_coords
+        status = "ACTIVE" if verified else "PENDING"
 
         # Xác định trần công suất station_power_kw
         listed_max_port_kw = (
@@ -199,7 +200,8 @@ def clean_and_extract_catalogs():
         qa_notes = "" if pd.isna(raw_qa_notes) else str(raw_qa_notes).strip()
         derived_note = (
             f"derived_fields: cluster_id từ province/address; owner_id=2 là HOST demo; "
-            f"status/verified từ GPS; open_time/close_time/is_24h là giả định; "
+            f"status/verified theo danh sách trạm ACTIVE của catalog demo cũ; "
+            f"open_time/close_time/is_24h là giả định; "
             f"{station_power_note} service_fee_vnd={service_fee:.0f} suy ra từ listed_max_port_kw."
         )
         qa_notes = " ".join(part for part in (qa_notes, derived_note) if part)
@@ -470,6 +472,9 @@ def seed_postgres_database(df_models, df_stations, df_ports, df_tariff):
                 ON CONFLICT (station_id) DO UPDATE SET
                     status = EXCLUDED.status,
                     verified = EXCLUDED.verified,
+                    lat = EXCLUDED.lat,
+                    lng = EXCLUDED.lng,
+                    location = EXCLUDED.location,
                     station_power_kw = EXCLUDED.station_power_kw,
                     rating = EXCLUDED.rating,
                     qa_notes = EXCLUDED.qa_notes;

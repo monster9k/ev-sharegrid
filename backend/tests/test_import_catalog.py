@@ -77,6 +77,32 @@ def test_demo_vehicle_is_inserted_after_its_model(monkeypatch):
     assert connection.rollbacks == 0
 
 
+def test_upsert_loads_reference_coordinates_without_verifying_station(monkeypatch, tmp_path):
+    monkeypatch.setattr(import_catalog, "DATA_DIR", str(tmp_path))
+    models, stations, _, _ = import_catalog.clean_and_extract_catalogs()
+    station = stations.loc[stations["station_id"] == 1]
+    row = station.iloc[0]
+    assert row["status"] == "PENDING"
+    assert not row["verified"]
+    lat, lng = row["lat"], row["lng"]
+    assert pd.notna(lat) and pd.notna(lng)
+
+    cursor = FakeCursor()
+    connection = FakeConnection(cursor)
+    monkeypatch.setattr(import_catalog.psycopg2, "connect", lambda **_kwargs: connection)
+    import_catalog.seed_postgres_database(models, station, pd.DataFrame(), pd.DataFrame())
+
+    sql, params = next(
+        (sql, params) for sql, params in cursor.statements if sql.startswith("INSERT INTO charging_station")
+    )
+    values, conflict = sql.split("ON CONFLICT (station_id) DO UPDATE SET", 1)
+    assert "ST_SetSRID(ST_MakePoint(%s, %s), 4326)" in values
+    assert params[14:18] == (lat, lng, lng, lat)
+    for column in ("lat", "lng", "location"):
+        assert f"{column} = EXCLUDED.{column}" in conflict
+    assert connection.commits == 1
+
+
 def test_catalog_insert_failure_rolls_back_prints_real_error_and_exits(monkeypatch, capsys):
     cursor = FakeCursor(fail_on="INSERT INTO vehicle_model")
     connection = FakeConnection(cursor)
