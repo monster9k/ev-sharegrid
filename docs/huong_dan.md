@@ -2,6 +2,8 @@
 
 Tài liệu này hệ thống hóa toàn bộ công việc cần làm, cách thực hiện từng bước, cấu trúc bảng dữ liệu Excel/CSV/PostgreSQL, danh sách màn hình và luồng chức năng Web/App, kiến trúc kết nối hệ thống và cơ chế vận hành thuật toán AI dựa trên thiết kế **EV ShareGrid — Điều phối sạc và tối ưu lịch (Mở rộng 10.000 người dùng đồng thời)** và ghi chú yêu cầu của nhóm.
 
+Các bảng giá giả định dưới đây minh họa thiết kế ban đầu. Biểu giá dùng trong bản demo hiện tại được ghi trong [README](../README.md#giới-hạn-đã-biết-và-nguồn-dữ-liệu).
+
 ## 1. BỨC TRANH TỔNG THỂ: HỆ THỐNG GỒM NHỮNG GÌ VÀ KẾT NỐI RA SAO?
 
 Nhiều bạn khi mới ghép nối từ UI sang hệ thống thực tế thường thắc mắc: *"App và Web kết nối với nhau qua đâu? AI nằm ở chỗ nào trong App?"*. Câu trả lời cốt lõi là: **App/Web không chạy thuật toán AI trực tiếp và cũng không nối thẳng vào Database hay nói chuyện trực tiếp với nhau**. Mọi thứ đi qua **Backend API** và **Database trung tâm**.
@@ -334,6 +336,8 @@ Trong dự án EV ShareGrid, **AI không phải là một mô hình ngôn ngữ 
 
 **Đầu vào Backend gửi cho AI Engine (Input Snapshot JSON):**
 
+Ví dụ này truyền `time_budget_ms=2000` trực tiếp. Khi bỏ trường này, AI Engine mặc định dùng 10.000 ms cho snapshot dưới 300 request và 2.000 ms từ 300 request. Với snapshot từ 300 request, ngân sách gửi vào cũng bị giới hạn ở 2.000 ms.
+
 ```
 {
   "cluster_id": 1,
@@ -510,9 +514,9 @@ Thay vì cộng thẳng tiền VND với số kWh thiếu (dễ dẫn đến vi�
 
 * **Ưu tiên 4 (Ổn định vận hành):** Giảm công suất đỉnh (`peak_power_kw`), hạn chế số lần đóng/ngắt cổng `ON_OFF_SWITCH` và hạn chế thay đổi các slot tương lai đã thông báo cho người dùng.
 
-### 4.3. Cơ chế chạy thực tế: Vòng lặp MPC 15 phút, Phân rã Master-Worker và Validator
+### 4.3. Vòng lặp MPC 15 phút, LLF, Validator và thiết kế Master-Worker
 
-Khi hệ thống vận hành thực tế hoặc chạy ở quy mô lớn (lên tới 10.000 requests), thuật toán chạy qua **10 bước chuẩn hóa** (Mục 16.3 & 17 trong Báo cáo):
+Mục này mô tả luồng lập lịch trong Báo cáo (Mục 16.3 & 17) cùng cách AI Engine hiện xử lý hết hạn và tải lớn.
 
 1. **Chốt Snapshot & Gom sự kiện (Coalescing):** Gom các thao tác đặt/hủy mới trong cùng một cụm (`cluster_id`), gán mã `input_version`.
 
@@ -529,9 +533,11 @@ Khi hệ thống vận hành thực tế hoặc chạy ở quy mô lớn (lên t
      \text{Slack}_i = (\text{departure\_time}_i - t_{\text{now}}) - \frac{E_{\text{remaining}, i}}{P_{\text{feasible, max}, i}}
      $$
 
-   * Xe nào có $\text{Slack}_i$ nhỏ nhất (sắp đến giờ lấy xe mà còn thiếu nhiều điện) được xếp cổng và cấp công suất trước dưới trần trạm/cụm. Nhờ đó, hệ thống luôn có ngay một lịch khả thi (`FEASIBLE`) chỉ sau vài mili-giây phòng khi solver MILP bị hết thời gian (`timeout`).
+   * Xe nào có $\text{Slack}_i$ nhỏ nhất (sắp đến giờ lấy xe mà còn thiếu nhiều điện) được xếp cổng và cấp công suất trước dưới trần trạm/cụm. Nếu worker hết hạn, AI Engine dừng worker nếu còn chạy và chạy LLF trong tiến trình phục vụ API. Lịch qua Validator được trả với `FALLBACK` và `fallback_reason=TIME_BUDGET_EXHAUSTED`. Trong trường hợp hết hạn, API chỉ trả `ERROR` khi LLF thất bại hoặc lịch không qua kiểm tra.
 
-5. **Phân rã Master – Worker khi tải lớn (10.000 active requests):**
+5. **Phương án thiết kế Master – Worker khi tải lớn (10.000 active requests):**
+
+   * Bản hiện tại chuyển sang LLF trên toàn cụm khi số request sau chuẩn hóa vượt `DECOMPOSE_THRESHOLD` (mặc định 250). Hai gạch đầu dòng tiếp theo mô tả phương án thiết kế trong Báo cáo.
 
    * Thay vì nhét 10.000 xe vào 1 bài toán MILP khổng lồ làm treo máy, **Master LP** chia ngân sách công suất $b(s, t)$ cho từng trạm $s$ ở từng slot $t$ sao cho $\sum_s b(s, t) \le \text{grid\_limit\_kw}$.
 
