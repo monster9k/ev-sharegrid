@@ -140,7 +140,8 @@ def benchmark(body: BenchmarkRequest,request: Request) -> BenchmarkResponse:
         if valid:
             values={k:fmean(getattr(r.kpi,k) for r in valid) for k in
                     ("total_shortfall_kwh","on_time_rate","total_cost_vnd","peak_power_kw","fairness")}
-            mean_kpi=KPI(**values,cap_violations=max(r.kpi.cap_violations for r in valid))
+            mean_kpi=KPI(**values,cap_violations=max(r.kpi.cap_violations for r in valid),
+                interruptions=max((r.kpi.interruptions for r in valid if r.kpi.interruptions is not None), default=None))
         times=[r.solve_ms for r in batch]
         summaries.append(BenchmarkSummary(algorithm=alg,status=next(iter(statuses)) if len(statuses)==1 else "MIXED",
             actual_algorithms=sorted({r.algorithm for r in batch if r.algorithm}),kpi=mean_kpi,
