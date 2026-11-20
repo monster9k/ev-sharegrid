@@ -2,6 +2,8 @@
 
 EV ShareGrid là nguyên mẫu điều phối sạc xe điện tại Đà Nẵng cho Smart Campus 2026 – ISSCEI. Hệ thống xếp lịch sạc theo cửa sổ đỗ xe, công suất cổng, trần công suất cụm và biểu giá.
 
+Trong chủ đề WEFE, dự án tập trung vào năng lượng và giao thông thông minh. Việc điều phối giờ sạc giúp đánh giá khả năng giảm đỉnh tải và tận dụng khung giờ giá thấp hơn trên hạ tầng hiện có.
+
 ## Trạng thái tích hợp
 
 | Thành phần | Trạng thái hiện tại |
@@ -11,6 +13,8 @@ EV ShareGrid là nguyên mẫu điều phối sạc xe điện tại Đà Nẵng
 | Backend FastAPI | JWT và phân quyền USER/HOST/ADMIN. CORS cho `https://ev-sharegrid.web.app` và `http://localhost` với cổng tùy chọn. `POST /api/v1/requests` trả HTTP 422 nếu khung sạc vượt cửa sổ tối ưu 24 giờ và HTTP 409 nếu trùng `idempotency_key`. |
 | AI Engine FastAPI | Backend gửi snapshot qua `/ai/optimize`. Solver dùng OR-Tools SCIP cho `MILP_MPC`, GLOP cho `LP_MPC` và LLF khi cần fallback. Bài kiểm chuẩn Trang 20 trả `MILP_MPC / OPTIMAL`, chi phí 5.500 đ, thiếu điện 0 kWh. |
 | PostgreSQL/PostGIS | [Schema 19 bảng](database/schema_19_tables.sql). Backend lưu yêu cầu, lần tối ưu và lịch theo slot 15 phút, rồi trả lịch cho Flutter. |
+
+Trong hai lần đặt lịch đã kiểm tra qua backend local, solver trả `MILP_MPC / OPTIMAL` với `solve_ms` lần lượt là 177 ms và 616 ms. Bản mẫu Trang 20 gọi trực tiếp qua `/ai/optimize` trả `MILP_MPC / OPTIMAL`, 5.500 đ, thiếu điện 0 kWh và `solve_ms` khoảng 104,9 ms. Đây là thời gian của các lần chạy đã ghi nhận.
 
 ```mermaid
 flowchart LR
@@ -89,6 +93,8 @@ flutter run -d chrome --dart-define=API_BASE=http://localhost:8000
 - **Thông lượng.** Báo cáo chỉ đo nhóm thuật toán nhanh ở 1.000 và 10.000 request. Mốc 10.000 mang nhãn `LLF_THROUGHPUT_ONLY`. Đầu vào cần 245.363,5609 kWh trên khả năng cấp 20.400 kWh trong 24 giờ. Số liệu ở mốc này dùng để đọc thông lượng trong điều kiện quá tải.
 - **Vượt trần.** Các lượt MILP và LLF trong báo cáo đều ghi 0 lần vượt trần. ASAP ở mốc 500 ghi 53 lần vượt trần trên hai cụm cho mỗi biểu giá. KPI của ASAP cần được đọc cùng điện thiếu và số lần vượt trần.
 
+Một [lần đo thông lượng riêng](data/scenario_10000_llf_measurement.json) với giá cố định 2.000 đ/kWh ghi nhận LLF chạy **823,9 ms** ở mốc 10.000 yêu cầu, đỉnh **850 kW** và **0 lần vượt trần**. Thời gian này thuộc lần đo riêng, còn giá trị 707,04 ms trong bảng lấy từ báo cáo benchmark sau PR #31.
+
 Từ thư mục gốc, với các thư viện AI Engine đã cài, chạy lệnh sau để tái đo và ghi lại `ai_engine/benchmark_real.json`. Thời gian giải và nghiệm khả thi khi hết ngân sách có thể thay đổi theo máy.
 
 ```sh
@@ -115,21 +121,24 @@ Kết quả chạy ngày 20/11/2026 trên Windows từ bản code `15c600b`.
 
 Cài dependency theo [requirements AI Engine](ai_engine/requirements.txt) và [requirements backend](backend/requirements.txt) trong hai môi trường Python riêng, cùng với `pytest`. Với Flutter, chạy `flutter pub get` trước khi kiểm tra. `dart format --output=none --set-exit-if-changed lib test` kiểm tra 39 file, không đổi file. `flutter analyze` báo `No issues found!`.
 
-## Giới hạn hiện tại và nguồn dữ liệu
+## Giới hạn đã biết và nguồn dữ liệu
 
 - Catalog có **19 mẫu xe và 107 trạm**, trong đó **92 trạm thiếu tọa độ** ở trạng thái `PENDING` và 15 trạm `ACTIVE`. Danh sách cần xác minh nằm trong [stations_missing_coordinates.csv](data/stations_missing_coordinates.csv). Công suất, phân cụm, giờ hoạt động và các trường suy ra được ghi trong ghi chú dữ liệu. `rating` để trống.
 - Cửa sổ tối ưu dài **24 giờ**, gồm 96 slot 15 phút tính từ mốc 15 phút ngay trước hoặc bằng thời điểm lập snapshot. Toàn bộ khung sạc phải nằm trong cửa sổ này. Lịch vượt mốc kết thúc nhận HTTP 422 trước bước ghi yêu cầu.
 - Nguồn biểu giá trong [script nạp catalog](scripts/import_catalog.py) được ghi là **biểu giá TOU giả định theo khung giờ cao/thấp điểm**. Repo chưa có số và ngày văn bản EVN đã xác minh cho các mức giá này.
-- [ev-sharegrid.web.app](https://ev-sharegrid.web.app) là bản Flutter trên Firebase Hosting. Workflow hiện build web với `API_BASE` mặc định `http://localhost:8000`. Nếu chưa có backend HTTPS công khai và bản web chưa được build với URL đó, dùng bản Hosting để xem giao diện và chạy Flutter cùng Compose cục bộ để demo luồng API.
+- [ev-sharegrid.web.app](https://ev-sharegrid.web.app) là bản xem trước Flutter trên Firebase Hosting. Workflow hiện build web với `API_BASE` mặc định `http://localhost:8000` và chưa cấu hình URL backend công khai. Chạy Flutter cùng Compose cục bộ để demo luồng API.
 - Một số màn USER, HOST và ADMIN vẫn hiển thị dữ liệu mô phỏng. Các KPI benchmark lấy từ báo cáo JSON của AI Engine.
 
 ## Ảnh chụp màn hình
 
 | Màn hình | Ảnh |
 |---|---|
-| USER – đặt lịch và kết quả | Chưa bổ sung |
-| HOST – lịch cổng sạc | Chưa bổ sung |
-| ADMIN – benchmark | Chưa bổ sung |
+| Đăng nhập | `docs/screenshots/01-login.png` (chờ bổ sung) |
+| Bản đồ trạm sạc | `docs/screenshots/02-map.png` (chờ bổ sung) |
+| Đặt lịch bằng AI | `docs/screenshots/03-booking-ai.png` (chờ bổ sung) |
+| Admin Benchmark | `docs/screenshots/04-admin-benchmark.png` (chờ bổ sung) |
+
+**Video demo** — TODO(demo) thêm URL video sau khi quay.
 
 ## Checklist nộp Smart Campus 2026
 
