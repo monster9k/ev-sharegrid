@@ -1,3 +1,8 @@
+import 'dart:convert';
+
+import 'package:ev_sharegrid/data/api.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:ev_sharegrid/main.dart';
 import 'package:ev_sharegrid/theme.dart';
 import 'package:flutter/material.dart';
@@ -29,11 +34,28 @@ const routes = [
   '/admin/forecast',
 ];
 
+Future<ApiClient> signedIn([String role = 'USER']) async {
+  final api = ApiClient(
+    client: MockClient((request) async {
+      final body = switch (request.url.path) {
+        '/api/v1/auth/login' => {'access_token': 'widget-token'},
+        '/api/v1/auth/me' => {'user_id': 5, 'role': role, 'vehicles': []},
+        _ => {'data': []},
+      };
+      return http.Response(jsonEncode(body), 200);
+    }),
+  );
+  await api.login(email: 'tester@example.test', password: 'test-fixture');
+  return api;
+}
+
 void main() {
   setUpAll(() => AppFonts.enabled = false);
 
   testWidgets('lịch không có response không hiển thị lịch mẫu', (tester) async {
-    await tester.pumpWidget(EvShareGridApp(initialLocation: '/schedule'));
+    await tester.pumpWidget(
+      EvShareGridApp(initialLocation: '/schedule', api: await signedIn()),
+    );
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(
@@ -51,7 +73,9 @@ void main() {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(430, 900);
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(EvShareGridApp(initialLocation: '/booking'));
+    await tester.pumpWidget(
+      EvShareGridApp(initialLocation: '/booking', api: await signedIn()),
+    );
     await tester.pumpAndSettle();
     expect(find.text('Dữ liệu mô phỏng'), findsNothing);
 
@@ -80,7 +104,7 @@ void main() {
   ) async {
     await tester.pumpWidget(EvShareGridApp(initialLocation: '/sessions'));
     await tester.pumpAndSettle();
-    expect(find.text('Đăng nhập để xem lịch sạc.'), findsOneWidget);
+    expect(find.text('Đăng nhập'), findsOneWidget);
     expect(find.text('Dữ liệu mô phỏng'), findsNothing);
   });
 
@@ -94,7 +118,9 @@ void main() {
     for (final size in const [Size(360, 640), Size(1440, 900)]) {
       tester.view.physicalSize = size;
       await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pumpWidget(EvShareGridApp(initialLocation: '/'));
+      await tester.pumpWidget(
+        EvShareGridApp(initialLocation: '/', api: await signedIn()),
+      );
       await tester.pumpAndSettle();
 
       for (final (phrase, button) in const [
@@ -131,7 +157,17 @@ void main() {
         tester.view.physicalSize = size;
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.reset);
-        await tester.pumpWidget(EvShareGridApp(initialLocation: r));
+        final role = r.startsWith('/host')
+            ? 'HOST'
+            : r.startsWith('/admin')
+            ? 'ADMIN'
+            : 'USER';
+        await tester.pumpWidget(
+          EvShareGridApp(
+            initialLocation: r,
+            api: r == '/login' ? null : await signedIn(role),
+          ),
+        );
         await tester.pump(const Duration(milliseconds: 300));
         expect(find.byType(Scaffold), findsWidgets);
       });

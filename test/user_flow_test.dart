@@ -131,7 +131,8 @@ void main() {
       EvShareGridApp(initialLocation: '/admin/clusters', api: client),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Đăng nhập'), findsOneWidget);
+    expect(find.text('Khung giờ biểu giá'), findsOneWidget);
+    expect(find.text('Đăng nhập'), findsNothing);
   });
 
   testWidgets('đăng xuất xóa JWT, hồ sơ và mã yêu cầu cuối', (tester) async {

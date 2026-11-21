@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'data/api.dart';
 import 'router.dart';
 import 'theme.dart';
+import 'widgets/web_shell.dart';
 
 void main() {
   usePathUrlStrategy();
@@ -13,8 +14,10 @@ void main() {
 
 class EvShareGridApp extends StatelessWidget {
   EvShareGridApp({super.key, String? initialLocation, ApiClient? api})
-    : _router = buildRouter(initialLocation: initialLocation, api: api);
+    : _client = api ?? apiClient,
+      _router = buildRouter(initialLocation: initialLocation, api: api);
 
+  final ApiClient _client;
   final GoRouter _router;
 
   @override
@@ -22,6 +25,7 @@ class EvShareGridApp extends StatelessWidget {
     title: 'EV ShareGrid',
     debugShowCheckedModeBanner: false,
     theme: buildAppTheme(),
+    builder: (context, child) => PortalSession(client: _client, child: child!),
     routerConfig: _router,
   );
 }

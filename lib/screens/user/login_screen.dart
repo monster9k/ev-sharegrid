@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../data/api.dart';
 import '../../theme.dart';
@@ -102,32 +101,15 @@ class _LoginScreenState extends State<LoginScreen> {
     });
     try {
       final api = widget.client ?? apiClient;
-      final user = _registering
-          ? await api.register(
-              fullName: _name.text.trim(),
-              email: _email.text.trim(),
-              password: _password.text,
-            )
-          : await api.login(
-              email: _email.text.trim(),
-              password: _password.text,
-            );
-      if (!mounted) return;
-      final next = Uri.tryParse(
-        GoRouterState.of(context).uri.queryParameters['next'] ?? '',
-      );
-      final route = switch (user['role']?.toString().toUpperCase()) {
-        'ADMIN' => '/admin/clusters',
-        'HOST' => '/host/stations',
-        'USER'
-            when next != null &&
-                !next.hasAuthority &&
-                !next.hasScheme &&
-                next.path == '/booking' =>
-          next.toString(),
-        _ => '/home',
-      };
-      context.go(route);
+      if (_registering) {
+        await api.register(
+          fullName: _name.text.trim(),
+          email: _email.text.trim(),
+          password: _password.text,
+        );
+      } else {
+        await api.login(email: _email.text.trim(), password: _password.text);
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() {

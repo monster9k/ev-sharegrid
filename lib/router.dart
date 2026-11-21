@@ -123,13 +123,20 @@ GoRouter buildRouter({String? initialLocation, ApiClient? api}) {
     refreshListenable: client,
     redirect: (context, state) {
       final path = state.uri.path;
-      final role = path == '/host' || path.startsWith('/host/')
-          ? 'HOST'
-          : path == '/admin' || path.startsWith('/admin/')
-          ? 'ADMIN'
-          : null;
-      if (role != null && (client.accessToken == null || client.role != role)) {
-        return '/login';
+      final role = client.role;
+      if (client.accessToken == null || role == null) {
+        return path == '/login' ? null : '/login';
+      }
+      final host = path == '/host' || path.startsWith('/host/');
+      final admin = path == '/admin' || path.startsWith('/admin/');
+      if (path == '/login' ||
+          (host && role != 'HOST') ||
+          (admin && role != 'ADMIN')) {
+        return switch (role) {
+          'HOST' => '/host/stations',
+          'ADMIN' => '/admin/clusters',
+          _ => '/home',
+        };
       }
       return null;
     },

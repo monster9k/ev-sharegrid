@@ -7,6 +7,19 @@ import '../data/api.dart';
 import '../theme.dart';
 import 'common.dart';
 
+/// Provides the router's session to the shared account menu.
+class PortalSession extends InheritedNotifier<ApiClient> {
+  const PortalSession({
+    super.key,
+    required ApiClient client,
+    required super.child,
+  }) : super(notifier: client);
+
+  static ApiClient of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<PortalSession>()?.notifier ??
+      apiClient;
+}
+
 enum Portal { host, admin }
 
 class _NavItem {
@@ -126,6 +139,7 @@ class _Sidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final session = PortalSession.of(context);
     final items = portal == Portal.host ? _hostItems : _adminItems;
     return ClipRect(
       child: BackdropFilter(
@@ -167,11 +181,17 @@ class _Sidebar extends StatelessWidget {
                     ],
                   ),
                 ),
-                for (final it in items) ...[
-                  _SideLink(item: it, selected: it.route == route),
-                  const Gap(6),
-                ],
-                const Spacer(),
+                Expanded(
+                  child: ListView(
+                    padding: EdgeInsets.zero,
+                    children: [
+                      for (final it in items) ...[
+                        _SideLink(item: it, selected: it.route == route),
+                        const Gap(6),
+                      ],
+                    ],
+                  ),
+                ),
                 const Divider(color: AppColors.border, height: 1),
                 const Gap(14),
                 Padding(
@@ -196,14 +216,14 @@ class _Sidebar extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             BoldText(
-                              apiClient.currentUser?['full_name']?.toString() ??
+                              session.currentUser?['full_name']?.toString() ??
                                   (portal == Portal.host
                                       ? 'Chủ trạm'
                                       : 'Quản trị viên'),
                               size: 13,
                             ),
                             MutedText(
-                              apiClient.currentUser?['email']?.toString() ?? '',
+                              session.currentUser?['email']?.toString() ?? '',
                               size: 11,
                             ),
                           ],
@@ -217,6 +237,11 @@ class _Sidebar extends StatelessWidget {
                   onPressed: () => context.go('/home'),
                   icon: const Icon(Icons.phone_iphone_rounded, size: 18),
                   label: const Text('Mở app người dùng'),
+                ),
+                TextButton.icon(
+                  onPressed: session.logout,
+                  icon: const Icon(Icons.logout, size: 18),
+                  label: const Text('Đăng xuất'),
                 ),
               ],
             ),
