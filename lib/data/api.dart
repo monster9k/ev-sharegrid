@@ -37,6 +37,10 @@ class ApiClient extends ChangeNotifier {
   String? _accessToken;
   Map<String, dynamic>? currentUser;
   Map<String, dynamic>? _lastBooking;
+  int _sessionVersion = 0;
+  bool _expired = false;
+
+  bool get sessionExpired => _expired;
 
   String? get accessToken => _accessToken;
   String? get role => currentUser?['role']?.toString().toUpperCase();
@@ -51,29 +55,54 @@ class ApiClient extends ChangeNotifier {
   Future<Map<String, dynamic>> login({
     required String email,
     required String password,
-  }) async {
-    clearSession();
+  }) => _authenticate('/api/v1/auth/login', {
+    'email': email,
+    'password': password,
+  });
+
+  Future<Map<String, dynamic>> register({
+    required String fullName,
+    required String email,
+    required String password,
+  }) => _authenticate('/api/v1/auth/register', {
+    'full_name': fullName,
+    'email': email,
+    'password': password,
+  });
+
+  Future<Map<String, dynamic>> _authenticate(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    logout();
+    final version = _sessionVersion;
+    const timeout = Duration(seconds: 15);
     final result = await postJson(
-      '/api/v1/auth/login',
-      body: {'email': email, 'password': password},
+      path,
+      body: body,
       includeAuthorization: false,
-    );
+    ).timeout(timeout);
+    if (version != _sessionVersion) throw StateError('Phiên đã thay đổi.');
     final token = result['access_token'];
     if (token is! String || token.isEmpty) {
       throw const FormatException('API không trả access_token hợp lệ.');
     }
     _accessToken = token;
     try {
-      currentUser = await getMe();
+      final user = await getMe().timeout(timeout);
+      if (version != _sessionVersion) throw StateError('Phiên đã thay đổi.');
+      currentUser = user;
       notifyListeners();
-      return currentUser!;
+      return user;
     } catch (_) {
-      clearSession();
+      if (version == _sessionVersion) logout();
       rethrow;
     }
   }
 
-  void clearSession() {
+  void logout({bool expired = false}) {
+    _sessionVersion++;
+    _expired = expired;
     _accessToken = null;
     currentUser = null;
     _lastBooking = null;
@@ -277,16 +306,19 @@ class ApiClient extends ChangeNotifier {
       _baseUrl.isEmpty ? Uri.base.resolve(path) : Uri.parse('$_baseUrl$path');
 
   Map<String, dynamic> _decodeObject(http.Response response, {String? token}) {
-    final text = utf8.decode(response.bodyBytes);
     if (response.statusCode == 401 && token != null && token == _accessToken) {
-      clearSession();
+      logout(expired: true);
     }
+    final text = utf8.decode(response.bodyBytes, allowMalformed: true);
     if (response.statusCode >= 400) {
       var detail = text.trim();
       try {
         final decoded = jsonDecode(text);
         if (decoded is Map && decoded['detail'] != null) {
-          detail = decoded['detail'].toString();
+          final value = decoded['detail'];
+          detail = value is List && value.isNotEmpty && value.first is Map
+              ? value.first['msg'].toString()
+              : value.toString();
         }
       } on FormatException {
         // Keep a non-JSON error body so the screen can show the server message.

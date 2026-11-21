@@ -72,7 +72,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               label: 'Đăng xuất',
               kind: AppButtonKind.outline,
               onPressed: () {
-                _api.clearSession();
+                _api.logout();
                 context.go('/login');
               },
             ),

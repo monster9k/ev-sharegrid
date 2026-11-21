@@ -24,7 +24,8 @@ ApiClient _client(List<String> visited) => ApiClient(
     final path = request.url.path;
     visited.add(path);
     final body = switch (path) {
-      '/api/v1/auth/login' => {'access_token': 'test-token'},
+      '/api/v1/auth/login' ||
+      '/api/v1/auth/register' => {'access_token': 'test-token'},
       '/api/v1/auth/me' => {
         'user_id': 3,
         'role': 'USER',
@@ -161,7 +162,7 @@ void main() {
       EvShareGridApp(initialLocation: '/login', api: _client(paths)),
     );
     await tester.pumpAndSettle();
-    final host = find.text('Host');
+    final host = find.text('Chủ trạm');
     await tester.ensureVisible(host);
     await tester.tap(host);
     await tester.pumpAndSettle();
@@ -173,4 +174,45 @@ void main() {
     expect(fields.last.controller?.text, isEmpty);
     expect(paths, isEmpty);
   });
+  testWidgets(
+    'kiểm tra form đăng ký trước khi gửi và vào trang chủ bằng phiên mới',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(430, 1000);
+      addTearDown(tester.view.reset);
+      final paths = <String>[];
+      final client = _client(paths);
+      await tester.pumpWidget(
+        EvShareGridApp(initialLocation: '/login', api: client),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Đăng ký'));
+      await tester.pumpAndSettle();
+      final fields = find.byType(TextField);
+      final submit = find.text('Tạo tài khoản');
+      Future<void> send() async {
+        await tester.ensureVisible(submit);
+        await tester.tap(submit);
+        await tester.pumpAndSettle();
+      }
+
+      await tester.enterText(fields.at(0), 'Test User');
+      await tester.enterText(fields.at(1), 'invalid');
+      await send();
+      expect(find.text('Địa chỉ email không hợp lệ.'), findsOneWidget);
+      await tester.enterText(fields.at(1), 'new@example.test');
+      await tester.enterText(fields.at(2), 'tiny');
+      await send();
+      expect(find.text('Mật khẩu cần từ 8 đến 128 ký tự.'), findsOneWidget);
+      await tester.enterText(fields.at(2), 'test-value');
+      await send();
+      expect(find.text('Hai mật khẩu chưa khớp.'), findsOneWidget);
+      expect(paths, isEmpty);
+      await tester.enterText(fields.at(3), 'test-value');
+      await send();
+      expect(client.role, 'USER');
+      expect(paths.take(2), ['/api/v1/auth/register', '/api/v1/auth/me']);
+      expect(find.text('Tạo tài khoản'), findsNothing);
+    },
+  );
 }
