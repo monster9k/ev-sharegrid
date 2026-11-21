@@ -1,379 +1,158 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
-import '../../data/mock_data.dart';
-import '../../data/models.dart';
-import '../../theme.dart';
+import '../../data/api.dart';
 import '../../widgets/common.dart';
+import '../../widgets/portal_data.dart';
 import '../../widgets/web_shell.dart';
+import '../admin/admin_common.dart';
 
-/// H2/H3 – Quản lý cổng & báo bảo trì (phát RE_OPTIMIZE, xem ảnh hưởng).
 class HostPortsScreen extends StatefulWidget {
-  const HostPortsScreen({super.key});
+  const HostPortsScreen({super.key, this.stationId, this.client});
+  final int? stationId;
+  final ApiClient? client;
+
   @override
   State<HostPortsScreen> createState() => _HostPortsScreenState();
 }
 
-class _HostPortsScreenState extends State<HostPortsScreen> {
-  String _port = 'P1 · CCS2';
-  bool _offline = false;
-  String _connector = 'CCS2';
-  String _control = 'CONTINUOUS';
+class _HostPortsScreenState extends PortalRowsState<HostPortsScreen> {
+  ApiClient get _api => widget.client ?? apiClient;
 
   @override
-  Widget build(BuildContext context) {
-    final ports = Mock.nvlPorts;
-    final nominal = ports.fold<double>(0, (s, p) => s + p.maxKw);
-    return WebShell(
-      portal: Portal.host,
-      route: '/host/ports',
-      eyebrow: 'Trạm ShareGrid Nguyễn Văn Linh ▾ · cụm Hải Châu',
-      title: 'Cổng sạc & bảo trì',
-      actions: const [
-        AppButton(
-          label: 'Thêm cổng',
-          icon: Icons.add_rounded,
-          expand: false,
-          height: 42,
-          radius: 999,
-          fontSize: 14,
-        ),
-      ],
-      children: [
-        WebCard(
-          gap: 10,
+  Future<List<PortalRow>> loadRows() => _api.getHostStations();
+
+  Future<void> _addPort(int stationId) async {
+    final form = await askPortalFields(context, 'Thêm cổng sạc', const {
+      'port_code': PortalField('Mã cổng'),
+      'connector_type': PortalField(
+        'Đầu nối',
+        choices: ['CCS2', 'Type2', 'CHAdeMO', 'AC_HOME'],
+      ),
+      'control_type': PortalField(
+        'Kiểu điều khiển',
+        choices: ['CONTINUOUS', 'ON_OFF_SWITCH'],
+      ),
+      'min_power_kw': PortalField(
+        'Công suất nhỏ nhất (kW)',
+        initial: '0',
+        isNumber: true,
+      ),
+      'max_power_kw': PortalField('Công suất lớn nhất (kW)', isNumber: true),
+    });
+    if (!mounted || form == null) return;
+    await perform(
+      () => _api.addHostPort(stationId, form),
+      (result) => 'Cổng #${result['port_id']} · ${result['status']}',
+    );
+  }
+
+  Future<void> _change(PortalRow port, String status) => perform(
+    () => _api.changeHostPortStatus((port['port_id'] as num).toInt(), status),
+    (result) =>
+        'Cổng ${port['port_code']} · ${result['status']} · ${optimizationLabel(result)}',
+  );
+
+  @override
+  Widget build(BuildContext context) => WebShell(
+    portal: Portal.host,
+    route: '/host/ports',
+    eyebrow: 'Cổng chủ trạm',
+    title: 'Cổng sạc và bảo trì',
+    simulationLabel: null,
+    children: [
+      ...operationFeedback,
+      dataPane((stations) {
+        if (stations.isEmpty) {
+          return const AppCard(
+            child: MutedText('Chưa có trạm của tài khoản này.'),
+          );
+        }
+        final station = widget.stationId == null
+            ? stations.first
+            : stations
+                  .where((row) => row['station_id'] == widget.stationId)
+                  .firstOrNull;
+        if (station == null) {
+          return AppCard(
+            child: TextButton(
+              onPressed: () => context.go('/host/stations'),
+              child: const Text(
+                'Trạm không thuộc tài khoản này · Quay về danh sách',
+              ),
+            ),
+          );
+        }
+        final stationId = (station['station_id'] as num).toInt();
+        final ports = portalRows(station['ports']);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            PortalStationPicker(
+              stations: stations,
+              stationId: stationId,
+              onChanged: (id) => context.go('/host/ports?stationId=$id'),
+            ),
+            const Gap(12),
             Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              spacing: 8,
-              runSpacing: 4,
+              spacing: 12,
               children: [
-                const BoldText('Công suất trạm'),
-                Text.rich(
-                  TextSpan(
-                    style: AppFonts.body(size: 13, color: AppColors.muted),
+                WebBtn(
+                  'Thêm cổng',
+                  primary: true,
+                  onTap: working ? null : () => _addPort(stationId),
+                ),
+                WebBtn(
+                  'Xem lịch trạm',
+                  onTap: () =>
+                      context.go('/host/schedule?stationId=$stationId'),
+                ),
+              ],
+            ),
+            const Gap(12),
+            const MutedText(
+              'API hiện hỗ trợ chuyển cổng sang bảo trì hoặc ngừng hoạt động.',
+            ),
+            if (ports.isEmpty) const MutedText('Trạm chưa có cổng.'),
+            for (final port in ports)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: AppCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const TextSpan(text: 'Tổng danh định các cổng '),
-                      TextSpan(
-                        text: '${vnDec(nominal, 1)} kW',
-                        style: AppFonts.body(size: 13, weight: FontWeight.w700),
+                      BoldText(
+                        '${port['port_code']} · ${port['connector_type']} · ${port['status']}',
                       ),
-                      const TextSpan(text: ' · Trần trạm '),
-                      TextSpan(
-                        text: '40 kW',
-                        style: AppFonts.body(size: 13, weight: FontWeight.w700),
+                      MutedText(
+                        '${port['min_power_kw']}–${port['max_power_kw']} kW',
+                      ),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          if (port['status'] != 'MAINTENANCE')
+                            TextButton(
+                              onPressed: working
+                                  ? null
+                                  : () => _change(port, 'MAINTENANCE'),
+                              child: const Text('Đưa vào bảo trì'),
+                            ),
+                          if (port['status'] != 'OFFLINE')
+                            TextButton(
+                              onPressed: working
+                                  ? null
+                                  : () => _change(port, 'OFFLINE'),
+                              child: const Text('Ngừng cổng'),
+                            ),
+                        ],
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
-            Semantics(
-              label:
-                  'Tổng danh định ${vnDec(nominal, 1)} kW vượt trần trạm 40 kW',
-              child: SizedBox(
-                height: 26,
-                child: LayoutBuilder(
-                  builder: (context, c) {
-                    final capX = c.maxWidth * 40 / nominal;
-                    return Stack(
-                      alignment: Alignment.centerLeft,
-                      children: [
-                        Container(
-                          height: 16,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFBFD0F7),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                        ),
-                        Container(
-                          width: capX,
-                          height: 16,
-                          decoration: const BoxDecoration(
-                            color: AppColors.blue,
-                            borderRadius: BorderRadius.horizontal(
-                              left: Radius.circular(999),
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          left: capX,
-                          top: 0,
-                          bottom: 0,
-                          child: Container(width: 2, color: AppColors.red),
-                        ),
-                      ],
-                    );
-                  },
-                ),
               ),
-            ),
-            MutedText(
-              'Bộ lập lịch luôn giữ tổng công suất các cổng đang phát ≤ 40 kW ở mọi slot 15 phút, dù tổng danh định lớn hơn.',
-              size: 12,
-            ),
           ],
-        ),
-        AutoGrid(
-          minWidth: 440,
-          gap: 20,
-          children: [
-            WebCard(
-              title: 'Danh sách cổng',
-              children: [
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    width: 640,
-                    child: SimpleTable(
-                      columns: const [
-                        'Mã',
-                        'Đầu nối',
-                        'Điều khiển',
-                        'Công suất',
-                        'Trạng thái',
-                        'Lịch tới',
-                        '',
-                      ],
-                      flex: const [5, 7, 12, 10, 14, 6, 8],
-                      rows: [
-                        for (final p in ports)
-                          [
-                            cellText(p.code, bold: true),
-                            cellText(p.connector),
-                            cellText(p.control, size: 12),
-                            cellText(
-                              p.minKw == p.maxKw
-                                  ? '${vnDec(p.maxKw, 1)} kW cố định'
-                                  : '${vnDec(p.minKw, 1)}–${vnDec(p.maxKw, 0)} kW',
-                            ),
-                            p.status == PortStatus.active
-                                ? Pill.success('ACTIVE')
-                                : Pill.warning('BẢO TRÌ · 14:00'),
-                            cellText('${p.futureBookings}'),
-                            AppButton(
-                              label: p.status == PortStatus.active
-                                  ? 'Sửa'
-                                  : 'Mở lại',
-                              kind: AppButtonKind.outline,
-                              expand: false,
-                              height: 32,
-                              radius: 999,
-                              fontSize: 12,
-                            ),
-                          ],
-                      ],
-                    ),
-                  ),
-                ),
-                const Divider(color: AppColors.border),
-                const BoldText('Thêm cổng mới', size: 14),
-                AutoGrid(
-                  minWidth: 110,
-                  gap: 10,
-                  children: [
-                    const WebField('Mã cổng', 'P6'),
-                    _Drop('Đầu nối', _connector, const [
-                      'CCS2',
-                      'Type2',
-                      'CHAdeMO',
-                      'AC_HOME',
-                    ], (v) => setState(() => _connector = v)),
-                    _Drop('Điều khiển', _control, const [
-                      'CONTINUOUS',
-                      'ON_OFF_SWITCH',
-                    ], (v) => setState(() => _control = v)),
-                    const WebField('Min kW', '1,4'),
-                    const WebField('Max kW', '7,4'),
-                  ],
-                ),
-                MutedText(
-                  'Cổng ON_OFF_SWITCH chỉ có 2 mức: 0 kW hoặc bật ở mức cố định (min = max). Mã cổng không được trùng trong trạm.',
-                  size: 12,
-                ),
-              ],
-            ),
-            WebCard(
-              title: 'Báo bảo trì / sự cố',
-              children: [
-                AutoGrid(
-                  minWidth: 150,
-                  children: [
-                    _Drop('Cổng', _port, const [
-                      'P1 · CCS2',
-                      'P3 · CCS2',
-                      'P4 · Type2',
-                      'Cả trạm',
-                    ], (v) => setState(() => _port = v)),
-                    const WebField('Dự kiến hoạt động lại', '16:00'),
-                  ],
-                ),
-                Wrap(
-                  spacing: 10,
-                  children: [
-                    ChoiceChip(
-                      label: const Text('MAINTENANCE'),
-                      selected: !_offline,
-                      selectedColor: AppColors.warningBg,
-                      onSelected: (_) => setState(() => _offline = false),
-                    ),
-                    ChoiceChip(
-                      label: const Text('OFFLINE'),
-                      selected: _offline,
-                      selectedColor: AppColors.redBg,
-                      onSelected: (_) => setState(() => _offline = true),
-                    ),
-                  ],
-                ),
-                const WebField('Lý do', 'Thay đầu súng sạc bị lỏng'),
-                const BoldText(
-                  'Ảnh hưởng dự kiến · 3 lịch tương lai trên P1',
-                  size: 14,
-                ),
-                const _Impact(
-                  ok: true,
-                  id: 'R-5040',
-                  text: ' (10:00–11:15) → chuyển sang P3, cùng đầu nối CCS2.',
-                ),
-                const _Impact(
-                  ok: true,
-                  id: 'R-5047',
-                  text: ' (12:00–13:00) → chuyển sang P3.',
-                ),
-                const _Impact(
-                  ok: false,
-                  id: 'R-5051',
-                  text:
-                      ' (13:15–15:00): P3 đã kín và trạm chạm trần 40 kW → dự kiến thiếu 1,2 kWh, gửi thông báo khẩn cho khách.',
-                ),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.sky100.withValues(alpha: .8),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Text(
-                    'Khi xác nhận: hệ thống phát sự kiện RE_OPTIMIZE cho cụm Hải Châu → giữ nguyên slot đã chạy → xếp lại phần tương lai sang cổng tương thích → tạo lịch version mới và gửi thông báo cho khách bị ảnh hưởng.',
-                    style: AppFonts.body(
-                      size: 12,
-                      color: AppColors.blue800,
-                      height: 1.5,
-                    ),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: SizedBox(
-                    height: 42,
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.warning,
-                        shape: const StadiumBorder(),
-                      ),
-                      onPressed: () =>
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Đã phát RE_OPTIMIZE · lịch cụm Hải Châu lên v4',
-                              ),
-                            ),
-                          ),
-                      child: Text(
-                        'Xác nhận chuyển bảo trì',
-                        style: AppFonts.body(
-                          size: 14,
-                          weight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _Drop extends StatelessWidget {
-  const _Drop(this.label, this.value, this.items, this.onChanged);
-  final String label;
-  final String value;
-  final List<String> items;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      MutedText(label, size: 12, weight: FontWeight.w700),
-      const Gap(6),
-      DropdownButtonFormField<String>(
-        initialValue: value,
-        isExpanded: true,
-        isDense: true,
-        style: AppFonts.body(size: 14, weight: FontWeight.w600),
-        items: [
-          for (final i in items)
-            DropdownMenuItem(
-              value: i,
-              child: Text(i, overflow: TextOverflow.ellipsis),
-            ),
-        ],
-        onChanged: (v) => onChanged(v!),
-      ),
-    ],
-  );
-}
-
-class _Impact extends StatelessWidget {
-  const _Impact({required this.ok, required this.id, required this.text});
-  final bool ok;
-  final String id;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Container(
-        width: 22,
-        height: 22,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: ok ? AppColors.successBg : AppColors.redBg,
-          shape: BoxShape.circle,
-        ),
-        child: Text(
-          ok ? '✓' : '!',
-          style: AppFonts.body(
-            size: 12,
-            weight: FontWeight.w700,
-            color: ok ? AppColors.success : AppColors.red,
-          ),
-        ),
-      ),
-      const Gap(10),
-      Expanded(
-        child: Text.rich(
-          TextSpan(
-            style: AppFonts.body(size: 13, color: AppColors.body, height: 1.45),
-            children: [
-              TextSpan(
-                text: id,
-                style: AppFonts.body(
-                  size: 13,
-                  weight: FontWeight.w700,
-                  color: AppColors.ink,
-                ),
-              ),
-              TextSpan(text: text),
-            ],
-          ),
-        ),
-      ),
+        );
+      }),
     ],
   );
 }

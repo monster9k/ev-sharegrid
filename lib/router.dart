@@ -82,11 +82,31 @@ List<RouteBase> _userRoutes(ApiClient client) => [
 ];
 
 /// Route web HOST và ADMIN.
-final _webRoutes = <RouteBase>[
+List<RouteBase> _webRoutes(ApiClient client) => [
   GoRoute(path: '/host', redirect: (_, _) => '/host/stations'),
-  _page('/host/stations', () => const HostStationsScreen()),
-  _page('/host/ports', () => const HostPortsScreen()),
-  _page('/host/schedule', () => const HostScheduleScreen()),
+  _page('/host/stations', () => HostStationsScreen(client: client)),
+  GoRoute(
+    path: '/host/ports',
+    pageBuilder: (context, state) => NoTransitionPage(
+      key: state.pageKey,
+      child: HostPortsScreen(
+        key: ValueKey(state.uri.toString()),
+        stationId: int.tryParse(state.uri.queryParameters['stationId'] ?? ''),
+        client: client,
+      ),
+    ),
+  ),
+  GoRoute(
+    path: '/host/schedule',
+    pageBuilder: (context, state) => NoTransitionPage(
+      key: state.pageKey,
+      child: HostScheduleScreen(
+        key: ValueKey(state.uri.toString()),
+        stationId: int.tryParse(state.uri.queryParameters['stationId'] ?? ''),
+        client: client,
+      ),
+    ),
+  ),
   GoRoute(path: '/admin', redirect: (_, _) => '/admin/clusters'),
   _page('/admin/clusters', () => const AdminClustersScreen()),
   _page('/admin/review', () => const AdminReviewScreen()),
@@ -118,7 +138,7 @@ GoRouter buildRouter({String? initialLocation, ApiClient? api}) {
         builder: (context, state, child) => MobileFrame(child: child),
         routes: _userRoutes(client),
       ),
-      ..._webRoutes,
+      ..._webRoutes(client),
     ],
   );
 }

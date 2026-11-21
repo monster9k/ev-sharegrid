@@ -3,32 +3,32 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../data/api.dart';
 import '../theme.dart';
 import 'common.dart';
 
 enum Portal { host, admin }
 
 class _NavItem {
-  const _NavItem(this.route, this.icon, this.label, {this.badge});
+  const _NavItem(this.route, this.icon, this.label);
   final String route;
   final IconData icon;
   final String label;
-  final int? badge;
 }
 
 const _hostItems = [
   _NavItem('/host/stations', AppIcons.station, 'Trạm của tôi'),
   _NavItem('/host/ports', AppIcons.tool, 'Cổng sạc & bảo trì'),
-  _NavItem('/host/schedule', AppIcons.calendar, 'Lịch đặt & doanh thu'),
+  _NavItem('/host/schedule', AppIcons.calendar, 'Lịch sạc tại trạm'),
 ];
 
 const _adminItems = [
   _NavItem('/admin/clusters', Icons.hub_outlined, 'Cụm điều phối'),
-  _NavItem('/admin/review', Icons.fact_check_outlined, 'Duyệt trạm', badge: 1),
+  _NavItem('/admin/review', Icons.fact_check_outlined, 'Duyệt trạm'),
   _NavItem('/admin/tariff', AppIcons.money, 'Biểu giá điện'),
   _NavItem('/admin/solver', Icons.monitor_heart_outlined, 'Giám sát solver'),
   _NavItem('/admin/benchmark', Icons.science_outlined, 'Mô phỏng & Benchmark'),
-  _NavItem('/admin/forecast', AppIcons.chart, 'Dự báo & Audit'),
+  _NavItem('/admin/forecast', AppIcons.chart, 'Dự báo nhu cầu'),
 ];
 
 /// Khung web cho cổng HOST và ADMIN: sidebar sáng (kính), mục chọn Sky 200,
@@ -196,15 +196,14 @@ class _Sidebar extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             BoldText(
-                              portal == Portal.host
-                                  ? 'Nguyễn Văn Chủ Trạm'
-                                  : 'Quản trị viên',
+                              apiClient.currentUser?['full_name']?.toString() ??
+                                  (portal == Portal.host
+                                      ? 'Chủ trạm'
+                                      : 'Quản trị viên'),
                               size: 13,
                             ),
                             MutedText(
-                              portal == Portal.host
-                                  ? 'HOST · host1@sharegrid.vn'
-                                  : 'ADMIN · admin@sharegrid.vn',
+                              apiClient.currentUser?['email']?.toString() ?? '',
                               size: 11,
                             ),
                           ],
@@ -265,17 +264,6 @@ class _SideLink extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (item.badge != null)
-                  Pill(
-                    '${item.badge}',
-                    bg: AppColors.red,
-                    fg: Colors.white,
-                    size: 11,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 1,
-                    ),
-                  ),
               ],
             ),
           ),
