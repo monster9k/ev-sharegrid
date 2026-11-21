@@ -78,7 +78,7 @@ List<RouteBase> _userRoutes(ApiClient client) => [
   ),
   _page('/sessions', () => const SessionsScreen()),
   _page('/notifications', () => const NotificationsScreen()),
-  _page('/profile', () => const ProfileScreen()),
+  _page('/profile', () => ProfileScreen(client: client)),
 ];
 
 /// Route web HOST và ADMIN.
@@ -100,6 +100,19 @@ GoRouter buildRouter({String? initialLocation, ApiClient? api}) {
   final client = api ?? apiClient;
   return GoRouter(
     initialLocation: initialLocation,
+    refreshListenable: client,
+    redirect: (context, state) {
+      final path = state.uri.path;
+      final role = path == '/host' || path.startsWith('/host/')
+          ? 'HOST'
+          : path == '/admin' || path.startsWith('/admin/')
+          ? 'ADMIN'
+          : null;
+      if (role != null && (client.accessToken == null || client.role != role)) {
+        return '/login';
+      }
+      return null;
+    },
     routes: [
       ShellRoute(
         builder: (context, state, child) => MobileFrame(child: child),
