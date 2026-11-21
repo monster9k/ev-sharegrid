@@ -590,6 +590,20 @@
               "minimum": 0,
               "title": "Cap Violations",
               "type": "integer"
+            },
+            "interruptions": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Số lần bật lại sau khi ngừng sạc.",
+              "title": "Interruptions"
             }
           },
           "required": [
@@ -1556,6 +1570,20 @@
               "minimum": 0,
               "title": "Cap Violations",
               "type": "integer"
+            },
+            "interruptions": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Số lần bật lại sau khi ngừng sạc.",
+              "title": "Interruptions"
             }
           },
           "required": [

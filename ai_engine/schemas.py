@@ -278,6 +278,7 @@ class KPI(APIModel):
     on_time_rate: float = Field(ge=0, le=1, description="Tỷ lệ yêu cầu được sạc đủ trước hạn, từ 0 đến 1.")
     fairness: float | None = Field(default=None, ge=0, le=1, description="Chỉ số Jain trên tỷ lệ điện đã phân bổ cho các yêu cầu cần giải. Null với kết quả cũ chưa đo.")
     cap_violations: NonNegativeInt = Field(description="Số vi phạm giới hạn công suất; nghiệm hợp lệ phải bằng 0.")
+    interruptions: NonNegativeInt | None = Field(default=None, description="Số lần bật lại sau khi ngừng sạc.")
 
 
 class RequestResult(APIModel):

@@ -109,6 +109,7 @@ class NormProblem:
     first_mutable_slot: int = 1
     previous_schedule: dict[tuple[str, str, int], float] = field(default_factory=dict)
     source_requests: dict[str, ChargingRequestIn] = field(default_factory=dict)
+    prior_on_slot: dict[str, int] = field(default_factory=dict)
 
 
 def _minutes(clock: str) -> int:
@@ -210,8 +211,13 @@ def normalize(req: OptimizeRequest) -> NormProblem:
             remaining, r.priority_weight, r.status, r.locked_port_id, ids, replacements,
             lost, min(r.vehicle_max_kw, maximum))
     previous: dict[tuple[str, str, int], float] = {}
+    continuing: dict[str, str] = {}
     for row in req.previous_schedule:
         t = iso_to_slot(row.slot_start, t0)
+        r = requests.get(row.request_id)
+        if (t == -1 and r is not None and r.status == RequestStatus.CHARGING
+                and r.locked_port_id == row.port_id and not is_zero(row.power_kw, EPS_KW)):
+            continuing[r.request_id] = row.port_id
         if 0 <= t < count:
             key = (row.request_id, row.port_id, t)
             if key in previous:
@@ -221,10 +227,19 @@ def normalize(req: OptimizeRequest) -> NormProblem:
             if port and port.control_type == "ON_OFF_SWITCH" and is_zero(kw - port.max_power_kw, EPS_KW):
                 kw = port.max_power_kw
             previous[key] = kw
+    if continuing:
+        first_mutable = int(now != t0 or any(t == 0 for _, _, t in previous))
+    else:
+        first_mutable = int(now != t0 or bool(previous) or any(r.status == RequestStatus.CHARGING
+                                                             for r in requests.values()))
+    # Slot đang dở mà Backend không gửi dòng khóa nằm ngoài phần lịch được lập lại.
+    # Nối lượt đang sạc vào slot có thể lập lịch đầu tiên, không tạo dòng cấp điện giả.
+    prior_on_slot = {rid: (0 if first_mutable and (rid, pid, 0) not in previous else -1)
+                     for rid, pid in continuing.items()}
     return NormProblem(t0, now, count, 0.25, _prices(req.tariffs, t0, count), req.grid_limit_kw,
                        req.time_budget_ms, stations, ports, requests, skipped,
-                       first_mutable_slot=int(now != t0 or bool(previous) or any(r.status == "CHARGING" for r in requests.values())),
-                       previous_schedule=previous, source_requests={r.request_id: r for r in req.requests})
+                       first_mutable_slot=first_mutable, previous_schedule=previous,
+                       source_requests={r.request_id: r for r in req.requests}, prior_on_slot=prior_on_slot)
 
 
 def to_response_slots(problem: NormProblem,

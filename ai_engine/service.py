@@ -31,17 +31,18 @@ def evaluate(req: OptimizeRequest, solver: Solver = solve, asap: bool = False) -
     p=normalize(req)
     if asap:
         sol=solver(p)
-        violations=validate_solution(p,sol).violations
-        if any(v.code not in {"STATION_CAP","GRID_CAP"} for v in violations):
+        report=validate_solution(p,sol)
+        if any(v.code not in {"STATION_CAP","GRID_CAP"} for v in report.violations):
             return failure((perf_counter()-start)*1000)
     else:
         sol,status,report=safe_solve(p,solver)
-        if not report.ok or status==SolverStatus.ERROR or not validate_solution(p,sol).ok:
+        if not report.ok or status==SolverStatus.ERROR:
             return failure((perf_counter()-start)*1000,sol.fallback_reason)
     ms=(perf_counter()-start)*1000
     return OptimizeResponse(status=sol.status,algorithm=sol.algorithm,solve_ms=ms,
         fallback_reason=sol.fallback_reason,
-        kpi=compute_kpi(p,sol),request_results=build_all_results(p,sol),
+        kpi=compute_kpi(p,sol).model_copy(update={"interruptions":report.interruptions}),
+        request_results=build_all_results(p,sol),
         schedules=to_response_slots(p,((*key,kw) for key,kw in sol.power.items())))
 
 

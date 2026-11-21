@@ -13,7 +13,7 @@ from time import perf_counter
 from .baselines import solve_llf
 from .normalizer import NormProblem, Solution
 from .schemas import Algorithm, FallbackReason, SolverStatus
-from .settings import DECOMPOSE_THRESHOLD, EPS_KW, EPS_KWH, is_leq, is_zero, snap
+from .settings import DECOMPOSE_THRESHOLD, EPS_KW, EPS_KWH, is_leq, is_zero, minimum_active_power, snap
 from .validator import validate_solution
 
 
@@ -56,7 +56,8 @@ def _optimize(p: NormProblem, prefer_lp: bool) -> Solution:
     lp = prefer_lp
     if lp:
         for r in p.requests.values():
-            if len(r.candidate_ports)>1:
+            if r.candidate_ports and (len(r.candidate_ports)>1 or len(r.active_slots)>2
+                                      or r.request_id in p.prior_on_slot):
                 lp=False
                 break
             for pid in r.candidate_ports:
@@ -82,6 +83,8 @@ def _optimize(p: NormProblem, prefer_lp: bool) -> Solution:
     costs, penalties, hints = [], [], []
     for rid,r in p.requests.items():
         energy, picks = [], []
+        on_by_slot = defaultdict(list)
+        seed_slots = set()
         gap = gaps[rid] = m.NumVar(0,r.remaining_kwh,"")
         if r.priority_weight not in floors:
             floors[r.priority_weight] = m.NumVar(0,1,"")
@@ -101,6 +104,8 @@ def _optimize(p: NormProblem, prefer_lp: bool) -> Solution:
                 if t<p.first_mutable_slot and k not in fixed:
                     continue
                 hi=min(r.vehicle_max_kw,port.max_power_kw)
+                if is_leq(hi, 0, EPS_KW):
+                    continue
                 v=ps[k]=m.NumVar(0,hi,"")
                 # m.Add overloads these operators to create exact symbolic MILP constraints.
                 # EPS_KW is for checks on concrete floating-point solver results, never to relax caps.
@@ -110,11 +115,18 @@ def _optimize(p: NormProblem, prefer_lp: bool) -> Solution:
                     x=xs[k]=m.BoolVar("")
                     m.Add(x<=y)
                     ports[pid,t].append(x)
+                    on_by_slot[t].append(x)
                     m.Add(v<=hi*x)
-                    m.Add(v>=port.min_power_kw*x)
                     if port.control_type=="ON_OFF_SWITCH":
                         m.Add(v==port.max_power_kw*x)
+                    else:
+                        # Nếu sàn đầu vào là 0, biến bật vẫn phải có công suất
+                        # dương vượt dung sai của validator.
+                        minimum = minimum_active_power(port.min_power_kw, min(hi, fixed.get(k, hi)))
+                        m.Add(v>=minimum*x)
                     hints.extend([(x,int(k in seed.power)),(v,seed.power.get(k,0))])
+                    if k in seed.power:
+                        seed_slots.add(t)
                 grid[t].append(v)
                 stations[r.station_id,t].append(v)
                 energy.append(v*p.dt)
@@ -126,6 +138,20 @@ def _optimize(p: NormProblem, prefer_lp: bool) -> Solution:
                     penalties.append(d)
         if picks:
             m.Add(m.Sum(picks)<=1)
+        if on_by_slot:
+            previous_on = p.prior_on_slot.get(rid)
+            starts = []
+            for t, indicators in on_by_slot.items():
+                start = m.BoolVar("")
+                before = 1 if t - 1 == previous_on else m.Sum(on_by_slot.get(t - 1, ()))
+                on = m.Sum(indicators)
+                m.Add(start >= on - before)
+                m.Add(start <= on)
+                m.Add(start <= 1 - before)
+                starts.append(start)
+                hints.append((start, int(t in seed_slots and t - 1 not in seed_slots
+                                         and t - 1 != previous_on)))
+            m.Add(m.Sum(starts) <= int(previous_on is None))
         m.Add(m.Sum(energy)+gap==r.remaining_kwh)
     switches={}
     for (pid,t),vs in ports.items():
@@ -248,10 +274,10 @@ def _large_problem_llf(problem: NormProblem) -> Solution:
 
 def solve(problem: NormProblem) -> Solution:
     """Chọn GLOP hoặc SCIP theo cấu trúc bài toán."""
-    # Khi cổng khóa hỏng, chỉ lập lại những slot tương lai trên cổng dự phòng.
+    # Có thể đổi cổng dự phòng trước khi xe bắt đầu sạc.
     changed = {}
     for rid,r in problem.requests.items():
-        if r.port_lost and r.replacement_ports and not any(
+        if r.status != "CHARGING" and r.port_lost and r.replacement_ports and not any(
             k[0]==rid and k[2]<problem.first_mutable_slot and not is_leq(v, 0, EPS_KW)
             for k,v in problem.previous_schedule.items()
         ):

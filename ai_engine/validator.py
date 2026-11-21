@@ -28,6 +28,7 @@ class ValidationReport:
     """Kết quả kiểm tra của nghiệm được trả về."""
     ok: bool
     violations: list[Violation]
+    interruptions: int = 0
 
 
 def validate_solution(problem: NormProblem, solution: Solution) -> ValidationReport:
@@ -39,6 +40,7 @@ def validate_solution(problem: NormProblem, solution: Solution) -> ValidationRep
     port_owner: dict[tuple[str, int], str] = {}
     car_port: dict[tuple[str, int], str] = {}
     first_port: dict[str, str] = {}
+    powered_slots: dict[str, set[int]] = defaultdict(set)
 
     def add(code: str, message: str, rid: str | None = None,
             pid: str | None = None, t: int | None = None) -> None:
@@ -59,7 +61,10 @@ def validate_solution(problem: NormProblem, solution: Solution) -> ValidationRep
                 add("CONNECTOR", "Chuẩn đầu nối không tương thích.", rid, pid, t)
             if port.status != "ACTIVE":
                 add("PORT_INACTIVE", "Cổng không hoạt động.", rid, pid, t)
-            if r.locked_port_id and r.locked_port_id != pid and not (r.port_lost and pid in r.replacement_ports and problem.ports[r.locked_port_id].status != "ACTIVE"):
+            if r.locked_port_id and r.locked_port_id != pid and not (
+                r.status != "CHARGING" and r.port_lost and pid in r.replacement_ports
+                and problem.ports[r.locked_port_id].status != "ACTIVE"
+            ):
                 add("LOCK_CHANGED", "Đã đổi cổng đang khóa cho phiên.", rid, pid, t)
 
     for rid, pid in solution.assign.items():
@@ -85,6 +90,7 @@ def validate_solution(problem: NormProblem, solution: Solution) -> ValidationRep
         if type(t) is not int or not 0 <= t < problem.T:
             add("HORIZON", "Slot nằm ngoài horizon hoặc sai kiểu.", rid, pid, t)
             continue
+        powered_slots[rid].add(t)
         if t < problem.first_mutable_slot and not is_zero(kw - problem.previous_schedule.get((rid, pid, t), 0), EPS_KW):
             add("FROZEN_SLOT", "Slot đã bắt đầu và phải được giữ nguyên.", rid, pid, t)
         grid[t] += kw
@@ -105,6 +111,14 @@ def validate_solution(problem: NormProblem, solution: Solution) -> ValidationRep
                     add("ON_OFF_POWER", "Cổng đóng/ngắt phải bật đúng công suất định mức.", rid, pid, t)
             elif not (is_leq(port.min_power_kw, kw, EPS_KW) and is_leq(kw, port.max_power_kw, EPS_KW)):
                 add("CONTINUOUS_POWER", "Công suất ngoài dải điều chỉnh của cổng.", rid, pid, t)
+    interruptions = 0
+    for rid, slots in powered_slots.items():
+        before = problem.prior_on_slot.get(rid)
+        for t in sorted(slots):
+            if before is not None and t > before + 1:
+                interruptions += 1
+                add("CHARGING_INTERRUPTED", "Phiên bật lại sau một khoảng ngừng sạc.", rid, first_port[rid], t)
+            before = t
     for (rid, pid, t), kw in problem.previous_schedule.items():
         if t < problem.first_mutable_slot and not is_zero(solution.power.get((rid, pid, t), 0) - kw, EPS_KW):
             add("FROZEN_SLOT", "Nghiệm bỏ hoặc sửa công suất đã khóa.", rid, pid, t)
@@ -123,7 +137,7 @@ def validate_solution(problem: NormProblem, solution: Solution) -> ValidationRep
     for rid, missing in solution.shortfall.items():
         if rid not in problem.requests and (rid not in problem.skipped_results or not is_zero(missing)):
             add("UNEXPECTED_SHORTFALL", "Phần thiếu không thuộc yêu cầu cần giải.", rid)
-    return ValidationReport(not errors, errors)
+    return ValidationReport(not errors, errors, interruptions)
 
 
 def safe_solve(problem: NormProblem, solver_fn: Callable[[NormProblem], Solution]
@@ -141,7 +155,7 @@ def safe_solve(problem: NormProblem, solver_fn: Callable[[NormProblem], Solution
             sol = solver(attempt)
             report = validate_solution(problem, sol)
             if sol.status in (SolverStatus.ERROR, SolverStatus.INFEASIBLE):
-                report = ValidationReport(False, report.violations + [
+                report = replace(report, ok=False, violations=report.violations + [
                     Violation("SOLVER_STATUS", None, None, None, f"Solver trả trạng thái {sol.status.value}.")])
             if report.ok:
                 if fallback:

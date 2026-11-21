@@ -86,23 +86,23 @@ Mở [Flutter Web local](http://localhost:7357). Dùng hostname `localhost` cho 
 
 ## Benchmark thực đo
 
-[Báo cáo benchmark](ai_engine/benchmark_real.json) ghi kết quả ngày 20/11/2026 với seed 42, dùng CSV tại commit `14cec6f`. So với mốc cũ `b0fc3f7`, đầu vào khác duy nhất là CSV biểu giá. Script gọi `POST /ai/benchmark` theo từng cụm với giá cố định 2.000 đ/kWh và TOU EVN hạ áp **1.620 / 2.700 / 4.212 đ/kWh** trước VAT. Đây là kịch bản mô phỏng nhu cầu sạc. Bảng gộp hai cụm, tính đỉnh từ tổng tải theo slot và cộng `solve_ms` của hai lượt đo.
+[Báo cáo benchmark](ai_engine/benchmark_real.json) ghi kết quả bản sạc liền mạch với seed 42, dùng CSV tại commit `14cec6f`. Script gọi `POST /ai/benchmark` theo từng cụm với giá cố định 2.000 đ/kWh và TOU EVN hạ áp **1.620 / 2.700 / 4.212 đ/kWh** trước VAT. Đây là các kịch bản mô phỏng nhu cầu sạc. Bảng gộp hai cụm, tính đỉnh từ tổng tải theo slot và cộng `solve_ms` của hai lượt đo. Gián đoạn là số lần một yêu cầu bật lại sau khi đã ngừng sạc.
 
-| Request | Giá | Thuật toán thực chạy | Đúng hạn | Thiếu (kWh) | Chi phí (đ) | Đỉnh (kW) | Vượt trần | solve_ms |
-|---:|---|---|---:|---:|---:|---:|---:|---:|
-| 100 | TOU EVN | MILP_MPC | 94% | 17,5719 | 8.276.432,26 | 681,0700 | 0 | 16.496,86 |
-| 100 | TOU EVN | LLF | 94% | 17,5719 | 8.276.432,26 | 684,0876 | 0 | 17,23 |
-| 100 | TOU EVN | ASAP | 94% | 17,5719 | 8.276.432,26 | 773,6312 | 0 | 23,08 |
-| 500 | TOU EVN | LLF (cụm 1) + MILP_MPC (cụm 2) | 68,4% | 2.613,4802 | 42.054.657,06 | 850 | 0 | 11.421,22 |
-| 500 | TOU EVN | LLF | 68% | 2.614,1306 | 42.133.018,13 | 850 | 0 | 98,56 |
-| 1.000 | TOU EVN | LLF | 52,2% | 5.184,4282 | 34.134.439,81 | 850 | 0 | 122,53 |
-| 10.000 | Cố định | LLF | 1,74% | 224.282,5779 | 42.161.966,00 | 850 | 0 | 1.052,56 |
-| 10.000 | TOU EVN | LLF | 1,74% | 224.282,5779 | 58.341.803,90 | 850 | 0 | 2.327,44 |
+| Request | Giá | Thuật toán thực chạy | Đúng hạn | Thiếu (kWh) | Chi phí (đ) | Đỉnh (kW) | Vượt trần | Gián đoạn | solve_ms |
+|---:|---|---|---:|---:|---:|---:|---:|---:|---:|
+| 100 | TOU EVN | MILP_MPC | 94% | 17,5719 | 8.276.432,26 | 681,0700 | 0 | 0 | 16.278,36 |
+| 100 | TOU EVN | LLF | 94% | 17,5719 | 8.276.432,26 | 684,0876 | 0 | 0 | 37,07 |
+| 100 | TOU EVN | ASAP | 94% | 17,5719 | 8.276.432,26 | 773,6312 | 0 | 0 | 17,04 |
+| 500 | TOU EVN | LLF + MILP_MPC | 72% | 2.549,0329 | 42.256.368,57 | 850,0000 | 0 | 0 | 10.886,23 |
+| 500 | TOU EVN | LLF | 73% | 2.549,4269 | 42.306.055,65 | 850,0000 | 0 | 0 | 88,40 |
+| 500 | TOU EVN | ASAP | 67% | 4.777,7031 | 36.338.044,38 | 2.220,0000 | 53 | 0 | 86,86 |
+| 1.000 | TOU EVN | LLF | 58,6% | 5.187,7256 | 34.125.737,89 | 850,0000 | 0 | 0 | 161,47 |
+| 10.000 | Cố định | LLF | 1,59% | 222.733,0836 | 45.260.954,60 | 850,0000 | 0 | 0 | 1.844,59 |
+| 10.000 | TOU EVN | LLF | 1,59% | 222.733,0836 | 62.528.486,17 | 850,0000 | 0 | 0 | 1.867,07 |
 
-- **100 request.** Cả hai cụm chạy `MILP_MPC / FEASIBLE`. MILP, LLF và ASAP có cùng chi phí TOU, tỷ lệ đúng hạn và điện thiếu ở độ chính xác hiển thị. Đỉnh của MILP thấp hơn LLF **3,0176 kW** và thấp hơn ASAP **92,5612 kW**.
-- **500 request.** Cụm 1 có 294 request, vượt ngưỡng 250 nên dùng LLF (`THRESHOLD_EXCEEDED`). Cụm 2 có 206 request và trả `MILP_MPC / FEASIBLE`. Tại cụm 2, MILP giảm chi phí TOU **0,4817%** so với LLF, cùng đỉnh 350 kW. Với giá cố định, MILP cấp thêm 0,6504 kWh và chi phí tăng 1.300,80 đ so với LLF ở cụm này.
-- **Thông lượng.** Báo cáo chỉ đo nhóm thuật toán nhanh ở mốc 1.000 và 10.000 request. Mốc 10.000 mang nhãn `LLF_THROUGHPUT_ONLY`. Đầu vào cần 245.363,5609 kWh trên khả năng cấp 20.400 kWh trong 24 giờ.
-- **Vượt trần.** Các lượt MILP và LLF ghi 0 vi phạm. ASAP ở mốc 500 ghi 53 vi phạm trên hai cụm ở mỗi biểu giá. Đối chiếu chi phí với điện thiếu và số vi phạm công suất khi đọc KPI này.
+- **100 request.** Cả hai cụm dùng `MILP_MPC / FEASIBLE`. MILP, LLF và ASAP có cùng chi phí TOU, tỷ lệ đúng hạn và điện thiếu ở độ chính xác hiển thị. Đỉnh MILP thấp hơn LLF **3,0176 kW** và thấp hơn ASAP **92,5612 kW**.
+- **500 request.** Cụm 1 có 294 request, vượt ngưỡng 250 nên dùng LLF (`THRESHOLD_EXCEEDED`). Cụm 2 có 206 request và trả `MILP_MPC / FEASIBLE`. Phương án gộp có chi phí TOU cao hơn ASAP **16,29%**, đồng thời giảm điện thiếu **2.228,6702 kWh** và tránh **53** lần vượt trần.
+- **Thông lượng.** Mốc 1.000 và 10.000 chỉ đo nhóm thuật toán nhanh. Mốc 10.000 mang nhãn `LLF_THROUGHPUT_ONLY`. Đầu vào cần 245.363,5609 kWh trên khả năng cấp 20.400 kWh trong 24 giờ.
 
 Chạy lệnh dưới đây từ thư mục gốc để tái đo với cùng dữ liệu. Thời gian giải và nghiệm khả thi khi hết ngân sách có thể thay đổi theo máy.
 
@@ -118,12 +118,12 @@ Trong trụ cột **Năng lượng xanh và Giao thông thông minh**, lịch s�
 |---|---|---:|---:|---:|---:|
 | 100, cả hai cụm | LLF | 8.276.432,26 → 8.276.432,26 | 0,0000% | 684,0876 → 681,0700 | 3,0176 |
 | 100, cả hai cụm | FCFS | 8.276.432,26 → 8.276.432,26 | 0,0000% | 773,6312 → 681,0700 | 92,5612 |
-| 500, chỉ cụm 2 | LLF | 16.266.140,79 → 16.187.779,72 | 0,4817% | 350,0000 → 350,0000 | 0,0000 |
-| 500, chỉ cụm 2 | FCFS | 14.751.488,70 → 16.187.779,72 | -9,7366% | 350,0000 → 350,0000 | 0,0000 |
+| 500, chỉ cụm 2 | LLF | 16.264.879,65 → 16.215.192,57 | 0,3055% | 350,0000 → 350,0000 | 0,0000 |
+| 500, chỉ cụm 2 | FCFS | 14.751.475,22 → 16.215.192,57 | -9,9225% | 350,0000 → 350,0000 | 0,0000 |
 
 Chi phí và đỉnh lấy từ [benchmark_real.json](ai_engine/benchmark_real.json). Mức giảm là `(baseline − MILP) / baseline × 100%` cho chi phí và `đỉnh baseline − đỉnh MILP` cho công suất.
 
-Ở mốc 100, MILP, LLF và FCFS đều đạt 94% đúng hạn. Ở mốc 500, so với FCFS tại cụm 2, MILP giảm điện thiếu **604,6444 kWh** và tăng chi phí tổng **1.436.291,03 đ**.
+Ở mốc 500, so với FCFS tại cụm 2, MILP giảm điện thiếu **604,6476 kWh** và tăng chi phí tổng **1.463.717,35 đ**.
 
 Đây là kết quả **mô phỏng các yêu cầu sạc sinh từ catalog trạm và mẫu xe khảo sát dùng cho kịch bản Đà Nẵng**. Giảm đỉnh và dời giờ sạc có thể giảm áp lực lên lưới và tạo dư địa phối hợp với nguồn tái tạo. Chưa có dữ liệu phát điện theo giờ hoặc hệ số phát thải xác minh cho kịch bản, nên chưa quy đổi sang CO₂ hay lượng năng lượng tái tạo sử dụng.
 
@@ -133,8 +133,8 @@ Kết quả chạy ngày 20/11/2026 trên Windows với mã nguồn bản demo l
 
 | Thành phần | Lệnh tại thư mục gốc | Kết quả |
 |---|---|---:|
-| AI Engine | `python -m pytest ai_engine/tests -q` | 193 đạt |
-| Backend | `python -m pytest backend/tests -q` | 57 đạt |
+| AI Engine | `python -m pytest ai_engine/tests -q` | 208 đạt |
+| Backend | `python -m pytest backend/tests -q` | 58 đạt |
 | Flutter | `flutter test` | 59 đạt |
 
 Cài dependency theo [requirements AI Engine](ai_engine/requirements.txt) và [requirements backend](backend/requirements.txt) trong hai môi trường Python riêng, cùng với `pytest`. Với Flutter, chạy `flutter pub get` trước khi kiểm tra. `dart format --output=none --set-exit-if-changed lib test` kiểm tra 39 file, không đổi file. `flutter analyze` báo `No issues found!`.
