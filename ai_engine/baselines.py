@@ -10,7 +10,7 @@ from time import perf_counter
 from typing import Callable
 
 from .normalizer import NormProblem, NormRequest, Solution
-from .settings import EPS_KW, is_leq, snap
+from .settings import EPS_KW, is_leq, minimum_active_power, snap
 from .schemas import Algorithm, ControlType, KPI, SolverStatus
 
 
@@ -36,10 +36,14 @@ def _fill(bounds: list[tuple[float, float]], budget: float) -> list[float]:
     return [min(hi, max(lo, level)) for lo, hi in bounds]
 
 
-def _solve(p: NormProblem, algorithm: Algorithm) -> Solution:
+def _allocate(p: NormProblem, algorithm: Algorithm) -> Solution:
     """Giữ cổng đến hết khoảng đỗ, phân bổ điện theo chính sách đã chọn."""
     end = perf_counter() + p.time_budget_ms / 1000
     sol = Solution({}, {}, SolverStatus.FEASIBLE, algorithm)
+    last_on = dict(p.prior_on_slot)
+    for (rid, _, t), kw in p.previous_schedule.items():
+        if t < p.first_mutable_slot and not is_leq(kw, 0, EPS_KW):
+            last_on[rid] = t
 
     def check() -> None:
         """Dừng tại điểm an toàn và giữ mọi dòng lịch đã ghi."""
@@ -108,6 +112,7 @@ def _solve(p: NormProblem, algorithm: Algorithm) -> Solution:
             sol.assign[rid] = port
             busy_until[port] = r.departure_slot
             sol.power[rid, port, t] = kw
+            last_on[rid] = t
             remaining[rid] = max(0.0, remaining[rid] - kw * p.dt)
 
         for t in range(p.first_mutable_slot, p.T):
@@ -115,14 +120,35 @@ def _solve(p: NormProblem, algorithm: Algorithm) -> Solution:
             active = []
             for r in available:
                 check()
-                if t in r.active_slots and r.request_id not in blocked and not is_leq(remaining[r.request_id], 0):
+                rid = r.request_id
+                if (t in r.active_slots and rid not in blocked and last_on.get(rid, t - 1) == t - 1
+                        and not is_leq(remaining[rid], 0)):
                     active.append(r)
             if algorithm == Algorithm.LLF:
                 # Trừ t*dt giống nhau cho mọi xe nên thứ tự slack được bảo toàn.
-                active.sort(key=lambda r: (deadlines[r.request_id] -
+                active.sort(key=lambda r: (r.request_id not in last_on, deadlines[r.request_id] -
                             remaining[r.request_id] / r.feasible_max_kw, r.request_id))
             grid = inf if asap else p.grid_limit_kw
             station_left: dict[str, float] = {}
+            reserved: dict[str, float] = {}
+            station_reserved: Counter[str] = Counter()
+            grid_reserved = 0.0
+            if algorithm == Algorithm.LLF:
+                # Giữ mức sàn cho các xe đang sạc trước khi dồn phần dư cho xe ưu tiên hơn.
+                for r in active:
+                    rid = r.request_id
+                    if rid not in last_on:
+                        break
+                    spec = p.ports[sol.assign[rid]]
+                    floor = (spec.max_power_kw if spec.control_type == ControlType.ON_OFF_SWITCH
+                             else minimum_active_power(spec.min_power_kw, spec.max_power_kw))
+                    capacity = min(grid - grid_reserved,
+                                   p.stations[r.station_id].station_power_kw - station_reserved[r.station_id],
+                                   remaining[rid] / p.dt, r.vehicle_max_kw)
+                    if is_leq(floor, capacity, EPS_KW):
+                        reserved[rid] = floor
+                        grid_reserved += floor
+                        station_reserved[r.station_id] += floor
             pending: dict[str, list[tuple[NormRequest, str, float, float]]] = defaultdict(list)
             taken: set[str] = set()
             # Các xe cùng nhóm chia sẻ danh sách cổng còn rảnh tại slot này.
@@ -130,8 +156,12 @@ def _solve(p: NormProblem, algorithm: Algorithm) -> Solution:
             for r in active:
                 check()
                 sid, rid = r.station_id, r.request_id
+                floor = reserved.get(rid, 0.0)
+                grid_reserved -= floor
+                station_reserved[sid] -= floor
                 local = station_left.get(sid, inf if asap else p.stations[sid].station_power_kw)
-                cap = min(local, grid, remaining[rid] / p.dt, r.vehicle_max_kw)
+                cap = min(local - station_reserved[sid], grid - grid_reserved,
+                          remaining[rid] / p.dt, r.vehicle_max_kw)
                 if is_leq(cap, 0, EPS_KW):
                     continue
                 fixed = sol.assign.get(rid)
@@ -156,8 +186,9 @@ def _solve(p: NormProblem, algorithm: Algorithm) -> Solution:
                                 continue
                     spec = p.ports[port]
                     hi = min(cap, spec.max_power_kw)
-                    lo = spec.max_power_kw if spec.control_type == ControlType.ON_OFF_SWITCH else spec.min_power_kw
-                    if not is_leq(lo, hi, EPS_KW):
+                    lo = (spec.max_power_kw if spec.control_type == ControlType.ON_OFF_SWITCH
+                          else minimum_active_power(spec.min_power_kw, spec.max_power_kw))
+                    if is_leq(hi, 0, EPS_KW) or not is_leq(lo, hi, EPS_KW):
                         continue
                     hi = max(lo, hi)
                     used = lo if equal else hi
@@ -193,12 +224,12 @@ def _solve(p: NormProblem, algorithm: Algorithm) -> Solution:
     return sol
 
 
-def solve_llf(problem: NormProblem) -> Solution:
-    """Ưu tiên xe có thời gian dự phòng nhỏ nhất tại từng slot."""
+def _solve(problem: NormProblem, algorithm: Algorithm) -> Solution:
+    """Giữ slot đóng băng và chỉ phân bổ phần nhu cầu còn lại."""
     frozen = {k:v for k,v in problem.previous_schedule.items()
               if k[2] < problem.first_mutable_slot and not is_leq(v, 0, EPS_KW)}
     if not frozen:
-        return _solve(problem, Algorithm.LLF)
+        return _allocate(problem, algorithm)
     reqs = problem.requests.copy()
     for (rid,pid,_), kw in frozen.items():
         r = reqs[rid]
@@ -206,11 +237,16 @@ def solve_llf(problem: NormProblem) -> Solution:
             raise ValueError("Dòng freeze không tương thích cổng của xe")
         reqs[rid] = replace(r, locked_port_id=pid, candidate_ports=(pid,),
                             remaining_kwh=max(0, r.remaining_kwh-kw*problem.dt))
-    sol = _solve(replace(problem,requests=reqs),Algorithm.LLF)
+    sol = _allocate(replace(problem,requests=reqs), algorithm)
     for (rid,pid,t), kw in frozen.items():
         sol.assign[rid] = pid
         sol.power[rid,pid,t] = kw
     return sol
+
+
+def solve_llf(problem: NormProblem) -> Solution:
+    """Tiếp tục cấp điện cho các xe đang sạc rồi ưu tiên xe ít thời gian dự phòng."""
+    return _solve(problem, Algorithm.LLF)
 
 
 def solve_fcfs(problem: NormProblem) -> Solution:

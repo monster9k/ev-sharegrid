@@ -3,6 +3,8 @@ import os
 
 
 EPS_KWH = EPS_KW = 1e-6
+# Chênh đủ xa dung sai cho biến bật của các cổng khai báo sàn bằng 0.
+ZERO_MINIMUM_ON_KW = 0.001
 
 
 def is_zero(value: float, eps: float = EPS_KWH) -> bool:
@@ -15,6 +17,10 @@ def is_leq(a: float, b: float, eps: float = EPS_KWH) -> bool:
 
 def snap(value: float, eps: float = EPS_KWH) -> float:
     return 0.0 if is_zero(value, eps) else value
+
+
+def minimum_active_power(minimum: float, maximum: float) -> float:
+    return min(maximum, ZERO_MINIMUM_ON_KW) if is_zero(minimum, EPS_KW) else minimum
 
 
 def positive(name: str, default: int) -> int:

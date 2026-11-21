@@ -343,6 +343,7 @@ def aggregate_algorithm(
 
     statuses = sorted(set(all_statuses))
     reasons = {row["fallback_reason"] for row in cluster_runs.values()}
+    interruptions = [(row["kpi"] or {}).get("interruptions") for row in cluster_runs.values()]
     return {
         "requested_algorithm": algorithm,
         "actual_algorithms": sorted(actual_algorithms),
@@ -359,6 +360,7 @@ def aggregate_algorithm(
             "total_cost_vnd": total_cost,
             "peak_power_kw": max(load_by_slot.values(), default=0.0),
             "cap_violations": total_cap_violations,
+            "interruptions": sum(interruptions) if None not in interruptions else None,
         },
         "cluster_results": cluster_runs,
     }

@@ -44,6 +44,7 @@ def test_optimize_and_health() -> None:
     resp=client.post("/ai/optimize",json=snapshot())
     assert resp.status_code==200 and resp.json()["schedules"]
     assert resp.json()["kpi"]["cap_violations"]==0 and resp.headers["x-request-id"]
+    assert resp.json()["kpi"]["interruptions"] == 0
     assert resp.json()["fallback_reason"] == "NONE"
 
 
@@ -91,6 +92,7 @@ def test_worker_timeout_returns_valid_llf(timed_out_worker) -> None:
     assert result["fallback_reason"] == "TIME_BUDGET_EXHAUSTED"
     assert result["schedules"]
     assert result["kpi"]["cap_violations"] == 0
+    assert result["kpi"]["interruptions"] == 0
     timed_out_worker.kill.assert_called_once_with()
     assert timed_out_worker.communicate.call_count == 2
 
@@ -111,6 +113,7 @@ def test_benchmark() -> None:
         body=client.post("/ai/benchmark",json=dict(**args,algorithms=["LLF","ASAP","NSGA_II"],repeats=2)).json()
         assert len(body["results"])==4 and body["summary"][2]["status"]=="NOT_IMPLEMENTED"
         assert body["summary"][0]["kpi"]["cap_violations"]==0
+        assert body["summary"][0]["kpi"]["interruptions"] == 0
         assert body["summary"][0]["solve_ms_std"]>=0
 
 

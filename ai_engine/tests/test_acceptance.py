@@ -175,7 +175,7 @@ def test_schedule_change() -> None:
 
 
 def test_port_maintenance() -> None:
-    """Giả định trạm báo cổng khóa hỏng trước slot mới; kiểm cả có và hết cổng dự phòng."""
+    """Xe đang sạc không tự đổi cổng khi cổng đang cắm báo bảo trì."""
     d=snapshot()
     d["requests"]=d["requests"][:1]
     d["requests"][0].update(status="CHARGING",locked_port_id=101,energy_delivered_kwh=.25)
@@ -183,8 +183,8 @@ def test_port_maintenance() -> None:
     assert before.assign["A"]=="101"
     d["stations"][0]["ports"][0]["status"]="MAINTENANCE"
     p,after=run(d)
-    assert after.assign["A"]=="102" and after.shortfall["A"]<=1e-6
-    assert "101" in build_explanation(p,after,"A")
+    assert not after.power and after.shortfall["A"]==pytest.approx(.75)
+    assert "không hoạt động" in build_explanation(p,after,"A")
     d["stations"][0]["ports"][1]["status"]="MAINTENANCE"
     p,none=run(d)
     assert none.shortfall["A"]==pytest.approx(.75) and not none.power

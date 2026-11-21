@@ -32,11 +32,13 @@ curl -sS http://localhost:8001/ai/forecast \
 
 Optimize trả 422 khi payload sai schema. Với payload hợp lệ, đọc `status` trong body HTTP 200. Worker chạy trong tiến trình riêng. Khi hết hạn `time_budget_ms + 500` ms tính từ lúc handler bắt đầu, service kill worker nếu còn chạy rồi chạy LLF ngay trong tiến trình phục vụ API. Nếu kết quả qua Validator, API trả lịch với `status=FALLBACK`, `algorithm=LLF` và `fallback_reason=TIME_BUDGET_EXHAUSTED`. Trong trường hợp hết hạn, API chỉ trả `ERROR` nếu LLF thất bại hoặc lịch không qua Validator. Khi đó `algorithm=null` và KPI là giá trị giữ chỗ. Trường `fallback_reason` có các giá trị `THRESHOLD_EXCEEDED`, `TIME_BUDGET_EXHAUSTED`, `SEED_NOT_IMPROVED`, `SOLVER_ERROR` và `NONE`. `solve_ms` của nghiệm thành công đo thời gian chuẩn hóa, giải và kiểm tra của lượt trả kết quả. Tổng độ trễ HTTP còn có thời gian khởi động worker, chờ tiến trình, mã hóa phản hồi và truyền mạng. Header `X-Request-ID` dùng để đối chiếu với log.
 
-Solver hiện dùng SCIP cho biến nguyên, GLOP khi miền nghiệm tuyến tính chính xác. `LP_MPC` có thể dùng SCIP nếu còn cổng đóng/ngắt, có công suất sàn hoặc hai xe có khả năng tranh cổng. Trường algorithm phản ánh backend thực tế. Slot đã chạy được giữ nguyên khi có previous_schedule. Điện năng còn lại phải bao gồm toàn bộ điện của slot freeze nếu gửi slot đó trong lịch cũ. Bản này chưa tích hợp Master LP với các worker theo trạm.
+Solver dùng SCIP khi tính liền mạch cần biến nhị phân. GLOP vẫn dùng được với cửa sổ sạc tối đa hai slot, một cổng liên tục có sàn bằng 0, không có tranh cổng và không có bằng chứng phiên sạc nối từ trước. Trường `algorithm` phản ánh solver thực tế. Mỗi yêu cầu có tối đa một cổng và một khối slot cấp điện. Cổng `CONTINUOUS` dùng `min_power_kw` của cổng. Để phân biệt slot bật với công suất 0, mô hình nhị phân dùng sàn số 0,001 kW khi đầu vào khai báo sàn bằng 0, giới hạn theo công suất cho phép. Cổng `ON_OFF_SWITCH` cấp đúng công suất định mức khi bật. Nhu cầu không thể cấp hết được ghi thành điện thiếu.
+
+MPC giữ slot đóng băng đã nhận trong `previous_schedule`; điện năng còn lại phải bao gồm toàn bộ điện của slot đó. Khi `CHARGING` có dòng công suất dương ở slot trước horizon cùng cổng đã khóa, lịch nối từ slot lập được đầu tiên. Nếu snapshot nằm giữa slot và chưa có dòng slot đang chạy, solver bắt đầu từ slot có thể sửa kế tiếp. Chỉ có trạng thái `CHARGING` và cổng khóa thì chưa đủ dữ liệu để kết luận slot trước đang cấp điện. Solver giữ cổng khóa cho xe đang sạc kể cả khi cổng được báo bảo trì, khi đó có thể trả thiếu điện.
 
 Ngân sách mặc định là `DEFAULT_TIME_BUDGET_MS=10000` cho snapshot dưới 300 request. Từ 300 request, mặc định là `LARGE_SCENARIO_TIME_BUDGET_MS=2000`, đồng thời đây là giới hạn trên cho ngân sách người gọi gửi vào. Khi số request cần giải sau chuẩn hóa vượt `DECOMPOSE_THRESHOLD=250`, optimizer chuyển sang LLF trên toàn cụm với `THRESHOLD_EXCEEDED`. Cách này giữ ràng buộc trần chung của cụm và kết quả vẫn qua Validator.
 
-Benchmark nhận một trong hai nguồn dữ liệu: snapshot inline hoặc scenario_id tương ứng với `ai_engine/data/scenarios/<id>.json`. Ví dụ demo đã có sẵn. Các lượt chạy tuần tự trên cùng snapshot và cùng seed. Bảng `summary` có KPI trung bình, số lần vượt trần lớn nhất, thời gian trung bình và độ lệch chuẩn tổng thể. `actual_algorithms` cho biết nếu MILP đã rơi về LLF. ASAP được phép vượt giới hạn trạm và cụm để đo tác dụng của điều phối. NSGA_II trả NOT_IMPLEMENTED.
+Benchmark nhận một trong hai nguồn dữ liệu: snapshot inline hoặc scenario_id tương ứng với `ai_engine/data/scenarios/<id>.json`. Ví dụ demo đã có sẵn. Các lượt chạy tuần tự trên cùng snapshot và cùng seed. Bảng `summary` có KPI trung bình, số lần vượt trần lớn nhất, thời gian trung bình và độ lệch chuẩn tổng thể. `kpi.interruptions` đếm số lần bật lại sau khi ngừng sạc, bằng 0 ở lịch hợp lệ. Trường này có thể là `null` khi thiếu phép đo. `actual_algorithms` cho biết nếu MILP đã rơi về LLF. ASAP được phép vượt giới hạn trạm và cụm để đo tác dụng của điều phối. NSGA_II trả NOT_IMPLEMENTED.
 
 ### Số đo trên dữ liệu scenario đã commit
 
@@ -52,35 +54,48 @@ Benchmark yêu cầu MILP ở mốc 100 và 500. Ở mốc 1.000 và 10.000, ben
 
 ### MILP so với LLF trên cùng request
 
-Ở mốc 100, cả hai cụm trả nghiệm MILP ở trạng thái `FEASIBLE`. Ở mốc 500, cụm 1 (294 request) vượt ngưỡng 250 nên dùng LLF với `FALLBACK / THRESHOLD_EXCEEDED`. Cụm 2 (206 request) trả nghiệm MILP với `FEASIBLE / NONE`. Bảng so sánh chỉ tính những cụm có nghiệm MILP. Phần trăm giảm dùng LLF làm mẫu số. Chênh lệch đúng hạn tính bằng điểm phần trăm.
+Ở mốc 100, cả hai cụm trả nghiệm MILP ở trạng thái `FEASIBLE`. Ở mốc 500, cụm 1 (294 request) dùng LLF với `FALLBACK / THRESHOLD_EXCEEDED`. Cụm 2 (206 request) trả nghiệm MILP `FEASIBLE / NONE`. Bảng chỉ tính các cụm có nghiệm MILP. Phần trăm giảm dùng LLF làm mẫu số. Chênh lệch đúng hạn tính bằng điểm phần trăm.
 
 | Mốc và phạm vi | Giá (đ/kWh) | Giảm chi phí | Giảm đỉnh | Chênh đúng hạn |
 |---|---|---:|---:|---:|
-| 100, cả hai cụm | 2.000 | 0% | 0,4411% | 0 |
-| 100, cả hai cụm | TOU | 0% | 0,4411% | 0 |
-| 500, chỉ cụm 2 | 2.000 | -0,0124% | 0% | +0,4854 |
-| 500, chỉ cụm 2 | TOU | 0,4817% | 0% | +0,9709 |
+| 100, cả hai cụm | 2.000 | 0,0000% | 0,4411% | 0,0000 |
+| 100, cả hai cụm | TOU | 0,0000% | 0,4411% | 0,0000 |
+| 500, chỉ cụm 2 | 2.000 | -0,0075% | 0,0000% | -2,4272 |
+| 500, chỉ cụm 2 | TOU | 0,3055% | 0,0000% | -2,4272 |
 
 ### KPI của hai cụm gộp lại
 
-Giá cố định là 2.000 đ/kWh, TOU dùng ba mức 1.620/2.700/4.212 đ/kWh từ `data/tariff_window_cleaned.csv`. Dòng “LLF + MILP” ghi kết quả khi yêu cầu MILP ở mốc 500, theo thứ tự cụm 1 rồi cụm 2. Tất cả các dòng dưới đây đều có 0 lần vượt trần. Bảng làm tròn khi hiển thị, JSON giữ nguyên kết quả đo.
+Giá cố định là 2.000 đ/kWh. TOU dùng ba mức 1.620/2.700/4.212 đ/kWh từ `data/tariff_window_cleaned.csv`. Dòng “LLF + MILP_MPC” ghi kết quả khi yêu cầu MILP ở mốc 500, theo thứ tự cụm 1 rồi cụm 2. Tất cả các dòng dưới đây có 0 lần vượt trần. Bảng làm tròn khi hiển thị.
 
-| Request | Giá | Thực chạy | Đúng hạn | Thiếu (kWh) | Chi phí (đ) | Đỉnh (kW) | solve_ms |
-|---:|---|---|---:|---:|---:|---:|---:|
-| 100 | Cố định | MILP | 94% | 17,5719 | 4.909.489,60 | 681,0700 | 16.475,60 |
-| 100 | Cố định | LLF | 94% | 17,5719 | 4.909.489,60 | 684,0876 | 15,65 |
-| 100 | TOU | MILP | 94% | 17,5719 | 8.276.432,26 | 681,0700 | 16.496,86 |
-| 100 | TOU | LLF | 94% | 17,5719 | 8.276.432,26 | 684,0876 | 17,23 |
-| 500 | Cố định | LLF + MILP | 68,2% | 2.613,4802 | 27.413.039,20 | 850,0000 | 12.138,71 |
-| 500 | Cố định | LLF | 68% | 2.614,1306 | 27.411.738,40 | 850,0000 | 101,51 |
-| 500 | TOU | LLF + MILP | 68,4% | 2.613,4802 | 42.054.657,06 | 850,0000 | 11.421,22 |
-| 500 | TOU | LLF | 68% | 2.614,1306 | 42.133.018,13 | 850,0000 | 98,56 |
-| 1.000 | Cố định | LLF | 52,2% | 5.184,4282 | 22.271.142,20 | 850,0000 | 117,31 |
-| 1.000 | TOU | LLF | 52,2% | 5.184,4282 | 34.134.439,81 | 850,0000 | 122,53 |
-| 10.000 | Cố định | LLF | 1,74% | 224.282,5779 | 42.161.966,00 | 850,0000 | 1.052,56 |
-| 10.000 | TOU | LLF | 1,74% | 224.282,5779 | 58.341.803,90 | 850,0000 | 2.327,44 |
+| Request | Giá | Thực chạy | Đúng hạn | Thiếu (kWh) | Chi phí (đ) | Đỉnh (kW) | Gián đoạn | solve_ms |
+|---:|---|---|---:|---:|---:|---:|---:|---:|
+| 100 | Cố định | MILP_MPC | 94% | 17,5719 | 4.909.489,60 | 681,0700 | 0 | 16.301,97 |
+| 100 | Cố định | LLF | 94% | 17,5719 | 4.909.489,60 | 684,0876 | 0 | 12,57 |
+| 100 | TOU EVN | MILP_MPC | 94% | 17,5719 | 8.276.432,26 | 681,0700 | 0 | 16.278,36 |
+| 100 | TOU EVN | LLF | 94% | 17,5719 | 8.276.432,26 | 684,0876 | 0 | 37,07 |
+| 500 | Cố định | LLF + MILP_MPC | 72% | 2.549,0329 | 27.541.933,80 | 850,0000 | 0 | 10.775,15 |
+| 500 | Cố định | LLF | 73% | 2.549,4269 | 27.541.145,80 | 850,0000 | 0 | 83,11 |
+| 500 | TOU EVN | LLF + MILP_MPC | 72% | 2.549,0329 | 42.256.368,57 | 850,0000 | 0 | 10.886,23 |
+| 500 | TOU EVN | LLF | 73% | 2.549,4269 | 42.306.055,65 | 850,0000 | 0 | 88,40 |
+| 1.000 | Cố định | LLF | 58,6% | 5.187,7256 | 22.264.547,40 | 850,0000 | 0 | 204,98 |
+| 1.000 | TOU EVN | LLF | 58,6% | 5.187,7256 | 34.125.737,89 | 850,0000 | 0 | 161,47 |
+| 10.000 | Cố định | LLF | 1,59% | 222.733,0836 | 45.260.954,60 | 850,0000 | 0 | 1.844,59 |
+| 10.000 | TOU EVN | LLF | 1,59% | 222.733,0836 | 62.528.486,17 | 850,0000 | 0 | 1.867,07 |
 
-Ở mốc 10.000, nhu cầu là 245.363,5609 kWh trên khả năng cấp 20.400 kWh trong 24 giờ. Tỷ lệ đúng hạn 1,74% đi kèm với mức quá tải này.
+Ở mốc 10.000, nhu cầu là 245.363,5609 kWh trên khả năng cấp 20.400 kWh trong 24 giờ. Tỷ lệ đúng hạn của LLF là 1,59%.
+
+### So sánh trước và sau trên cùng dữ liệu
+
+Đo lại cả hai phiên bản trên cùng máy Windows với seed 42. Cột chi phí là `(ASAP − phương án yêu cầu MILP_MPC) / ASAP`. Dấu âm cho biết chi phí tổng cao hơn ASAP. Hai cột dạng bộ ba theo thứ tự MILP_MPC được yêu cầu, LLF và ASAP. Mốc 500 của phương án yêu cầu MILP_MPC gồm LLF ở cụm 1.
+
+| Request | Giá | Biên chi phí so với ASAP | MILP_MPC solve_ms | Vượt trần | Gián đoạn |
+|---:|---|---:|---:|---:|---:|
+| 100 | Cố định | 0,00% → 0,00% | 15.698,17 → 16.301,97 | 0/0/0 → 0/0/0 | 0/0/0 → 0/0/0 |
+| 100 | TOU EVN | 0,00% → 0,00% | 15.762,57 → 16.278,36 | 0/0/0 → 0/0/0 | 0/0/0 → 0/0/0 |
+| 500 | Cố định | -18,75% → -19,31% | 10.696,77 → 10.775,15 | 0/0/53 → 0/0/53 | 104/104/0 → 0/0/0 |
+| 500 | TOU EVN | -15,73% → -16,29% | 10.981,67 → 10.886,23 | 0/0/53 → 0/0/53 | 104/104/0 → 0/0/0 |
+
+Ở mốc 100, tất cả thuật toán được đo đều có 0 gián đoạn trước và sau. Ở mốc 500, cả hai biểu giá ghi `MILP_MPC`, `LP_MPC` và `LLF` 104 → 0, `EDF` 37 → 0, `FCFS` 10 → 0, `EQUAL_SHARE` và `ASAP` 0 → 0. Số gián đoạn của bản trước được tính lại từ từng lịch cấp điện.
 
 ## Huấn luyện dự báo
 
