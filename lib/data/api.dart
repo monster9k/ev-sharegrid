@@ -4,8 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 const apiBase = String.fromEnvironment(
-  'API_BASE',
-  defaultValue: 'http://localhost:8000',
+  'API_BASE_URL',
+  defaultValue: String.fromEnvironment(
+    'API_BASE',
+    defaultValue: kIsWeb && kReleaseMode ? '' : 'http://localhost:8000',
+  ),
 );
 
 class ApiException implements Exception {
@@ -270,7 +273,8 @@ class ApiClient extends ChangeNotifier {
     return _decodeObject(response, token: token);
   }
 
-  Uri _uri(String path) => Uri.parse('$_baseUrl$path');
+  Uri _uri(String path) =>
+      _baseUrl.isEmpty ? Uri.base.resolve(path) : Uri.parse('$_baseUrl$path');
 
   Map<String, dynamic> _decodeObject(http.Response response, {String? token}) {
     final text = utf8.decode(response.bodyBytes);
