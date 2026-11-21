@@ -124,6 +124,60 @@ class ApiClient extends ChangeNotifier {
   Future<Map<String, dynamic>> getBenchmark() =>
       getJson('/api/v1/admin/benchmark').timeout(const Duration(seconds: 10));
 
+  Future<List<Map<String, dynamic>>> getMyRequests({int limit = 50}) =>
+      _getRows('/api/v1/requests/me?limit=$limit');
+
+  Future<List<Map<String, dynamic>>> getHostStations() =>
+      _getRows('/api/v1/host/stations');
+
+  Future<Map<String, dynamic>> createHostStation(Map<String, dynamic> fields) =>
+      postJson('/api/v1/host/stations', body: fields);
+
+  Future<Map<String, dynamic>> addHostPort(
+    int stationId,
+    Map<String, dynamic> fields,
+  ) => postJson('/api/v1/host/stations/$stationId/ports', body: fields);
+
+  Future<Map<String, dynamic>> changeHostPortStatus(
+    int portId,
+    String status,
+  ) => _writeJson('PATCH', '/api/v1/host/ports/$portId/status', {
+    'status': status,
+  });
+
+  Future<List<Map<String, dynamic>>> getHostSchedule(int stationId) =>
+      _getRows('/api/v1/host/stations/$stationId/schedule', key: 'slots');
+
+  Future<List<Map<String, dynamic>>> getAdminClusters() =>
+      _getRows('/api/v1/admin/clusters');
+
+  Future<List<Map<String, dynamic>>> getAdminStations(String status) =>
+      _getRows('/api/v1/admin/stations?status=$status');
+
+  Future<Map<String, dynamic>> updateClusterLimit(int id, double kw) =>
+      _writeJson('PATCH', '/api/v1/admin/clusters/$id', {'grid_limit_kw': kw});
+
+  Future<Map<String, dynamic>> verifyStation(int id, bool verified) =>
+      _writeJson('PATCH', '/api/v1/admin/stations/$id/verify', {
+        'verified': verified,
+      });
+
+  Future<Map<String, dynamic>> runBenchmark(Map<String, dynamic> snapshot) =>
+      postJson(
+        '/api/v1/admin/benchmark/run',
+        body: {
+          'scenario_id': 'page20',
+          'algorithms': ['MILP_MPC', 'LLF'],
+          'snapshot': snapshot,
+        },
+      ).timeout(const Duration(seconds: 125));
+
+  Future<Map<String, dynamic>> runForecast(int clusterId, String model) =>
+      postJson(
+        '/api/v1/admin/forecast',
+        body: {'cluster_id': clusterId, 'horizon_hours': 24, 'model': model},
+      ).timeout(const Duration(seconds: 20));
+
   Future<List<Map<String, dynamic>>> getStations({
     double? lat,
     double? lng,
@@ -188,6 +242,18 @@ class ApiClient extends ChangeNotifier {
     String path, {
     required Map<String, dynamic> body,
     bool includeAuthorization = true,
+  }) => _writeJson(
+    'POST',
+    path,
+    body,
+    includeAuthorization: includeAuthorization,
+  );
+
+  Future<Map<String, dynamic>> _writeJson(
+    String method,
+    String path,
+    Map<String, dynamic> body, {
+    bool includeAuthorization = true,
   }) async {
     final token = includeAuthorization ? _accessToken : null;
     final headers = <String, String>{
@@ -195,10 +261,11 @@ class ApiClient extends ChangeNotifier {
       'Content-Type': 'application/json; charset=utf-8',
     };
     if (!includeAuthorization) headers.remove('Authorization');
-    final response = await _client.post(
-      _uri(path),
-      headers: headers,
-      body: jsonEncode(body),
+    final request = http.Request(method, _uri(path));
+    request.headers.addAll(headers);
+    request.body = jsonEncode(body);
+    final response = await http.Response.fromStream(
+      await _client.send(request),
     );
     return _decodeObject(response, token: token);
   }
