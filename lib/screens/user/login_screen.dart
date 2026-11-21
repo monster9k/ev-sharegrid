@@ -8,7 +8,8 @@ import '../../widgets/web_shell.dart';
 
 /// U1 – Đăng nhập bằng thông tin máy chủ; JWT chỉ được giữ trong bộ nhớ.
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.client});
+  final ApiClient? client;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -20,6 +21,38 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscure = true;
   bool _busy = false;
   String? _error;
+
+  static const _demoPassword = String.fromEnvironment('DEMO_PASSWORD');
+  static const _demoAccounts = [
+    (
+      'User',
+      'user1@sharegrid.vn',
+      String.fromEnvironment('DEMO_USER_PASSWORD', defaultValue: _demoPassword),
+    ),
+    (
+      'Host',
+      'host1@sharegrid.vn',
+      String.fromEnvironment('DEMO_HOST_PASSWORD', defaultValue: _demoPassword),
+    ),
+    (
+      'Admin',
+      'admin@sharegrid.vn',
+      String.fromEnvironment(
+        'DEMO_ADMIN_PASSWORD',
+        defaultValue: _demoPassword,
+      ),
+    ),
+  ];
+
+  void _selectDemo(String email, String demoPassword) {
+    if (_email.text != email) _password.clear();
+    _email.text = email;
+    setState(() => _error = null);
+    if (demoPassword.isNotEmpty) {
+      _password.text = demoPassword;
+      _login();
+    }
+  }
 
   @override
   void dispose() {
@@ -38,23 +71,34 @@ class _LoginScreenState extends State<LoginScreen> {
       _error = null;
     });
     try {
-      final user = await apiClient.login(
+      final user = await (widget.client ?? apiClient).login(
         email: _email.text.trim(),
         password: _password.text,
       );
       if (!mounted) return;
+      final next = Uri.tryParse(
+        GoRouterState.of(context).uri.queryParameters['next'] ?? '',
+      );
       final route = switch (user['role']?.toString().toUpperCase()) {
         'ADMIN' => '/admin/clusters',
         'HOST' => '/host/stations',
+        'USER'
+            when next != null &&
+                !next.hasAuthority &&
+                !next.hasScheme &&
+                next.path == '/booking' =>
+          next.toString(),
         _ => '/home',
       };
       context.go(route);
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _error = error is ApiException
-            ? '${error.message} (HTTP ${error.statusCode})'
-            : 'Không thể đăng nhập tới máy chủ: $error';
+        _error = switch (error) {
+          ApiException(statusCode: 401) => 'Email hoặc mật khẩu không đúng.',
+          ApiException() => error.userMessage,
+          _ => 'Không thể đăng nhập tới máy chủ.',
+        };
       });
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -177,19 +221,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    LinkText(
-                      'Cổng chủ trạm',
-                      size: 13,
-                      color: AppColors.muted,
-                      onTap: () => context.go('/host/stations'),
-                    ),
-                    const MutedText('·'),
-                    LinkText(
-                      'Quản trị',
-                      size: 13,
-                      color: AppColors.muted,
-                      onTap: () => context.go('/admin/clusters'),
-                    ),
+                    for (final (label, email, password) in _demoAccounts)
+                      OutlinedButton(
+                        onPressed: _busy
+                            ? null
+                            : () => _selectDemo(email, password),
+                        child: Text(label),
+                      ),
                   ],
                 ),
               ],
