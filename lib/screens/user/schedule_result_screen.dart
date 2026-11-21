@@ -34,6 +34,7 @@ class _ScheduleResultScreenState extends State<ScheduleResultScreen> {
   String? _error;
   String? _actionError;
   String? _confirmedStatus;
+  int? _latestRequestId;
 
   int? get _requestId {
     final value = widget.bookingResult?['request_id'];
@@ -41,13 +42,36 @@ class _ScheduleResultScreenState extends State<ScheduleResultScreen> {
         (value is num
             ? value.toInt()
             : int.tryParse(value?.toString() ?? '')) ??
-        _api.lastRequestId;
+        _api.lastRequestId ??
+        _latestRequestId;
   }
 
   @override
   void initState() {
     super.initState();
-    if (_requestId case final id?) _loadSchedule(id);
+    if (_requestId case final id?) {
+      _loadSchedule(id);
+    } else if (_api.role == 'USER') {
+      _loadLatest();
+    }
+  }
+
+  Future<void> _loadLatest() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final latest = (await _api.getMyRequests(limit: 1)).firstOrNull;
+      if (!mounted) return;
+      final id = (latest?['request_id'] as num?)?.toInt();
+      setState(() => _latestRequestId = id);
+      if (id != null) await _loadSchedule(id);
+    } catch (error) {
+      if (mounted) setState(() => _error = _errorMessage(error));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   Future<void> _loadSchedule(int requestId) async {
@@ -244,9 +268,9 @@ class _ScheduleResultScreenState extends State<ScheduleResultScreen> {
           _Notice(
             text: _error ?? _actionError!,
             error: true,
-            onRetry: id == null ? null : () => _loadSchedule(id),
+            onRetry: id == null ? _loadLatest : () => _loadSchedule(id),
           ),
-        if (id == null)
+        if (id == null && !_loading && _error == null)
           const _Notice(
             text: 'Chưa có lịch sạc. Hãy gửi yêu cầu ở màn Đặt lịch.',
           )

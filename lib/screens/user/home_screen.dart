@@ -20,17 +20,15 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   ApiClient get _api => widget.client ?? apiClient;
   late var _stations = _api.getStations();
-  late final _requestId = _api.lastRequestId;
-  late var _schedule = _requestId == null
-      ? null
-      : _api.getRequestSchedule(_requestId);
+  late var _requests = _api.role == 'USER'
+      ? _api.getMyRequests(limit: 1)
+      : null;
 
   @override
   Widget build(BuildContext context) {
     final fullName = _api.currentUser?['full_name']?.toString();
     final vehicles = (_api.currentUser?['vehicles'] as List?)?.whereType<Map>();
     final vehicle = vehicles?.firstOrNull;
-    final requestId = _requestId;
     return UserScaffold(
       tab: UserTab.home,
       showSimulationTag: false,
@@ -175,11 +173,11 @@ class _HomeScreenState extends State<HomeScreen> {
           action: 'Lịch đặt',
           onAction: () => context.go('/sessions'),
         ),
-        if (requestId == null)
-          const AppCard(child: MutedText('Chưa có lịch sạc trong phiên này.'))
+        if (_requests == null)
+          const SignInCard('Đăng nhập bằng tài khoản User để xem lịch sạc.')
         else
-          FutureBuilder<Map<String, dynamic>>(
-            future: _schedule,
+          FutureBuilder<List<Map<String, dynamic>>>(
+            future: _requests,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const LinearProgressIndicator();
@@ -187,17 +185,25 @@ class _HomeScreenState extends State<HomeScreen> {
               if (snapshot.hasError) {
                 return ApiErrorCard(
                   error: snapshot.error!,
-                  onRetry: () => setState(
-                    () => _schedule = _api.getRequestSchedule(requestId),
-                  ),
+                  onRetry: () =>
+                      setState(() => _requests = _api.getMyRequests(limit: 1)),
                 );
               }
+              final latest = snapshot.data?.firstOrNull;
+              if (latest == null) {
+                return const AppCard(child: MutedText('Chưa có lịch sạc.'));
+              }
               return AppCard(
-                onTap: () => context.go('/schedule'),
+                onTap: () =>
+                    context.go('/schedule?requestId=${latest['request_id']}'),
                 child: Row(
                   children: [
-                    Expanded(child: BoldText('Yêu cầu #$requestId')),
-                    Pill(snapshot.data?['status']?.toString() ?? '—'),
+                    Expanded(
+                      child: BoldText(
+                        'Yêu cầu #${latest['request_id']} · ${latest['station_name'] ?? 'Trạm sạc'}',
+                      ),
+                    ),
+                    Pill(latest['status']?.toString() ?? '—'),
                   ],
                 ),
               );
