@@ -1,4 +1,7 @@
 import json
+import secrets
+
+import pytest
 
 from fastapi.testclient import TestClient
 
@@ -66,6 +69,12 @@ class AuthConnection:
 
     def cursor(self, **kwargs):
         return self.fake_cursor
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
 
     def close(self):
         self.closed = True
@@ -166,3 +175,92 @@ def test_expired_or_tampered_tokens_are_rejected(monkeypatch):
         assert False, "tampered token should be rejected"
     except ValueError:
         pass
+
+@pytest.fixture(autouse=True)
+def reset_limit(monkeypatch):
+    monkeypatch.setattr(auth_route, "_buckets", auth_route.OrderedDict())
+
+
+def test_register_login_and_profile_only_expose_public_fields(monkeypatch):
+    set_auth_config(monkeypatch)
+    install_auth_db(monkeypatch)
+    users = {}
+    base_execute = AuthCursor.execute
+
+    def execute(self, query, params=()):
+        if "INSERT INTO app_user" in query:
+            name, email, phone, encoded, _ = params
+            self.one = None
+            if email not in users:
+                self.one = dict(user_id=9, role="USER", email=email, full_name=name)
+                users[email] = dict(self.one, password_hash=encoded, phone=phone)
+        elif "FROM app_user" in query:
+            self.one = next(iter(users.values()))
+        else:
+            base_execute(self, query, params)
+    monkeypatch.setattr(AuthCursor, "execute", execute)
+    password = secrets.token_urlsafe(24)
+    payload = dict(full_name="  Chủ xe  ", email=" Test@Example.org ", password=password,
+                   role="ADMIN", phone="0900123456")
+    reg = client.post("/api/v1/auth/register", json=payload)
+    assert reg.status_code == 200
+    body = reg.json()
+    assert set(body) == {"access_token", "token_type", "expires_in", "user"}
+    assert body["user"] == dict(user_id=9, role="USER", email="test@example.org", full_name="Chủ xe")
+    stored = users["test@example.org"]
+    assert stored["phone"] == payload["phone"] and auth.verify_password(password, stored["password_hash"])
+    login = client.post("/api/v1/auth/login", json=payload)
+    assert login.status_code == 200 and login.json()["user"] == body["user"]
+    me = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {body['access_token']}"})
+    assert me.status_code == 200 and me.json()["role"] == "USER"
+    duplicate = client.post("/api/v1/auth/register", json=dict(payload, email="TEST@EXAMPLE.ORG"))
+    assert duplicate.status_code == 409
+    for response in (reg, login, me, duplicate):
+        assert "password_hash" not in response.text and stored["password_hash"] not in response.text
+        assert password not in response.text
+
+
+@pytest.mark.parametrize("email", auth.DEMO_EMAILS)
+def test_cannot_register_demo_even_before_seed(email):
+    response = client.post("/api/v1/auth/register", json={
+        "full_name": "Test", "email": email.upper(), "password": secrets.token_urlsafe(12)})
+    assert response.status_code == 409
+
+
+@pytest.mark.parametrize(("field", "value"), [
+    ("email", "invalid"), ("password", "t!3x"), ("password", "x" * 129),
+    ("full_name", "    "), ("full_name", "a" * 101), ("phone", "1" * 21),
+])
+def test_invalid_registration_never_echoes_credentials(field, value):
+    payload = dict(full_name="Test", email="one@example.test", password=secrets.token_urlsafe(12))
+    payload[field] = value
+    response = client.post("/api/v1/auth/register", json=payload)
+    assert response.status_code == 422
+    assert payload["password"] not in response.text
+    assert all("input" not in error for error in response.json()["detail"])
+
+
+def test_null_db_hash_denied_and_configured_hash_has_priority(monkeypatch):
+    set_auth_config(monkeypatch)
+    install_auth_db(monkeypatch)
+    monkeypatch.setitem(ACTIVE_USER, "password_hash", None)
+    assert client.post("/api/v1/auth/login", json={"email": "other@example.test", "password": ""}).status_code == 401
+    db_password = secrets.token_urlsafe(16)
+    monkeypatch.setitem(ACTIVE_USER, "password_hash", auth.hash_password(db_password))
+    assert client.post("/api/v1/auth/login", json={"email": ACTIVE_USER["email"], "password": db_password}).status_code == 401
+
+
+def test_login_and_register_share_ip_limit_and_recover(monkeypatch):
+    monkeypatch.setattr(auth_route, "AUTH_LIMIT", 2)
+    now = [100.]
+    monkeypatch.setattr(auth_route, "monotonic", lambda: now[0])
+    data = dict(full_name="Test", email=auth.DEMO_EMAILS[0], password=secrets.token_urlsafe(16))
+    assert client.post("/api/v1/auth/register", json=data).status_code == 409
+    set_auth_config(monkeypatch)
+    install_auth_db(monkeypatch)
+    assert client.post("/api/v1/auth/login", json=data).status_code == 401
+    for endpoint in ("login", "register"):
+        response = client.post(f"/api/v1/auth/{endpoint}", json=data)
+        assert response.status_code == 429 and response.headers["Retry-After"] == "60"
+    now[0] += 60
+    assert client.post("/api/v1/auth/register", json=data).status_code == 409
