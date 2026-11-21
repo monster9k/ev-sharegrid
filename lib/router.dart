@@ -36,9 +36,9 @@ List<RouteBase> _userRoutes(ApiClient client) => [
   _page('/onboarding/2', () => const OnboardingScreen(step: 2)),
   _page('/onboarding/3', () => const OnboardingScreen(step: 3)),
   _page('/login', () => LoginScreen(client: client)),
-  _page('/home', () => const HomeScreen()),
-  _page('/garage', () => const GarageScreen()),
-  _page('/map', () => const MapScreen()),
+  _page('/home', () => HomeScreen(client: client)),
+  _page('/garage', () => GarageScreen(client: client)),
+  _page('/map', () => MapScreen(client: client)),
   GoRoute(path: '/station', redirect: (_, _) => '/map'),
   GoRoute(
     path: '/station/:id',
@@ -76,8 +76,8 @@ List<RouteBase> _userRoutes(ApiClient client) => [
       ),
     ),
   ),
-  _page('/sessions', () => const SessionsScreen()),
-  _page('/notifications', () => const NotificationsScreen()),
+  _page('/sessions', () => SessionsScreen(client: client)),
+  _page('/notifications', () => NotificationsScreen(client: client)),
   _page('/profile', () => ProfileScreen(client: client)),
 ];
 
