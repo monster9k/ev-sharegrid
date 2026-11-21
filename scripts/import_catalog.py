@@ -400,15 +400,24 @@ def seed_postgres_database(df_models, df_stations, df_ports, df_tariff):
 
         # 1. Nạp app_user mẫu
         users = [
-            (1, 'ADMIN', 'Quản trị Hệ thống ShareGrid', 'admin@sharegrid.vn', '0901000001', 100.00, 'ACTIVE'),
-            (2, 'HOST', 'Nguyễn Văn Chủ Trạm (Đà Nẵng)', 'host1@sharegrid.vn', '0901000002', 98.50, 'ACTIVE'),
-            (3, 'USER', 'Trần Thị Khách Hàng', 'user1@sharegrid.vn', '0901000003', 95.00, 'ACTIVE')
+            ('ADMIN', 'Quản trị Hệ thống ShareGrid', 'admin@sharegrid.vn', '0901000001', 100.00),
+            ('HOST', 'Nguyễn Văn Chủ Trạm (Đà Nẵng)', 'host1@sharegrid.vn', '0901000002', 98.50),
+            ('USER', 'Trần Thị Khách Hàng', 'user1@sharegrid.vn', '0901000003', 95.00),
         ]
-        cur.executemany("""
-            INSERT INTO app_user (user_id, role, full_name, email, phone, reliability_score, status)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (user_id) DO UPDATE SET full_name = EXCLUDED.full_name;
-        """, users)
+        demo_ids = {}
+        for role, name, email, phone, score in users:
+            cur.execute("""
+                INSERT INTO app_user (role, full_name, email, phone, reliability_score, status)
+                SELECT %s, %s, %s, %s, %s, 'ACTIVE'
+                WHERE NOT EXISTS (SELECT 1 FROM app_user WHERE lower(email) = %s)
+                ON CONFLICT (email) DO NOTHING
+            """, (role, name, email, phone, score, email))
+            cur.execute("SELECT user_id, role FROM app_user WHERE lower(email) = %s", (email,))
+            user_id, existing_role = cur.fetchone()
+            if existing_role == role:
+                demo_ids[role] = user_id
+            else:
+                print(f"Giữ vai trò hiện tại của {email}; bỏ qua liên kết demo cho vai trò {role}.")
 
         # 2. Nạp grid_cluster từ data/grid_cluster.csv
         gc_path = os.path.join(DATA_DIR, "grid_cluster.csv")
@@ -441,11 +450,12 @@ def seed_postgres_database(df_models, df_stations, df_ports, df_tariff):
                   m["data_note"]))
 
         # 3b. Nạp xe demo sau vehicle_model để thỏa khóa ngoại model_id.
-        cur.execute("""
-            INSERT INTO vehicle (vehicle_id, user_id, model_id, plate_number, nickname, default_soc_target, is_default)
-            VALUES (101, 3, 2, '43A-123.45', 'VF 5 Đi Làm', 80.00, TRUE)
-            ON CONFLICT (vehicle_id) DO NOTHING;
-        """)
+        if "USER" in demo_ids:
+            cur.execute("""
+                INSERT INTO vehicle (vehicle_id, user_id, model_id, plate_number, nickname, default_soc_target, is_default)
+                VALUES (101, %s, 2, '43A-123.45', 'VF 5 Đi Làm', 80.00, TRUE)
+                ON CONFLICT (vehicle_id) DO NOTHING;
+            """, (demo_ids["USER"],))
 
         # 4. Nạp charging_station (107 trạm thực tế)
         for _, s in df_stations.iterrows():
@@ -480,7 +490,7 @@ def seed_postgres_database(df_models, df_stations, df_ports, df_tariff):
                     qa_notes = EXCLUDED.qa_notes;
             """
             params = [
-                int(s["station_id"]), int(s["cluster_id"]), int(s["owner_id"]), s["name"], s["address"], s["province"], s["area_label"],
+                int(s["station_id"]), int(s["cluster_id"]), (demo_ids.get("HOST") if int(s["owner_id"]) == 2 else int(s["owner_id"])), s["name"], s["address"], s["province"], s["area_label"],
                 s["supported_vehicle_type"], s["status"], s["ocpp_id"], s["phone"], s["osm_id"], s["source_type"], s["source_ref"],
                 float(s["lat"]) if has_coords else None,
                 float(s["lng"]) if has_coords else None,

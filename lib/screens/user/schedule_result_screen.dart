@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/api.dart';
+import '../../data/charging_time.dart';
 import '../../data/models.dart';
 import '../../theme.dart';
 import '../../widgets/charts.dart';
@@ -10,30 +11,67 @@ import '../../widgets/glass.dart';
 
 /// U6 – Hiển thị lịch và KPI nhận trực tiếp từ API đặt lịch.
 class ScheduleResultScreen extends StatefulWidget {
-  const ScheduleResultScreen({super.key, this.bookingResult});
+  const ScheduleResultScreen({
+    super.key,
+    this.bookingResult,
+    this.requestId,
+    this.client,
+  });
 
   final Map<String, dynamic>? bookingResult;
+  final int? requestId;
+  final ApiClient? client;
 
   @override
   State<ScheduleResultScreen> createState() => _ScheduleResultScreenState();
 }
 
 class _ScheduleResultScreenState extends State<ScheduleResultScreen> {
+  ApiClient get _api => widget.client ?? apiClient;
   Map<String, dynamic>? _schedule;
   bool _loading = false;
   bool _working = false;
   String? _error;
   String? _actionError;
+  String? _confirmedStatus;
+  int? _latestRequestId;
 
   int? get _requestId {
     final value = widget.bookingResult?['request_id'];
-    return value is num ? value.toInt() : int.tryParse(value?.toString() ?? '');
+    return widget.requestId ??
+        (value is num
+            ? value.toInt()
+            : int.tryParse(value?.toString() ?? '')) ??
+        _api.lastRequestId ??
+        _latestRequestId;
   }
 
   @override
   void initState() {
     super.initState();
-    if (_requestId case final id?) _loadSchedule(id);
+    if (_requestId case final id?) {
+      _loadSchedule(id);
+    } else if (_api.role == 'USER') {
+      _loadLatest();
+    }
+  }
+
+  Future<void> _loadLatest() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final latest = (await _api.getMyRequests(limit: 1)).firstOrNull;
+      if (!mounted) return;
+      final id = (latest?['request_id'] as num?)?.toInt();
+      setState(() => _latestRequestId = id);
+      if (id != null) await _loadSchedule(id);
+    } catch (error) {
+      if (mounted) setState(() => _error = _errorMessage(error));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   Future<void> _loadSchedule(int requestId) async {
@@ -42,8 +80,13 @@ class _ScheduleResultScreenState extends State<ScheduleResultScreen> {
       _error = null;
     });
     try {
-      final schedule = await apiClient.getRequestSchedule(requestId);
-      if (mounted) setState(() => _schedule = schedule);
+      final schedule = await _api.getRequestSchedule(requestId);
+      if (mounted) {
+        setState(() {
+          _schedule = schedule;
+          _confirmedStatus = null;
+        });
+      }
     } catch (error) {
       if (mounted) setState(() => _error = _errorMessage(error));
     } finally {
@@ -52,7 +95,7 @@ class _ScheduleResultScreenState extends State<ScheduleResultScreen> {
   }
 
   String _errorMessage(Object error) => error is ApiException
-      ? '${error.message} (HTTP ${error.statusCode})'
+      ? error.userMessage
       : 'Không thể tải lịch từ máy chủ: $error';
 
   Map<String, dynamic> get _data {
@@ -64,7 +107,10 @@ class _ScheduleResultScreenState extends State<ScheduleResultScreen> {
   Map<String, dynamic> get _summary {
     final root = _data;
     final summary = root['summary'] ?? root['request_result'];
-    final result = widget.bookingResult ?? const <String, dynamic>{};
+    final result =
+        widget.bookingResult ??
+        (_requestId == _api.lastRequestId ? _api.lastBooking : null) ??
+        const <String, dynamic>{};
     return {
       ...result,
       if (summary is Map) ...Map<String, dynamic>.from(summary),
@@ -124,9 +170,6 @@ class _ScheduleResultScreenState extends State<ScheduleResultScreen> {
     return value.toString();
   }
 
-  String _fmtTime(DateTime value) =>
-      '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
-
   Future<void> _changeRequest({required bool confirm}) async {
     final id = _requestId;
     if (id == null) return;
@@ -136,9 +179,11 @@ class _ScheduleResultScreenState extends State<ScheduleResultScreen> {
     });
     try {
       if (confirm) {
-        await apiClient.confirmRequest(id);
+        final result = await _api.confirmRequest(id);
+        if (!mounted) return;
+        setState(() => _confirmedStatus = result['status'] as String?);
       } else {
-        await apiClient.cancelRequest(id);
+        await _api.cancelRequest(id);
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -159,7 +204,12 @@ class _ScheduleResultScreenState extends State<ScheduleResultScreen> {
     final id = _requestId;
     final summary = _summary;
     final slots = _slotRows;
-    final status = (_data['status'] ?? summary['status'])?.toString() ?? '—';
+    final status =
+        _confirmedStatus ?? (_data['status'] ?? summary['status'])?.toString();
+    final canConfirm = status == 'SCHEDULED';
+    final canCancel =
+        canConfirm || status == 'CONFIRMED' || status == 'PENDING';
+    final actionDisabled = _loading || _working;
     final algorithm = (_data['algorithm'] ?? summary['algorithm'])?.toString();
     final firstStart = slots.isEmpty ? null : _slotTime(slots.first);
     final lastStart = slots.isEmpty ? null : _slotTime(slots.last);
@@ -167,7 +217,7 @@ class _ScheduleResultScreenState extends State<ScheduleResultScreen> {
         ? '—'
         : (slots.first['port_code'] ?? slots.first['port_id'] ?? '—')
               .toString();
-    final actionBar = id == null
+    final actionBar = id == null || !canCancel
         ? null
         : GlassActionBar(
             children: [
@@ -177,23 +227,27 @@ class _ScheduleResultScreenState extends State<ScheduleResultScreen> {
                   kind: AppButtonKind.ghost,
                   radius: 999,
                   fontSize: 14,
-                  onPressed: _working ? null : () => _confirmCancel(context),
-                ),
-              ),
-              Expanded(
-                child: AppButton(
-                  label: _working ? 'Đang gửi…' : 'Xác nhận lịch',
-                  radius: 999,
-                  fontSize: 14,
-                  onPressed: _working
+                  onPressed: actionDisabled
                       ? null
-                      : () => _changeRequest(confirm: true),
+                      : () => _confirmCancel(context),
                 ),
               ),
+              if (canConfirm)
+                Expanded(
+                  child: AppButton(
+                    label: _working ? 'Đang gửi…' : 'Xác nhận lịch',
+                    radius: 999,
+                    fontSize: 14,
+                    onPressed: actionDisabled
+                        ? null
+                        : () => _changeRequest(confirm: true),
+                  ),
+                ),
             ],
           );
 
     return UserScaffold(
+      showSimulationTag: false,
       gap: 12,
       tab: UserTab.smart,
       actionBar: actionBar,
@@ -214,12 +268,11 @@ class _ScheduleResultScreenState extends State<ScheduleResultScreen> {
           _Notice(
             text: _error ?? _actionError!,
             error: true,
-            onRetry: id == null ? null : () => _loadSchedule(id),
+            onRetry: id == null ? _loadLatest : () => _loadSchedule(id),
           ),
-        if (id == null)
+        if (id == null && !_loading && _error == null)
           const _Notice(
-            text:
-                'Chưa có kết quả đặt lịch từ máy chủ. Hãy gửi yêu cầu ở màn Đặt lịch.',
+            text: 'Chưa có lịch sạc. Hãy gửi yêu cầu ở màn Đặt lịch.',
           )
         else if (!_loading && _error == null && _schedule != null) ...[
           AppCard(
@@ -234,8 +287,8 @@ class _ScheduleResultScreenState extends State<ScheduleResultScreen> {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Pill(
-                      status,
-                      bg: status == 'OPTIMAL' || status == 'FEASIBLE'
+                      status ?? '—',
+                      bg: status == 'CONFIRMED'
                           ? AppColors.success
                           : AppColors.warning,
                       fg: Colors.white,
@@ -265,7 +318,7 @@ class _ScheduleResultScreenState extends State<ScheduleResultScreen> {
                 MutedText(
                   slots.isEmpty
                       ? 'Máy chủ chưa phân bổ slot sạc cho yêu cầu này.'
-                      : 'Cổng $firstPort · ${_fmtTime(firstStart!)}–${_fmtTime(lastStart!.add(const Duration(minutes: 15)))}',
+                      : 'Cổng $firstPort · ${formatVietnamTime(firstStart!)}–${formatVietnamTime(lastStart!.add(const Duration(minutes: 15)))}',
                   color: AppColors.skyInk,
                 ),
               ],
@@ -476,7 +529,7 @@ class _SlotLine extends StatelessWidget {
       children: [
         Expanded(
           child: Text(
-            '${_time(start)} · Cổng $port · ${powerKw.toString()} kW',
+            '${formatVietnamTime(start)} · Cổng $port · ${powerKw.toString()} kW',
             style: AppFonts.body(size: 12),
           ),
         ),
@@ -487,7 +540,4 @@ class _SlotLine extends StatelessWidget {
       ],
     ),
   );
-
-  static String _time(DateTime time) =>
-      '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
 }

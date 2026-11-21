@@ -341,6 +341,37 @@ def create_booking_request(
     }
 
 
+@router.get("/requests/me")
+def get_my_requests(
+    limit: int = Query(default=50, ge=1, le=200),
+    user: AuthUser = Depends(require_roles("USER")),
+):
+    try:
+        connection = connect()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Request database is unavailable") from exc
+    try:
+        with dict_cursor(connection) as cursor:
+            cursor.execute(
+                """
+                SELECT r.request_id, r.station_id, s.name AS station_name, r.vehicle_id,
+                       r.arrival_time, r.departure_time, r.status, r.created_at
+                FROM charging_request r
+                LEFT JOIN charging_station s ON s.station_id = r.station_id
+                WHERE r.user_id = %s
+                ORDER BY r.created_at DESC, r.request_id DESC
+                LIMIT %s
+                """,
+                (user.user_id, limit),
+            )
+            rows = cursor.fetchall()
+            return {"count": len(rows), "data": rows}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Could not load charging requests") from exc
+    finally:
+        connection.close()
+
+
 @router.get("/requests/{request_id}/schedule")
 def get_request_schedule(
     request_id: int,

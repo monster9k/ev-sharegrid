@@ -12,7 +12,6 @@ from tempfile import NamedTemporaryFile
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEMO_EMAILS = ("user1@sharegrid.vn", "host1@sharegrid.vn", "admin@sharegrid.vn")
 
 
 def write_env(path: Path, contents: str, force: bool) -> None:
@@ -63,7 +62,7 @@ def main(argv: list[str] | None = None) -> None:
     if __package__ in (None, ""):
         sys.path.insert(0, str(ROOT))
     try:
-        from backend.auth import hash_password
+        from backend.auth import DEMO_EMAILS, hash_password
     except ModuleNotFoundError as exc:
         if exc.name != "fastapi":
             raise

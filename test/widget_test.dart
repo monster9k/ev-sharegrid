@@ -1,3 +1,8 @@
+import 'dart:convert';
+
+import 'package:ev_sharegrid/data/api.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:ev_sharegrid/main.dart';
 import 'package:ev_sharegrid/theme.dart';
 import 'package:flutter/material.dart';
@@ -29,23 +34,78 @@ const routes = [
   '/admin/forecast',
 ];
 
+Future<ApiClient> signedIn([String role = 'USER']) async {
+  final api = ApiClient(
+    client: MockClient((request) async {
+      final body = switch (request.url.path) {
+        '/api/v1/auth/login' => {'access_token': 'widget-token'},
+        '/api/v1/auth/me' => {'user_id': 5, 'role': role, 'vehicles': []},
+        _ => {'data': []},
+      };
+      return http.Response(jsonEncode(body), 200);
+    }),
+  );
+  await api.login(email: 'tester@example.test', password: 'test-fixture');
+  return api;
+}
+
 void main() {
   setUpAll(() => AppFonts.enabled = false);
 
   testWidgets('lịch không có response không hiển thị lịch mẫu', (tester) async {
-    await tester.pumpWidget(EvShareGridApp(initialLocation: '/schedule'));
+    await tester.pumpWidget(
+      EvShareGridApp(initialLocation: '/schedule', api: await signedIn()),
+    );
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(
-      find.text(
-        'Chưa có kết quả đặt lịch từ máy chủ. Hãy gửi yêu cầu ở màn Đặt lịch.',
-      ),
+      find.text('Chưa có lịch sạc. Hãy gửi yêu cầu ở màn Đặt lịch.'),
       findsOneWidget,
     );
     expect(
       find.text('Request #R-5012 · Job #J-2291 · Run #1042'),
       findsNothing,
     );
+    expect(find.text('Dữ liệu mô phỏng'), findsNothing);
+  });
+
+  testWidgets('chọn ngày và giờ 24h ở form đặt lịch', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(430, 900);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      EvShareGridApp(initialLocation: '/booking', api: await signedIn()),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Dữ liệu mô phỏng'), findsNothing);
+
+    final timeTile = find
+        .textContaining(RegExp(r'\d{2}/\d{2}/\d{4} · \d{2}:\d{2}'))
+        .first;
+    await Scrollable.ensureVisible(tester.element(timeTile), alignment: .5);
+    await tester.pumpAndSettle();
+    expect(timeTile.hitTestable(), findsOneWidget);
+    await tester.tap(timeTile);
+    await tester.pumpAndSettle();
+    expect(find.text('Chọn ngày đến'), findsOneWidget);
+    expect(find.textContaining('Ngày mai'), findsOneWidget);
+
+    await tester.tap(find.textContaining('Hôm nay'));
+    await tester.pumpAndSettle();
+    expect(find.text('Chọn giờ đến'), findsOneWidget);
+    expect(find.text('AM'), findsNothing);
+    expect(find.text('PM'), findsNothing);
+    await tester.tap(find.text('Hủy'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('lịch đặt hiện lời nhắc đăng nhập khi chưa có phiên', (
+    tester,
+  ) async {
+    await tester.pumpWidget(EvShareGridApp(initialLocation: '/sessions'));
+    await tester.pumpAndSettle();
+    expect(find.text('Đăng nhập'), findsOneWidget);
+    expect(find.text('Dữ liệu mô phỏng'), findsNothing);
   });
 
   testWidgets('onboarding đọc được hết mô tả trên màn nhỏ và web', (
@@ -58,7 +118,9 @@ void main() {
     for (final size in const [Size(360, 640), Size(1440, 900)]) {
       tester.view.physicalSize = size;
       await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pumpWidget(EvShareGridApp(initialLocation: '/'));
+      await tester.pumpWidget(
+        EvShareGridApp(initialLocation: '/', api: await signedIn()),
+      );
       await tester.pumpAndSettle();
 
       for (final (phrase, button) in const [
@@ -95,7 +157,17 @@ void main() {
         tester.view.physicalSize = size;
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.reset);
-        await tester.pumpWidget(EvShareGridApp(initialLocation: r));
+        final role = r.startsWith('/host')
+            ? 'HOST'
+            : r.startsWith('/admin')
+            ? 'ADMIN'
+            : 'USER';
+        await tester.pumpWidget(
+          EvShareGridApp(
+            initialLocation: r,
+            api: r == '/login' ? null : await signedIn(role),
+          ),
+        );
         await tester.pump(const Duration(milliseconds: 300));
         expect(find.byType(Scaffold), findsWidgets);
       });

@@ -17,6 +17,7 @@ from fastapi import Depends, HTTPException, Request
 from backend.db import connect, dict_cursor
 
 
+DEMO_EMAILS = ("user1@sharegrid.vn", "host1@sharegrid.vn", "admin@sharegrid.vn")
 ISSUER = "ev-sharegrid"
 PBKDF2_ITERATIONS = 310_000
 

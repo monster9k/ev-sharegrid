@@ -3,32 +3,45 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../data/api.dart';
 import '../theme.dart';
 import 'common.dart';
+
+/// Provides the router's session to the shared account menu.
+class PortalSession extends InheritedNotifier<ApiClient> {
+  const PortalSession({
+    super.key,
+    required ApiClient client,
+    required super.child,
+  }) : super(notifier: client);
+
+  static ApiClient of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<PortalSession>()?.notifier ??
+      apiClient;
+}
 
 enum Portal { host, admin }
 
 class _NavItem {
-  const _NavItem(this.route, this.icon, this.label, {this.badge});
+  const _NavItem(this.route, this.icon, this.label);
   final String route;
   final IconData icon;
   final String label;
-  final int? badge;
 }
 
 const _hostItems = [
   _NavItem('/host/stations', AppIcons.station, 'Trạm của tôi'),
   _NavItem('/host/ports', AppIcons.tool, 'Cổng sạc & bảo trì'),
-  _NavItem('/host/schedule', AppIcons.calendar, 'Lịch đặt & doanh thu'),
+  _NavItem('/host/schedule', AppIcons.calendar, 'Lịch sạc tại trạm'),
 ];
 
 const _adminItems = [
   _NavItem('/admin/clusters', Icons.hub_outlined, 'Cụm điều phối'),
-  _NavItem('/admin/review', Icons.fact_check_outlined, 'Duyệt trạm', badge: 1),
+  _NavItem('/admin/review', Icons.fact_check_outlined, 'Duyệt trạm'),
   _NavItem('/admin/tariff', AppIcons.money, 'Biểu giá điện'),
   _NavItem('/admin/solver', Icons.monitor_heart_outlined, 'Giám sát solver'),
   _NavItem('/admin/benchmark', Icons.science_outlined, 'Mô phỏng & Benchmark'),
-  _NavItem('/admin/forecast', AppIcons.chart, 'Dự báo & Audit'),
+  _NavItem('/admin/forecast', AppIcons.chart, 'Dự báo nhu cầu'),
 ];
 
 /// Khung web cho cổng HOST và ADMIN: sidebar sáng (kính), mục chọn Sky 200,
@@ -126,6 +139,7 @@ class _Sidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final session = PortalSession.of(context);
     final items = portal == Portal.host ? _hostItems : _adminItems;
     return ClipRect(
       child: BackdropFilter(
@@ -167,11 +181,17 @@ class _Sidebar extends StatelessWidget {
                     ],
                   ),
                 ),
-                for (final it in items) ...[
-                  _SideLink(item: it, selected: it.route == route),
-                  const Gap(6),
-                ],
-                const Spacer(),
+                Expanded(
+                  child: ListView(
+                    padding: EdgeInsets.zero,
+                    children: [
+                      for (final it in items) ...[
+                        _SideLink(item: it, selected: it.route == route),
+                        const Gap(6),
+                      ],
+                    ],
+                  ),
+                ),
                 const Divider(color: AppColors.border, height: 1),
                 const Gap(14),
                 Padding(
@@ -196,15 +216,14 @@ class _Sidebar extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             BoldText(
-                              portal == Portal.host
-                                  ? 'Nguyễn Văn Chủ Trạm'
-                                  : 'Quản trị viên',
+                              session.currentUser?['full_name']?.toString() ??
+                                  (portal == Portal.host
+                                      ? 'Chủ trạm'
+                                      : 'Quản trị viên'),
                               size: 13,
                             ),
                             MutedText(
-                              portal == Portal.host
-                                  ? 'HOST · host1@sharegrid.vn'
-                                  : 'ADMIN · admin@sharegrid.vn',
+                              session.currentUser?['email']?.toString() ?? '',
                               size: 11,
                             ),
                           ],
@@ -218,6 +237,11 @@ class _Sidebar extends StatelessWidget {
                   onPressed: () => context.go('/home'),
                   icon: const Icon(Icons.phone_iphone_rounded, size: 18),
                   label: const Text('Mở app người dùng'),
+                ),
+                TextButton.icon(
+                  onPressed: session.logout,
+                  icon: const Icon(Icons.logout, size: 18),
+                  label: const Text('Đăng xuất'),
                 ),
               ],
             ),
@@ -265,17 +289,6 @@ class _SideLink extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (item.badge != null)
-                  Pill(
-                    '${item.badge}',
-                    bg: AppColors.red,
-                    fg: Colors.white,
-                    size: 11,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 1,
-                    ),
-                  ),
               ],
             ),
           ),

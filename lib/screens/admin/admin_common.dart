@@ -124,7 +124,7 @@ class WebBtn extends StatelessWidget {
     return SizedBox(
       height: 42,
       child: OutlinedButton.icon(
-        onPressed: onTap ?? () {},
+        onPressed: onTap,
         icon: icon == null ? null : Icon(icon, size: 18),
         style: OutlinedButton.styleFrom(
           backgroundColor: Colors.white.withValues(alpha: .65),

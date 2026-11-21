@@ -83,6 +83,41 @@ class PortStatusPatch(BaseModel):
     status: Literal["MAINTENANCE", "OFFLINE"]
 
 
+@router.get("/stations")
+def get_host_stations(user: AuthUser = Depends(require_roles("HOST"))):
+    try:
+        connection = connect()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Station database is unavailable") from exc
+    try:
+        with dict_cursor(connection) as cursor:
+            cursor.execute(
+                """
+                SELECT s.station_id, s.cluster_id, s.name, s.address, s.status, s.verified,
+                       s.lat, s.lng, s.station_power_kw, COALESCE(p.ports, '[]') AS ports
+                FROM charging_station s
+                LEFT JOIN LATERAL (
+                    SELECT jsonb_agg(jsonb_build_object(
+                        'port_id', port_id, 'port_code', port_code, 'connector_type', connector_type,
+                        'control_type', control_type, 'status', status,
+                        'min_power_kw', min_power_kw, 'max_power_kw', max_power_kw
+                    ) ORDER BY port_id) AS ports
+                    FROM port
+                    WHERE station_id = s.station_id
+                ) p ON TRUE
+                WHERE s.owner_id = %s
+                ORDER BY s.station_id
+                """,
+                (user.user_id,),
+            )
+            rows = cursor.fetchall()
+            return {"count": len(rows), "data": rows}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Could not load host stations") from exc
+    finally:
+        connection.close()
+
+
 @router.post("/stations", status_code=201)
 def create_host_station(
     body: HostStationCreate,

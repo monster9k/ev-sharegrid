@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../data/api.dart';
 import '../../data/benchmark.dart';
 import '../../widgets/common.dart';
+import '../../widgets/portal_data.dart';
 import '../../widgets/web_shell.dart';
 import 'admin_common.dart';
 
@@ -23,6 +26,10 @@ class _AdminBenchmarkScreenState extends State<AdminBenchmarkScreen> {
   String? _error;
   String? _source;
   List<BenchmarkPoint> _points = const [];
+  bool _running = false;
+  Map<String, dynamic>? _latestRun;
+  String? _runError;
+  int? _runMs;
 
   @override
   void initState() {
@@ -50,6 +57,41 @@ class _AdminBenchmarkScreenState extends State<AdminBenchmarkScreen> {
       setState(() => _error = _describeError(error));
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _run() async {
+    if (_running) return;
+    final watch = Stopwatch()..start();
+    setState(() {
+      _running = true;
+      _latestRun = null;
+      _runError = null;
+    });
+    try {
+      final json = await rootBundle.loadString(
+        'ai_engine/samples/page20_input.json',
+      );
+      final result = await (widget.client ?? apiClient).runBenchmark(
+        jsonDecode(json) as Map<String, dynamic>,
+      );
+      if (!mounted) return;
+      setState(() {
+        _latestRun = result;
+        _runMs = watch.elapsedMilliseconds;
+      });
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _runError = switch (error) {
+            TimeoutException() => 'Máy chủ chưa trả kết quả sau 125 giây.',
+            ApiException() => error.userMessage,
+            _ => 'Không thể chạy kịch bản benchmark Trang 20.',
+          },
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _running = false);
     }
   }
 
@@ -112,6 +154,11 @@ class _AdminBenchmarkScreenState extends State<AdminBenchmarkScreen> {
     title: 'Benchmark thuật toán',
     simulationLabel: _points.isEmpty ? null : 'Kịch bản mô phỏng',
     actions: [
+      WebBtn(
+        _running ? 'Đang chạy benchmark…' : 'Chạy lại Benchmark',
+        primary: true,
+        onTap: _running ? null : _run,
+      ),
       if (_source != null) Pill.neutral('Nguồn: $_source'),
       WebBtn(
         _loading ? 'Đang tải…' : 'Tải lại',
@@ -121,6 +168,25 @@ class _AdminBenchmarkScreenState extends State<AdminBenchmarkScreen> {
       ),
     ],
     children: [
+      if (_running) const LinearProgressIndicator(),
+      if (_runError != null) InfoNote(_runError!, warn: true),
+      if (_latestRun case final run?)
+        WebCard(
+          title: 'Lượt chạy Trang 20 · $_runMs ms',
+          children: [
+            for (final item in portalRows(run['summary']))
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: BoldText('${item['algorithm']} · ${item['status']}'),
+                subtitle: MutedText(
+                  'Thực chạy ${(item['actual_algorithms'] as List?)?.join(', ') ?? '—'} · ${item['solve_ms_mean'] ?? '—'} ms',
+                ),
+                trailing: MutedText(
+                  '${(item['kpi'] as Map?)?['total_cost_vnd'] ?? '—'} đ',
+                ),
+              ),
+          ],
+        ),
       if (_loading) const LinearProgressIndicator(minHeight: 3),
       if (_error != null)
         WebCard(

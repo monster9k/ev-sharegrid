@@ -1,10 +1,14 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 const apiBase = String.fromEnvironment(
-  'API_BASE',
-  defaultValue: 'http://localhost:8000',
+  'API_BASE_URL',
+  defaultValue: String.fromEnvironment(
+    'API_BASE',
+    defaultValue: kIsWeb && kReleaseMode ? '' : 'http://localhost:8000',
+  ),
 );
 
 class ApiException implements Exception {
@@ -13,11 +17,17 @@ class ApiException implements Exception {
   final int statusCode;
   final String message;
 
+  String get userMessage => switch (statusCode) {
+    401 => 'Vui lòng đăng nhập lại. (HTTP 401)',
+    403 => 'Tài khoản không có quyền thực hiện thao tác này. (HTTP 403)',
+    _ => '$message (HTTP $statusCode)',
+  };
+
   @override
   String toString() => 'HTTP $statusCode: $message';
 }
 
-class ApiClient {
+class ApiClient extends ChangeNotifier {
   ApiClient({http.Client? client, String? baseUrl})
     : _client = client ?? http.Client(),
       _baseUrl = (baseUrl ?? apiBase).replaceFirst(RegExp(r'/+$'), '');
@@ -26,8 +36,16 @@ class ApiClient {
   final String _baseUrl;
   String? _accessToken;
   Map<String, dynamic>? currentUser;
+  Map<String, dynamic>? _lastBooking;
+  int _sessionVersion = 0;
+  bool _expired = false;
+
+  bool get sessionExpired => _expired;
 
   String? get accessToken => _accessToken;
+  String? get role => currentUser?['role']?.toString().toUpperCase();
+  int? get lastRequestId => (_lastBooking?['request_id'] as num?)?.toInt();
+  Map<String, dynamic>? get lastBooking => _lastBooking;
 
   Map<String, String> get _headers => {
     'Accept': 'application/json',
@@ -37,30 +55,61 @@ class ApiClient {
   Future<Map<String, dynamic>> login({
     required String email,
     required String password,
-  }) async {
+  }) => _authenticate('/api/v1/auth/login', {
+    'email': email,
+    'password': password,
+  });
+
+  Future<Map<String, dynamic>> register({
+    required String fullName,
+    required String email,
+    required String password,
+  }) => _authenticate('/api/v1/auth/register', {
+    'full_name': fullName,
+    'email': email,
+    'password': password,
+  });
+
+  Future<Map<String, dynamic>> _authenticate(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    logout();
+    final version = _sessionVersion;
+    const timeout = Duration(seconds: 15);
     final result = await postJson(
-      '/api/v1/auth/login',
-      body: {'email': email, 'password': password},
+      path,
+      body: body,
       includeAuthorization: false,
-    );
+    ).timeout(timeout);
+    if (version != _sessionVersion) throw StateError('Phiên đã thay đổi.');
     final token = result['access_token'];
     if (token is! String || token.isEmpty) {
       throw const FormatException('API không trả access_token hợp lệ.');
     }
     _accessToken = token;
     try {
-      currentUser = await getJson('/api/v1/auth/me');
-      return currentUser!;
+      final user = await getMe().timeout(timeout);
+      if (version != _sessionVersion) throw StateError('Phiên đã thay đổi.');
+      currentUser = user;
+      notifyListeners();
+      return user;
     } catch (_) {
-      clearSession();
+      if (version == _sessionVersion) logout();
       rethrow;
     }
   }
 
-  void clearSession() {
+  void logout({bool expired = false}) {
+    _sessionVersion++;
+    _expired = expired;
     _accessToken = null;
     currentUser = null;
+    _lastBooking = null;
+    notifyListeners();
   }
+
+  Future<Map<String, dynamic>> getMe() => getJson('/api/v1/auth/me');
 
   Future<Map<String, dynamic>> submitBooking({
     required int userId,
@@ -71,19 +120,26 @@ class ApiClient {
     required double socNow,
     required double socTarget,
     required String idempotencyKey,
-  }) => postJson(
-    '/api/v1/requests',
-    body: {
-      'user_id': userId,
-      'vehicle_id': vehicleId,
-      'station_id': stationId,
-      'arrival_time': arrivalTime,
-      'departure_time': departureTime,
-      'soc_now': socNow,
-      'soc_target': socTarget,
-      'idempotency_key': idempotencyKey,
-    },
-  );
+  }) async {
+    final token = _accessToken;
+    final result = await postJson(
+      '/api/v1/requests',
+      body: {
+        'user_id': userId,
+        'vehicle_id': vehicleId,
+        'station_id': stationId,
+        'arrival_time': arrivalTime,
+        'departure_time': departureTime,
+        'soc_now': socNow,
+        'soc_target': socTarget,
+        'idempotency_key': idempotencyKey,
+      },
+    );
+    if (token != null && token == _accessToken) {
+      _lastBooking = Map.unmodifiable(result);
+    }
+    return result;
+  }
 
   Future<Map<String, dynamic>> getRequestSchedule(int requestId) =>
       getJson('/api/v1/requests/$requestId/schedule');
@@ -94,21 +150,106 @@ class ApiClient {
   Future<Map<String, dynamic>> cancelRequest(int requestId) =>
       postJson('/api/v1/requests/$requestId/cancel', body: const {});
 
+  Future<Map<String, dynamic>> checkinRequest(int requestId) =>
+      postJson('/api/v1/requests/$requestId/checkin', body: const {});
+
   Future<Map<String, dynamic>> getBenchmark() =>
       getJson('/api/v1/admin/benchmark').timeout(const Duration(seconds: 10));
 
-  Future<List<Map<String, dynamic>>> getActiveStations() async {
-    final response = await getJson('/api/v1/stations');
-    final data = response['data'];
+  Future<List<Map<String, dynamic>>> getMyRequests({int limit = 50}) =>
+      _getRows('/api/v1/requests/me?limit=$limit');
+
+  Future<List<Map<String, dynamic>>> getHostStations() =>
+      _getRows('/api/v1/host/stations');
+
+  Future<Map<String, dynamic>> createHostStation(Map<String, dynamic> fields) =>
+      postJson('/api/v1/host/stations', body: fields);
+
+  Future<Map<String, dynamic>> addHostPort(
+    int stationId,
+    Map<String, dynamic> fields,
+  ) => postJson('/api/v1/host/stations/$stationId/ports', body: fields);
+
+  Future<Map<String, dynamic>> changeHostPortStatus(
+    int portId,
+    String status,
+  ) => _writeJson('PATCH', '/api/v1/host/ports/$portId/status', {
+    'status': status,
+  });
+
+  Future<List<Map<String, dynamic>>> getHostSchedule(int stationId) =>
+      _getRows('/api/v1/host/stations/$stationId/schedule', key: 'slots');
+
+  Future<List<Map<String, dynamic>>> getAdminClusters() =>
+      _getRows('/api/v1/admin/clusters');
+
+  Future<List<Map<String, dynamic>>> getAdminStations(String status) =>
+      _getRows('/api/v1/admin/stations?status=$status');
+
+  Future<Map<String, dynamic>> updateClusterLimit(int id, double kw) =>
+      _writeJson('PATCH', '/api/v1/admin/clusters/$id', {'grid_limit_kw': kw});
+
+  Future<Map<String, dynamic>> verifyStation(int id, bool verified) =>
+      _writeJson('PATCH', '/api/v1/admin/stations/$id/verify', {
+        'verified': verified,
+      });
+
+  Future<Map<String, dynamic>> runBenchmark(Map<String, dynamic> snapshot) =>
+      postJson(
+        '/api/v1/admin/benchmark/run',
+        body: {
+          'scenario_id': 'page20',
+          'algorithms': ['MILP_MPC', 'LLF'],
+          'snapshot': snapshot,
+        },
+      ).timeout(const Duration(seconds: 125));
+
+  Future<Map<String, dynamic>> runForecast(int clusterId, String model) =>
+      postJson(
+        '/api/v1/admin/forecast',
+        body: {'cluster_id': clusterId, 'horizon_hours': 24, 'model': model},
+      ).timeout(const Duration(seconds: 20));
+
+  Future<List<Map<String, dynamic>>> getStations({
+    double? lat,
+    double? lng,
+    double radiusKm = 25,
+  }) {
+    final path = lat == null || lng == null
+        ? '/api/v1/stations'
+        : '/api/v1/stations?lat=$lat&lng=$lng&radius_km=$radiusKm';
+    return _getRows(path);
+  }
+
+  Future<List<Map<String, dynamic>>> getActiveStations() async =>
+      (await getStations()).where((row) => row['status'] == 'ACTIVE').toList();
+
+  Future<List<Map<String, dynamic>>> getVehicleModels() =>
+      _getRows('/api/v1/vehicle-models');
+
+  Future<List<Map<String, dynamic>>> getNotifications() =>
+      _getRows('/api/v1/notifications', key: 'notifications');
+
+  Future<Map<String, dynamic>> markNotificationRead(int notificationId) async {
+    final token = _accessToken;
+    final response = await _client.patch(
+      _uri('/api/v1/notifications/$notificationId/read'),
+      headers: _headers,
+    );
+    return _decodeObject(response, token: token);
+  }
+
+  Future<List<Map<String, dynamic>>> _getRows(
+    String path, {
+    String key = 'data',
+  }) async {
+    final data = (await getJson(path))[key];
     if (data is! List) {
-      throw const FormatException(
-        'API trạm sạc không trả danh sách data hợp lệ.',
-      );
+      throw FormatException('Máy chủ không trả danh sách $key hợp lệ.');
     }
     return data
         .whereType<Map>()
         .map((row) => Map<String, dynamic>.from(row))
-        .where((row) => row['status'] == 'ACTIVE')
         .toList();
   }
 
@@ -124,38 +265,60 @@ class ApiClient {
   }
 
   Future<Map<String, dynamic>> getJson(String path) async {
+    final token = _accessToken;
     final response = await _client.get(_uri(path), headers: _headers);
-    return _decodeObject(response);
+    return _decodeObject(response, token: token);
   }
 
   Future<Map<String, dynamic>> postJson(
     String path, {
     required Map<String, dynamic> body,
     bool includeAuthorization = true,
+  }) => _writeJson(
+    'POST',
+    path,
+    body,
+    includeAuthorization: includeAuthorization,
+  );
+
+  Future<Map<String, dynamic>> _writeJson(
+    String method,
+    String path,
+    Map<String, dynamic> body, {
+    bool includeAuthorization = true,
   }) async {
+    final token = includeAuthorization ? _accessToken : null;
     final headers = <String, String>{
       ..._headers,
       'Content-Type': 'application/json; charset=utf-8',
     };
     if (!includeAuthorization) headers.remove('Authorization');
-    final response = await _client.post(
-      _uri(path),
-      headers: headers,
-      body: jsonEncode(body),
+    final request = http.Request(method, _uri(path));
+    request.headers.addAll(headers);
+    request.body = jsonEncode(body);
+    final response = await http.Response.fromStream(
+      await _client.send(request),
     );
-    return _decodeObject(response);
+    return _decodeObject(response, token: token);
   }
 
-  Uri _uri(String path) => Uri.parse('$_baseUrl$path');
+  Uri _uri(String path) =>
+      _baseUrl.isEmpty ? Uri.base.resolve(path) : Uri.parse('$_baseUrl$path');
 
-  Map<String, dynamic> _decodeObject(http.Response response) {
-    final text = utf8.decode(response.bodyBytes);
+  Map<String, dynamic> _decodeObject(http.Response response, {String? token}) {
+    if (response.statusCode == 401 && token != null && token == _accessToken) {
+      logout(expired: true);
+    }
+    final text = utf8.decode(response.bodyBytes, allowMalformed: true);
     if (response.statusCode >= 400) {
       var detail = text.trim();
       try {
         final decoded = jsonDecode(text);
         if (decoded is Map && decoded['detail'] != null) {
-          detail = decoded['detail'].toString();
+          final value = decoded['detail'];
+          detail = value is List && value.isNotEmpty && value.first is Map
+              ? value.first['msg'].toString()
+              : value.toString();
         }
       } on FormatException {
         // Keep a non-JSON error body so the screen can show the server message.
