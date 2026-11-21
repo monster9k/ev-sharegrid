@@ -14,6 +14,7 @@ dependencies:
   go_router: ^17.5.0
   google_fonts: ^6.2.1
   http: ^1.2.0
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_test:
@@ -24,6 +25,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/fonts/roboto/OFL.txt
+    - ai_engine/samples/page20_input.json
   fonts:
     - family: Roboto
       fonts:

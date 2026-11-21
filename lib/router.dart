@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'data/api.dart';
 import 'screens/user/onboarding_screen.dart';
 import 'screens/user/login_screen.dart';
 import 'screens/user/home_screen.dart';
@@ -30,54 +31,121 @@ GoRoute _page(String path, Widget Function() build) => GoRoute(
 );
 
 /// Route app USER (bọc trong khung điện thoại khi mở trên màn rộng).
-final _userRoutes = <RouteBase>[
+List<RouteBase> _userRoutes(ApiClient client) => [
   _page('/', () => const OnboardingScreen(step: 1)),
   _page('/onboarding/2', () => const OnboardingScreen(step: 2)),
   _page('/onboarding/3', () => const OnboardingScreen(step: 3)),
-  _page('/login', () => const LoginScreen()),
-  _page('/home', () => const HomeScreen()),
-  _page('/garage', () => const GarageScreen()),
-  _page('/map', () => const MapScreen()),
-  _page('/station', () => const StationDetailScreen()),
-  _page('/booking', () => const BookingScreen()),
+  _page('/login', () => LoginScreen(client: client)),
+  _page('/home', () => HomeScreen(client: client)),
+  _page('/garage', () => GarageScreen(client: client)),
+  _page('/map', () => MapScreen(client: client)),
+  GoRoute(path: '/station', redirect: (_, _) => '/map'),
+  GoRoute(
+    path: '/station/:id',
+    pageBuilder: (context, state) => NoTransitionPage(
+      key: state.pageKey,
+      child: StationDetailScreen(
+        key: ValueKey(state.uri.path),
+        stationId: int.tryParse(state.pathParameters['id'] ?? ''),
+        client: client,
+      ),
+    ),
+  ),
+  GoRoute(
+    path: '/booking',
+    pageBuilder: (context, state) => NoTransitionPage(
+      key: state.pageKey,
+      child: BookingScreen(
+        key: ValueKey(state.uri.toString()),
+        stationId: int.tryParse(state.uri.queryParameters['stationId'] ?? ''),
+        client: client,
+      ),
+    ),
+  ),
   GoRoute(
     path: '/schedule',
     pageBuilder: (context, state) => NoTransitionPage(
       key: state.pageKey,
       child: ScheduleResultScreen(
+        key: ValueKey(state.uri.toString()),
+        client: client,
+        requestId: int.tryParse(state.uri.queryParameters['requestId'] ?? ''),
         bookingResult: state.extra is Map<String, dynamic>
             ? state.extra as Map<String, dynamic>
             : null,
       ),
     ),
   ),
-  _page('/sessions', () => const SessionsScreen()),
-  _page('/notifications', () => const NotificationsScreen()),
-  _page('/profile', () => const ProfileScreen()),
+  _page('/sessions', () => SessionsScreen(client: client)),
+  _page('/notifications', () => NotificationsScreen(client: client)),
+  _page('/profile', () => ProfileScreen(client: client)),
 ];
 
 /// Route web HOST và ADMIN.
-final _webRoutes = <RouteBase>[
+List<RouteBase> _webRoutes(ApiClient client) => [
   GoRoute(path: '/host', redirect: (_, _) => '/host/stations'),
-  _page('/host/stations', () => const HostStationsScreen()),
-  _page('/host/ports', () => const HostPortsScreen()),
-  _page('/host/schedule', () => const HostScheduleScreen()),
+  _page('/host/stations', () => HostStationsScreen(client: client)),
+  GoRoute(
+    path: '/host/ports',
+    pageBuilder: (context, state) => NoTransitionPage(
+      key: state.pageKey,
+      child: HostPortsScreen(
+        key: ValueKey(state.uri.toString()),
+        stationId: int.tryParse(state.uri.queryParameters['stationId'] ?? ''),
+        client: client,
+      ),
+    ),
+  ),
+  GoRoute(
+    path: '/host/schedule',
+    pageBuilder: (context, state) => NoTransitionPage(
+      key: state.pageKey,
+      child: HostScheduleScreen(
+        key: ValueKey(state.uri.toString()),
+        stationId: int.tryParse(state.uri.queryParameters['stationId'] ?? ''),
+        client: client,
+      ),
+    ),
+  ),
   GoRoute(path: '/admin', redirect: (_, _) => '/admin/clusters'),
-  _page('/admin/clusters', () => const AdminClustersScreen()),
-  _page('/admin/review', () => const AdminReviewScreen()),
-  _page('/admin/tariff', () => const AdminTariffScreen()),
+  _page('/admin/clusters', () => AdminClustersScreen(client: client)),
+  _page('/admin/review', () => AdminReviewScreen(client: client)),
+  _page('/admin/tariff', () => AdminTariffScreen(client: client)),
   _page('/admin/solver', () => const AdminSolverScreen()),
-  _page('/admin/benchmark', () => const AdminBenchmarkScreen()),
-  _page('/admin/forecast', () => const AdminForecastScreen()),
+  _page('/admin/benchmark', () => AdminBenchmarkScreen(client: client)),
+  _page('/admin/forecast', () => AdminForecastScreen(client: client)),
 ];
 
-GoRouter buildRouter({String? initialLocation}) => GoRouter(
-  initialLocation: initialLocation,
-  routes: [
-    ShellRoute(
-      builder: (context, state, child) => MobileFrame(child: child),
-      routes: _userRoutes,
-    ),
-    ..._webRoutes,
-  ],
-);
+GoRouter buildRouter({String? initialLocation, ApiClient? api}) {
+  final client = api ?? apiClient;
+  return GoRouter(
+    initialLocation: initialLocation,
+    refreshListenable: client,
+    redirect: (context, state) {
+      final path = state.uri.path;
+      final role = client.role;
+      if (client.accessToken == null || role == null) {
+        return path == '/login' ? null : '/login';
+      }
+      final host = path == '/host' || path.startsWith('/host/');
+      final admin = path == '/admin' || path.startsWith('/admin/');
+      if (path == '/login' ||
+          (host && role != 'HOST') ||
+          (admin && role != 'ADMIN')) {
+        return switch (role) {
+          'HOST' => '/host/stations',
+          'ADMIN' => '/admin/clusters',
+          _ => '/home',
+        };
+      }
+      return null;
+    },
+    routes: [
+      ShellRoute(
+        builder: (context, state, child) => MobileFrame(child: child),
+        routes: _userRoutes(client),
+      ),
+      ..._webRoutes(client),
+    ],
+  );
+}

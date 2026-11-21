@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/api.dart';
+import '../../data/charging_time.dart';
 import '../../theme.dart';
 import '../../widgets/common.dart';
 import '../../widgets/glass.dart';
@@ -9,21 +10,25 @@ import '../../widgets/glass.dart';
 /// U5 – Form đặt lịch: chọn xe, giờ đến/lấy xe, SOC hiện tại/mục tiêu,
 /// kiểm tra 4 điều kiện trước khi gửi vào hàng đợi cụm.
 class BookingScreen extends StatefulWidget {
-  const BookingScreen({super.key});
+  const BookingScreen({super.key, this.stationId, this.client});
+  final int? stationId;
+  final ApiClient? client;
   @override
   State<BookingScreen> createState() => _BookingScreenState();
 }
 
 class _BookingScreenState extends State<BookingScreen> {
+  ApiClient get _api => widget.client ?? apiClient;
   static const _eta = 0.90;
-  final DateTime _bookingDate = DateTime.now().add(const Duration(days: 1));
+  static const _slot = Duration(minutes: 15);
+  static const _horizon = Duration(hours: 24);
   List<Map<String, dynamic>> _vehicles = [];
   List<Map<String, dynamic>> _stations = [];
   Map<String, dynamic>? _vehicle;
   Map<String, dynamic>? _station;
   Map<String, dynamic>? _stationDetail;
-  TimeOfDay _arrival = const TimeOfDay(hour: 8, minute: 0);
-  TimeOfDay _departure = const TimeOfDay(hour: 17, minute: 30);
+  late DateTime _arrival;
+  late DateTime _departure;
   double _socNow = 30;
   double _socTarget = 80;
   bool _loadingData = false;
@@ -35,11 +40,13 @@ class _BookingScreenState extends State<BookingScreen> {
   @override
   void initState() {
     super.initState();
+    _arrival = _horizonStart().add(_slot);
+    _departure = _arrival.add(const Duration(hours: 2));
     _loadUserData();
   }
 
   Future<void> _loadUserData() async {
-    final profile = apiClient.currentUser;
+    final profile = _api.currentUser;
     if (profile == null) {
       setState(
         () => _loadError = 'Đăng nhập để tải xe và trạm sạc của máy chủ.',
@@ -69,12 +76,23 @@ class _BookingScreenState extends State<BookingScreen> {
           'Tài khoản chưa có xe đăng ký trên máy chủ.',
         );
       }
-      final stations = await apiClient.getActiveStations();
+      final stations = await _api.getActiveStations();
       if (stations.isEmpty) {
         throw const FormatException('Máy chủ chưa có trạm ACTIVE để đặt lịch.');
       }
-      final station = stations.first;
-      final detail = await apiClient.getStation(
+      final selected = stations
+          .where((station) => station['station_id'] == widget.stationId)
+          .firstOrNull;
+      if (widget.stationId != null && selected == null) {
+        if (!mounted) return;
+        setState(() {
+          _stations = stations;
+          _loadError = 'Trạm được chọn chưa hoạt động. Hãy chọn trạm khác.';
+        });
+        return;
+      }
+      final station = selected ?? stations.first;
+      final detail = await _api.getStation(
         (station['station_id'] as num).toInt(),
       );
       if (!mounted) return;
@@ -102,17 +120,28 @@ class _BookingScreenState extends State<BookingScreen> {
       _loadError = null;
     });
     try {
-      final detail = await apiClient.getStation(stationId);
-      if (mounted) setState(() => _stationDetail = detail);
+      final detail = await _api.getStation(stationId);
+      if (mounted && _station?['station_id'] == stationId) {
+        setState(() => _stationDetail = detail);
+      }
     } catch (error) {
-      if (mounted) setState(() => _loadError = _errorMessage(error));
+      if (mounted && _station?['station_id'] == stationId) {
+        setState(() => _loadError = _errorMessage(error));
+      }
     } finally {
-      if (mounted) setState(() => _loadingStation = false);
+      if (mounted && _station?['station_id'] == stationId) {
+        setState(() => _loadingStation = false);
+      }
     }
   }
 
   Future<void> _submit() async {
-    final profile = apiClient.currentUser;
+    final timeError = _validateTimes();
+    if (timeError != null) {
+      setState(() => _submitError = timeError);
+      return;
+    }
+    final profile = _api.currentUser;
     final vehicleId = _vehicle?['vehicle_id'];
     final stationId = _station?['station_id'];
     if (profile == null || vehicleId is! num || stationId is! num) {
@@ -127,12 +156,12 @@ class _BookingScreenState extends State<BookingScreen> {
       _submitError = null;
     });
     try {
-      final result = await submitBooking(
+      final result = await _api.submitBooking(
         userId: (profile['user_id'] as num).toInt(),
         vehicleId: vehicleId.toInt(),
         stationId: stationId.toInt(),
-        arrivalTime: _apiDateTime(_arrival),
-        departureTime: _apiDateTime(_departure),
+        arrivalTime: _arrival.toIso8601String(),
+        departureTime: _departure.toIso8601String(),
         socNow: _socNow,
         socTarget: _socTarget,
         idempotencyKey: 'booking-${DateTime.now().microsecondsSinceEpoch}',
@@ -150,38 +179,39 @@ class _BookingScreenState extends State<BookingScreen> {
     }
   }
 
-  String _apiDateTime(TimeOfDay time) {
-    final dateTime = DateTime(
-      _bookingDate.year,
-      _bookingDate.month,
-      _bookingDate.day,
-      time.hour,
-      time.minute,
+  DateTime _horizonStart() {
+    final now = DateTime.now().toUtc();
+    return DateTime.utc(
+      now.year,
+      now.month,
+      now.day,
+      now.hour,
+      now.minute - now.minute % _slot.inMinutes,
     );
-    final date =
-        '${dateTime.year.toString().padLeft(4, '0')}-'
-        '${dateTime.month.toString().padLeft(2, '0')}-'
-        '${dateTime.day.toString().padLeft(2, '0')}';
-    return '$date'
-        'T${_fmt(time)}:00+07:00';
+  }
+
+  String? _validateTimes() {
+    if (!_departure.isAfter(_arrival)) {
+      return 'Giờ lấy xe phải sau giờ đến.';
+    }
+    final start = _horizonStart();
+    final end = start.add(_horizon);
+    if (_arrival.isBefore(start) || _departure.isAfter(end)) {
+      return 'Chọn giờ trong 24 giờ xếp lịch, đến ${_dateTimeLabel(end)}.';
+    }
+    return null;
   }
 
   String _errorMessage(Object error) => error is ApiException
-      ? '${error.message} (HTTP ${error.statusCode})'
+      ? error.userMessage
       : 'Không thể kết nối máy chủ: $error';
 
   String get _connector => _vehicle?['connector_type']?.toString() ?? '';
   double get _batteryKwh => (_vehicle?['battery_kwh'] as num?)?.toDouble() ?? 0;
   double get _maxKw => (_vehicle?['max_kw'] as num?)?.toDouble() ?? 0;
 
-  int _min(TimeOfDay t) => t.hour * 60 + t.minute;
-  String _fmt(TimeOfDay t) =>
-      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-
-  String get _dateLabel =>
-      '${_bookingDate.day.toString().padLeft(2, '0')}/'
-      '${_bookingDate.month.toString().padLeft(2, '0')}/'
-      '${_bookingDate.year}';
+  String _dateTimeLabel(DateTime instant) =>
+      '${formatChargingDate(vietnamWallTime(instant))} · ${formatVietnamTime(instant)}';
 
   double get _energy => (_socTarget - _socNow) / 100 * _batteryKwh / _eta;
 
@@ -200,20 +230,64 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 
   Future<void> _pick(bool arrival) async {
-    final t = await showTimePicker(
+    final localTime = vietnamWallTime(arrival ? _arrival : _departure);
+    final today = vietnamWallTime(DateTime.now());
+    final tomorrow = today.add(const Duration(days: 1));
+    final day = await showDialog<DateTime>(
       context: context,
-      initialTime: arrival ? _arrival : _departure,
+      builder: (dialogContext) => SimpleDialog(
+        title: Text(arrival ? 'Chọn ngày đến' : 'Chọn ngày lấy xe'),
+        children: [
+          for (final (label, date) in [
+            ('Hôm nay', today),
+            ('Ngày mai', tomorrow),
+          ])
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(dialogContext, date),
+              child: Text('$label · ${formatChargingDate(date)}'),
+            ),
+        ],
+      ),
     );
-    if (t == null) return;
-    setState(() => arrival ? _arrival = t : _departure = t);
+    if (!mounted || day == null) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(localTime),
+      helpText: arrival ? 'Chọn giờ đến' : 'Chọn giờ lấy xe',
+      cancelText: 'Hủy',
+      confirmText: 'Chọn',
+      hourLabelText: 'Giờ',
+      minuteLabelText: 'Phút',
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+        child: child!,
+      ),
+    );
+    if (!mounted || time == null) return;
+    final instant = DateTime.utc(
+      day.year,
+      day.month,
+      day.day,
+      time.hour,
+      time.minute,
+    ).subtract(vietnamOffset);
+    setState(() {
+      if (arrival) {
+        _arrival = instant;
+      } else {
+        _departure = instant;
+      }
+      _submitError = null;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final userIsSignedIn = apiClient.currentUser != null;
+    final userIsSignedIn = _api.currentUser != null;
     final connectorOk = _compatible.isNotEmpty;
     final socOk = _vehicle != null && _socNow < _socTarget && _socTarget <= 100;
-    final timeOk = _min(_departure) > _min(_arrival);
+    final timeError = _validateTimes();
+    final timeOk = timeError == null;
     final allOk = connectorOk && socOk && timeOk && _station != null;
     final codes = _compatible.map((port) => port['port_code']).join(', ');
     final vehicleName = [
@@ -231,6 +305,7 @@ class _BookingScreenState extends State<BookingScreen> {
         : 'Đăng nhập để gửi yêu cầu';
 
     return UserScaffold(
+      showSimulationTag: false,
       gap: 14,
       actionBar: GlassActionBar(
         children: [
@@ -244,7 +319,14 @@ class _BookingScreenState extends State<BookingScreen> {
               onPressed: _submitting
                   ? null
                   : !userIsSignedIn
-                  ? () => context.go('/login')
+                  ? () => context.go(
+                      Uri(
+                        path: '/login',
+                        queryParameters: {
+                          'next': GoRouterState.of(context).uri.toString(),
+                        },
+                      ).toString(),
+                    )
                   : allOk
                   ? _submit
                   : null,
@@ -255,7 +337,9 @@ class _BookingScreenState extends State<BookingScreen> {
       children: [
         MobileHeader(
           title: 'Đặt lịch sạc',
-          onBack: () => context.go('/station'),
+          onBack: () => context.go(
+            widget.stationId == null ? '/home' : '/station/${widget.stationId}',
+          ),
         ),
         if (_loadingData || _loadingStation || _submitting)
           const LinearProgressIndicator(minHeight: 3),
@@ -291,7 +375,8 @@ class _BookingScreenState extends State<BookingScreen> {
                   ],
                 ),
               ),
-              if (_stations.length > 1)
+              if (_stations.isNotEmpty &&
+                  (_stations.length > 1 || _station == null))
                 SizedBox(
                   width: 110,
                   child: DropdownButtonFormField<int>(
@@ -380,7 +465,7 @@ class _BookingScreenState extends State<BookingScreen> {
                 Expanded(
                   child: _TimeTile(
                     label: 'Giờ đến (arrival)',
-                    value: '$_dateLabel · ${_fmt(_arrival)}',
+                    value: _dateTimeLabel(_arrival),
                     onTap: () => _pick(true),
                   ),
                 ),
@@ -388,13 +473,15 @@ class _BookingScreenState extends State<BookingScreen> {
                 Expanded(
                   child: _TimeTile(
                     label: 'Giờ lấy xe (departure)',
-                    value: '$_dateLabel · ${_fmt(_departure)}',
+                    value: _dateTimeLabel(_departure),
                     onTap: () => _pick(false),
                     error: !timeOk,
                   ),
                 ),
               ],
             ),
+            if (timeError != null)
+              MutedText(timeError, color: AppColors.red, size: 12),
           ],
         ),
         _Section(

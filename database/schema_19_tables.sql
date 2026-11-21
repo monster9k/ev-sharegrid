@@ -9,6 +9,7 @@ CREATE TABLE app_user (
     email VARCHAR(100) UNIQUE NOT NULL,
     phone VARCHAR(20),
     google_id VARCHAR(100),
+    password_hash TEXT,
     reliability_score NUMERIC(5,2) DEFAULT 95.00,
     status VARCHAR(20) DEFAULT 'ACTIVE',
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP

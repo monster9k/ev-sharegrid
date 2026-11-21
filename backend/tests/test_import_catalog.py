@@ -19,6 +19,11 @@ class FakeCursor:
         if self.fail_on and self.fail_on in normalized:
             raise RuntimeError("forced catalog insert failure")
 
+    def fetchone(self):
+        email, = self.statements[-1][1]
+        return {"admin@sharegrid.vn": (1, "ADMIN"), "host1@sharegrid.vn": (2, "HOST"),
+                "user1@sharegrid.vn": (3, "USER")}[email]
+
     def close(self):
         self.closed = True
 
@@ -116,3 +121,21 @@ def test_catalog_insert_failure_rolls_back_prints_real_error_and_exits(monkeypat
     assert connection.commits == 0
     assert connection.rollbacks == 1
     assert connection.closed and cursor.closed
+
+def test_seed_preserves_existing_role_and_skips_incompatible_vehicle(monkeypatch):
+    cursor = FakeCursor()
+    fetchone = cursor.fetchone
+
+    def existing_user():
+        uid, role = fetchone()
+        return (uid, "HOST") if role == "USER" else (uid, role)
+
+    monkeypatch.setattr(cursor, "fetchone", existing_user)
+    connection = FakeConnection(cursor)
+    monkeypatch.setattr(import_catalog.psycopg2, "connect", lambda **_: connection)
+    import_catalog.seed_postgres_database(*_empty_catalog_frames())
+    account_writes = [sql for sql, _ in cursor.statements if sql.startswith("INSERT INTO app_user")]
+    assert len(account_writes) == 3
+    assert all("ON CONFLICT (email) DO NOTHING" in sql for sql in account_writes)
+    assert not any("INSERT INTO vehicle (" in sql for sql, _ in cursor.statements)
+    assert connection.commits == 1

@@ -6,6 +6,7 @@ import json
 import os
 import re
 from collections import defaultdict
+from datetime import timedelta, timezone
 from pathlib import Path
 from typing import Literal
 
@@ -13,8 +14,10 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from ai_engine.schemas import Algorithm, BenchmarkRequest, BenchmarkResponse
-from backend.ai_contract import AIUpstreamError, trigger_cluster_reoptimize
+from ai_engine.schemas import (
+    Algorithm, BenchmarkRequest, BenchmarkResponse, ForecastModel, ForecastRequest, ForecastResponse,
+)
+from backend.ai_contract import AI_TIMEOUT_SECONDS, AIUpstreamError, trigger_cluster_reoptimize
 from backend.auth import AuthUser, require_roles
 from backend.db import connect, dict_cursor
 
@@ -30,6 +33,12 @@ class ClusterGridLimitPatch(BaseModel):
 
 class StationVerifyPatch(BaseModel):
     verified: bool
+
+
+class AdminForecastRun(BaseModel):
+    cluster_id: int = Field(gt=0)
+    horizon_hours: int = Field(default=24, ge=1, le=168)
+    model: ForecastModel = ForecastModel.BEST
 
 
 class AdminBenchmarkRequest(BenchmarkRequest):
@@ -74,6 +83,56 @@ class TariffSet(BaseModel):
             if cursor != "24:00":
                 raise ValueError(f"{day_type} tariffs must cover through 24:00")
         return self
+
+
+def _admin_rows(sql, params=()):
+    try:
+        connection = connect()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Admin database is unavailable") from exc
+    try:
+        with dict_cursor(connection) as cursor:
+            cursor.execute(sql, params)
+            return cursor.fetchall()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Could not load admin data") from exc
+    finally:
+        connection.close()
+
+
+@router.get("/clusters")
+def get_clusters(_admin: AuthUser = Depends(require_roles("ADMIN"))):
+    rows = _admin_rows("""
+        SELECT c.cluster_id, c.name, c.province, c.timezone, c.status, c.grid_limit_kw,
+               COALESCE(t.tariffs, '[]') AS tariffs
+        FROM grid_cluster c
+        LEFT JOIN LATERAL (
+            SELECT jsonb_agg(jsonb_build_object(
+                'day_type', day_type, 'band', band, 'source_ref', source_ref,
+                'start_time', left(start_time::text, 5), 'end_time', left(end_time::text, 5),
+                'price_vnd_kwh', price_vnd_kwh
+            ) ORDER BY day_type, start_time) AS tariffs
+            FROM tariff_window
+            WHERE cluster_id = c.cluster_id AND CURRENT_DATE BETWEEN valid_from AND valid_to
+        ) t ON TRUE
+        ORDER BY c.cluster_id
+    """)
+    return {"count": len(rows), "data": rows}
+
+
+@router.get("/stations")
+def get_admin_stations(
+    status: Literal["PENDING", "ACTIVE", "MAINTENANCE", "OFFLINE"] | None = None,
+    _admin: AuthUser = Depends(require_roles("ADMIN")),
+):
+    rows = _admin_rows("""
+        SELECT station_id, cluster_id, name, address, province, lat, lng,
+               status, verified, station_power_kw
+        FROM charging_station
+        WHERE (%s IS NULL OR status = %s)
+        ORDER BY station_id
+    """, (status, status))
+    return {"count": len(rows), "data": rows}
 
 
 @router.patch("/clusters/{cluster_id}")
@@ -253,6 +312,53 @@ def run_benchmark(
     except Exception as exc:
         raise HTTPException(status_code=502, detail="AI Engine returned an invalid benchmark response") from exc
     return result
+
+
+@router.post("/forecast", response_model=ForecastResponse)
+def run_forecast(
+    body: AdminForecastRun,
+    _admin: AuthUser = Depends(require_roles("ADMIN")),
+):
+    ai_url = os.getenv("AI_URL", "").strip().rstrip("/")
+    if not ai_url:
+        raise HTTPException(status_code=503, detail="AI_URL is not configured")
+    history = _admin_rows("""
+        SELECT date_trunc('hour', s.start_time) AS hour_start, count(*) AS arrivals
+        FROM charging_session s JOIN charging_request r ON r.request_id = s.request_id
+        WHERE r.cluster_id = %s AND s.is_simulated IS FALSE AND s.start_time <= CURRENT_TIMESTAMP
+        GROUP BY 1
+        ORDER BY 1 DESC
+        LIMIT 672
+    """, (body.cluster_id,))
+    if not history:
+        raise HTTPException(status_code=409, detail="Cụm chưa có lịch sử check-in để dự báo.")
+    vietnam = timezone(timedelta(hours=7))
+    request = ForecastRequest(
+        cluster_id=str(body.cluster_id),
+        history=[
+            {"hour_start": row["hour_start"].astimezone(vietnam), "arrivals": row["arrivals"]}
+            for row in reversed(history)
+        ],
+        horizon_hours=body.horizon_hours,
+        model=body.model,
+    )
+    try:
+        response = httpx.post(
+            f"{ai_url}/ai/forecast", json=request.model_dump(mode="json"),
+            timeout=AI_TIMEOUT_SECONDS,
+        )
+    except httpx.TimeoutException as exc:
+        raise HTTPException(status_code=503, detail="AI Engine forecast timed out") from exc
+    except httpx.RequestError as exc:
+        raise HTTPException(status_code=503, detail="AI Engine is unavailable") from exc
+    if response.status_code >= 500 or response.status_code == 429:
+        raise HTTPException(status_code=503, detail=f"AI Engine returned HTTP {response.status_code}")
+    if response.status_code >= 400:
+        raise HTTPException(status_code=502, detail=f"AI Engine forecast returned HTTP {response.status_code}")
+    try:
+        return ForecastResponse.model_validate(response.json())
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail="AI Engine returned an invalid forecast response") from exc
 
 
 @router.get("/forecast")
