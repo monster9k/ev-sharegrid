@@ -5,7 +5,6 @@ import '../../theme.dart';
 import '../../widgets/charts.dart';
 import '../../widgets/common.dart';
 import '../../widgets/web_shell.dart';
-import 'admin_common.dart';
 
 /// A4 – Giám sát vận hành & hàng đợi: optimization_job, optimization_run.
 class AdminSolverScreen extends StatelessWidget {
@@ -31,16 +30,6 @@ class AdminSolverScreen extends StatelessWidget {
       eyebrow:
           'Quản trị · optimization_job & optimization_run · cập nhật 09:15:42',
       title: 'Giám sát solver & hàng đợi',
-      actions: [
-        Pill.neutral('Dữ liệu mô phỏng'),
-        WebBtn(
-          'Khởi chạy lại cụm…',
-          onTap: () => showSnack(
-            context,
-            'Đã tạo job RE_OPTIMIZE cho cụm Hải Châu (gom vào job đang chờ nếu có)',
-          ),
-        ),
-      ],
       children: [
         const AutoGrid(
           minWidth: 170,

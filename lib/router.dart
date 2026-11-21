@@ -108,12 +108,12 @@ List<RouteBase> _webRoutes(ApiClient client) => [
     ),
   ),
   GoRoute(path: '/admin', redirect: (_, _) => '/admin/clusters'),
-  _page('/admin/clusters', () => const AdminClustersScreen()),
-  _page('/admin/review', () => const AdminReviewScreen()),
-  _page('/admin/tariff', () => const AdminTariffScreen()),
+  _page('/admin/clusters', () => AdminClustersScreen(client: client)),
+  _page('/admin/review', () => AdminReviewScreen(client: client)),
+  _page('/admin/tariff', () => AdminTariffScreen(client: client)),
   _page('/admin/solver', () => const AdminSolverScreen()),
-  _page('/admin/benchmark', () => const AdminBenchmarkScreen()),
-  _page('/admin/forecast', () => const AdminForecastScreen()),
+  _page('/admin/benchmark', () => AdminBenchmarkScreen(client: client)),
+  _page('/admin/forecast', () => AdminForecastScreen(client: client)),
 ];
 
 GoRouter buildRouter({String? initialLocation, ApiClient? api}) {

@@ -25,6 +25,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/fonts/roboto/OFL.txt
+    - ai_engine/samples/page20_input.json
   fonts:
     - family: Roboto
       fonts:
