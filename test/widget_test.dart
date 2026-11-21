@@ -37,9 +37,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(
-      find.text(
-        'Chưa có kết quả đặt lịch từ máy chủ. Hãy gửi yêu cầu ở màn Đặt lịch.',
-      ),
+      find.text('Chưa có lịch sạc. Hãy gửi yêu cầu ở màn Đặt lịch.'),
       findsOneWidget,
     );
     expect(

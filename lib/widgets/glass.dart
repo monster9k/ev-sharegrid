@@ -66,7 +66,7 @@ enum UserTab { home, map, smart, bookings, profile }
 
 /// Thanh tab nổi bo tròn kiểu liquid glass, 5 tab, badge ở "Lịch đặt".
 class GlassNavBar extends StatelessWidget {
-  const GlassNavBar({super.key, required this.current, this.badge = 1});
+  const GlassNavBar({super.key, required this.current, this.badge = 0});
   final UserTab? current;
   final int badge;
 
@@ -204,6 +204,7 @@ class UserScaffold extends StatelessWidget {
     this.tab,
     this.actionBar,
     this.showNav = true,
+    this.showSimulationTag = true,
     this.padding = const EdgeInsets.fromLTRB(16, 20, 16, 0),
     this.background = Colors.white,
     this.gap = 16,
@@ -213,6 +214,7 @@ class UserScaffold extends StatelessWidget {
   final UserTab? tab;
   final Widget? actionBar;
   final bool showNav;
+  final bool showSimulationTag;
   final EdgeInsets padding;
   final Color background;
   final double gap;
@@ -230,11 +232,13 @@ class UserScaffold extends StatelessWidget {
               child: ListView(
                 padding: padding.copyWith(bottom: bottomSpace),
                 children: [
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: SimTag(text: 'Dữ liệu mô phỏng'),
-                  ),
-                  const SizedBox(height: 8),
+                  if (showSimulationTag) ...[
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: SimTag(text: 'Dữ liệu mô phỏng'),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                   for (var i = 0; i < children.length; i++) ...[
                     if (i > 0) SizedBox(height: gap),
                     children[i],

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'data/api.dart';
 import 'screens/user/onboarding_screen.dart';
 import 'screens/user/login_screen.dart';
 import 'screens/user/home_screen.dart';
@@ -30,7 +31,7 @@ GoRoute _page(String path, Widget Function() build) => GoRoute(
 );
 
 /// Route app USER (bọc trong khung điện thoại khi mở trên màn rộng).
-final _userRoutes = <RouteBase>[
+List<RouteBase> _userRoutes(ApiClient client) => [
   _page('/', () => const OnboardingScreen(step: 1)),
   _page('/onboarding/2', () => const OnboardingScreen(step: 2)),
   _page('/onboarding/3', () => const OnboardingScreen(step: 3)),
@@ -38,13 +39,37 @@ final _userRoutes = <RouteBase>[
   _page('/home', () => const HomeScreen()),
   _page('/garage', () => const GarageScreen()),
   _page('/map', () => const MapScreen()),
-  _page('/station', () => const StationDetailScreen()),
-  _page('/booking', () => const BookingScreen()),
+  GoRoute(path: '/station', redirect: (_, _) => '/map'),
+  GoRoute(
+    path: '/station/:id',
+    pageBuilder: (context, state) => NoTransitionPage(
+      key: state.pageKey,
+      child: StationDetailScreen(
+        key: ValueKey(state.uri.path),
+        stationId: int.tryParse(state.pathParameters['id'] ?? ''),
+        client: client,
+      ),
+    ),
+  ),
+  GoRoute(
+    path: '/booking',
+    pageBuilder: (context, state) => NoTransitionPage(
+      key: state.pageKey,
+      child: BookingScreen(
+        key: ValueKey(state.uri.toString()),
+        stationId: int.tryParse(state.uri.queryParameters['stationId'] ?? ''),
+        client: client,
+      ),
+    ),
+  ),
   GoRoute(
     path: '/schedule',
     pageBuilder: (context, state) => NoTransitionPage(
       key: state.pageKey,
       child: ScheduleResultScreen(
+        key: ValueKey(state.uri.toString()),
+        client: client,
+        requestId: int.tryParse(state.uri.queryParameters['requestId'] ?? ''),
         bookingResult: state.extra is Map<String, dynamic>
             ? state.extra as Map<String, dynamic>
             : null,
@@ -71,13 +96,16 @@ final _webRoutes = <RouteBase>[
   _page('/admin/forecast', () => const AdminForecastScreen()),
 ];
 
-GoRouter buildRouter({String? initialLocation}) => GoRouter(
-  initialLocation: initialLocation,
-  routes: [
-    ShellRoute(
-      builder: (context, state, child) => MobileFrame(child: child),
-      routes: _userRoutes,
-    ),
-    ..._webRoutes,
-  ],
-);
+GoRouter buildRouter({String? initialLocation, ApiClient? api}) {
+  final client = api ?? apiClient;
+  return GoRouter(
+    initialLocation: initialLocation,
+    routes: [
+      ShellRoute(
+        builder: (context, state, child) => MobileFrame(child: child),
+        routes: _userRoutes(client),
+      ),
+      ..._webRoutes,
+    ],
+  );
+}
