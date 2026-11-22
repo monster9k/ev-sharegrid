@@ -19,47 +19,57 @@ Map<String, dynamic> _station(int id) => {
   ],
 };
 
-ApiClient _client(List<String> visited) => ApiClient(
-  client: MockClient((request) async {
-    final path = request.url.path;
-    visited.add(path);
-    final body = switch (path) {
-      '/api/v1/auth/login' ||
-      '/api/v1/auth/register' => {'access_token': 'test-token'},
-      '/api/v1/auth/me' => {
-        'user_id': 3,
-        'role': 'USER',
-        'full_name': 'User thử nghiệm',
-        'email': 'account@example.test',
-        'vehicles': [
-          {
-            'vehicle_id': 10,
-            'is_default': true,
-            'brand': 'VinFast',
-            'model_name': 'VF 5',
-            'connector_type': 'CCS2',
-            'battery_kwh': 37,
-            'max_kw': 50,
+ApiClient _client(List<String> visited, {bool failFirstRequests = false}) =>
+    ApiClient(
+      client: MockClient((request) async {
+        final path = request.url.path;
+        final firstVisit = !visited.contains(path);
+        visited.add(path);
+        if (failFirstRequests && firstVisit && path == '/api/v1/requests/me') {
+          return http.Response('{"detail":"Unavailable"}', 503);
+        }
+        final body = switch (path) {
+          '/api/v1/auth/login' ||
+          '/api/v1/auth/register' => {'access_token': 'test-token'},
+          '/api/v1/auth/me' => {
+            'user_id': 3,
+            'role': 'USER',
+            'full_name': 'User thử nghiệm',
+            'email': 'account@example.test',
+            'vehicles': [
+              {
+                'vehicle_id': 10,
+                'is_default': true,
+                'brand': 'VinFast',
+                'model_name': 'VF 5',
+                'connector_type': 'CCS2',
+                'battery_kwh': 37,
+                'max_kw': 50,
+              },
+            ],
           },
-        ],
-      },
-      '/api/v1/stations' => {
-        'data': [_station(23), _station(24)],
-      },
-      '/api/v1/stations/24' => {'data': _station(24)},
-      '/api/v1/requests' => {'request_id': 31},
-      '/api/v1/requests/31/schedule' => {
-        'request_id': 31,
-        'status': 'SCHEDULED',
-        'slots': [
-          {'slot_start': '2026-11-23T01:00:00Z', 'power_kw': 5, 'port_id': 24},
-        ],
-      },
-      _ => throw StateError('Unexpected request $path'),
-    };
-    return http.Response.bytes(utf8.encode(jsonEncode(body)), 200);
-  }),
-);
+          '/api/v1/stations' => {
+            'data': [_station(23), _station(24)],
+          },
+          '/api/v1/stations/24' => {'data': _station(24)},
+          '/api/v1/requests' => {'request_id': 31},
+          '/api/v1/requests/me' => {'data': []},
+          '/api/v1/requests/31/schedule' => {
+            'request_id': 31,
+            'status': 'SCHEDULED',
+            'slots': [
+              {
+                'slot_start': '2026-11-23T01:00:00Z',
+                'power_kw': 5,
+                'port_id': 24,
+              },
+            ],
+          },
+          _ => throw StateError('Unexpected request $path'),
+        };
+        return http.Response.bytes(utf8.encode(jsonEncode(body)), 200);
+      }),
+    );
 
 Future<void> _signIn(ApiClient client) =>
     client.login(email: 'account@example.test', password: 'test-input');
@@ -77,6 +87,23 @@ Future<void> _book(ApiClient client) => client.submitBooking(
 
 void main() {
   setUpAll(() => AppFonts.enabled = false);
+
+  testWidgets('thử lại sau khi tải lịch đặt thất bại', (tester) async {
+    final paths = <String>[];
+    final client = _client(paths, failFirstRequests: true);
+    await _signIn(client);
+    await tester.pumpWidget(
+      EvShareGridApp(initialLocation: '/sessions', api: client),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Thử lại'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Chưa có lịch sạc.'), findsOneWidget);
+    expect(paths.where((path) => path == '/api/v1/requests/me'), hasLength(2));
+  });
 
   testWidgets('đặt lịch từ chi tiết giữ đúng mã trạm', (tester) async {
     final paths = <String>[];
