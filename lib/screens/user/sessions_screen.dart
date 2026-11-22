@@ -67,7 +67,12 @@ class _SessionsScreenState extends State<SessionsScreen> {
             if (snapshot.hasError) {
               return ApiErrorCard(
                 error: snapshot.error!,
-                onRetry: () => setState(() => _requests = _api.getMyRequests()),
+                onRetry: () {
+                  final requests = _api.getMyRequests();
+                  setState(() {
+                    _requests = requests;
+                  });
+                },
               );
             }
             final list = snapshot.data;
