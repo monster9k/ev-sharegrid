@@ -84,6 +84,7 @@ Nút demo chỉ điền email. Nhập mật khẩu bằng tay trên màn đăng 
 - Chạy `.\scripts\demo.ps1` trong PowerShell và mở [http://localhost:7357](http://localhost:7357) khi Flutter sẵn sàng.
 - Script chờ PostgreSQL, AI Engine và backend healthy, kiểm tra catalog nạp xong, rồi lấy cổng backend từ Compose.
 - Nếu đã build image, dùng `.\scripts\demo.ps1 -SkipBuild`. Nếu cổng Flutter đang bận, dùng `.\scripts\demo.ps1 -Port 7358`.
+- Sau `git pull` hoặc khi đổi nhánh, chạy `.\scripts\demo.ps1` để Compose build lại image. Image backend cũ có thể thiếu `/api/v1/requests/me` và làm các màn lịch sạc báo 404.
 - Để dừng, nhấn `q` trong terminal Flutter và chạy `.\scripts\demo-stop.ps1`. Dữ liệu PostgreSQL được giữ nguyên.
 
 ### Cập nhật xác thực trên volume PostgreSQL cũ
