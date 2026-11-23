@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   setUpAll(() => AppFonts.enabled = false);
@@ -35,11 +36,17 @@ void main() {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(1200, 900);
       addTearDown(tester.view.reset);
+      final expiry = DateTime.now().millisecondsSinceEpoch ~/ 1000 + 3600;
+      final payload = base64Url.encode(
+        utf8.encode(jsonEncode({'exp': expiry})),
+      );
+      final jwt = 'header.$payload.signature';
+      final prefs = await SharedPreferences.getInstance();
       final api = ApiClient(
         client: MockClient((request) async {
           if (request.url.path == '/expired') return http.Response('{}', 401);
           final response = switch (request.url.path) {
-            '/api/v1/auth/login' => {'access_token': 'test-token'},
+            '/api/v1/auth/login' => {'access_token': jwt},
             '/api/v1/auth/me' => {'user_id': 4, 'role': role, 'vehicles': []},
             _ => {'data': []},
           };
@@ -64,6 +71,7 @@ void main() {
       expect(path(), '/login');
       expect(api.currentUser, isNull);
       expect(api.accessToken, isNull);
+      expect(prefs.containsKey('access_token'), isFalse);
       expect(find.text('Phiên đăng nhập đã hết hạn'), findsOneWidget);
       if (role != 'USER') {
         await api.login(email: 'example@example.test', password: 'test-only');
@@ -72,8 +80,48 @@ void main() {
         await tester.pumpAndSettle();
         expect(path(), '/login');
         expect(api.accessToken, isNull);
+        expect(prefs.containsKey('access_token'), isFalse);
         expect(find.text('Phiên đăng nhập đã hết hạn'), findsNothing);
       }
     });
   }
+
+  testWidgets('reload giữ phiên hợp lệ và sau đăng xuất về login', (
+    tester,
+  ) async {
+    final expiry = DateTime.now().millisecondsSinceEpoch ~/ 1000 + 3600;
+    final payload = base64Url.encode(utf8.encode(jsonEncode({'exp': expiry})));
+    final jwt = 'header.$payload.signature';
+    final client = MockClient((request) async {
+      if (request.url.path == '/api/v1/auth/login') {
+        return http.Response(jsonEncode({'access_token': jwt}), 200);
+      }
+      if (request.url.path == '/api/v1/auth/me') {
+        expect(request.headers['Authorization'], 'Bearer $jwt');
+        return http.Response('{"user_id":4,"role":"USER","vehicles":[]}', 200);
+      }
+      return http.Response('{"data":[]}', 200);
+    });
+    final original = ApiClient(client: client);
+    await original.login(email: 'example@example.test', password: 'test-only');
+
+    final reloaded = ApiClient(client: client);
+    await reloaded.restoreSession();
+    await tester.pumpWidget(
+      EvShareGridApp(initialLocation: '/garage', api: reloaded),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Xe của tôi'), findsOneWidget);
+
+    await reloaded.logout();
+    final afterLogout = ApiClient(client: client);
+    await afterLogout.restoreSession();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpWidget(
+      EvShareGridApp(initialLocation: '/garage', api: afterLogout),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Đăng nhập'), findsOneWidget);
+    expect(afterLogout.accessToken, isNull);
+  });
 }

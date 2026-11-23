@@ -179,7 +179,7 @@ void main() {
     expect(client.lastRequestId, isNull);
   });
 
-  testWidgets('chọn Host điền email demo khi chưa cấu hình mật khẩu', (
+  testWidgets('chọn Host chỉ điền email, xóa mật khẩu và không gọi API', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -190,6 +190,7 @@ void main() {
       EvShareGridApp(initialLocation: '/login', api: _client(paths)),
     );
     await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, 'previous-password');
     final host = find.text('Chủ trạm');
     await tester.ensureVisible(host);
     await tester.tap(host);

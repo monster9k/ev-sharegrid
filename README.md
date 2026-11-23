@@ -61,9 +61,9 @@ firebase deploy --only hosting --project "$FIREBASE_PROJECT_ID"
 
 ## Chạy demo cục bộ bằng Docker Compose
 
-Bản nộp chấm thi chạy bằng **Docker Compose và Flutter Web trên máy local**. Có thể triển khai bản web theo mục Deployment bên dưới.
+Bản chấm chạy **cục bộ trên Windows** với Docker Desktop, Flutter, Chrome và file `.env`. Nginx và Firebase không cần cho bản demo này.
 
-Cài Docker Engine với Docker Compose plugin, Python, Flutter và Chrome. Nếu Python local chưa có [thư viện backend](backend/requirements.txt), cài bằng `python -m pip install -r backend/requirements.txt`. Mở terminal tại thư mục gốc rồi chạy [script tạo môi trường](scripts/make_demo_env.py):
+Nếu Python local chưa có [thư viện backend](backend/requirements.txt), cài bằng `python -m pip install -r backend/requirements.txt`. Mở terminal tại thư mục gốc rồi chạy [script tạo môi trường](scripts/make_demo_env.py):
 
 ```sh
 python scripts/make_demo_env.py
@@ -79,13 +79,24 @@ Script nạp catalog tạo các tài khoản sau. Dùng mật khẩu đã chọn
 | HOST | `host1@sharegrid.vn` |
 | ADMIN | `admin@sharegrid.vn` |
 
+Nút demo chỉ điền email. Nhập mật khẩu bằng tay trên màn đăng nhập. Trình duyệt khôi phục JWT và xác thực lại qua `/api/v1/auth/me` khi tải lại trang. Đăng xuất hoặc HTTP 401 sẽ xóa phiên đã lưu.
+
+- Chạy `.\scripts\demo.ps1` trong PowerShell và mở [http://localhost:7357](http://localhost:7357) khi Flutter sẵn sàng.
+- Script chờ PostgreSQL, AI Engine và backend healthy, kiểm tra catalog nạp xong, rồi lấy cổng backend từ Compose.
+- Nếu đã build image, dùng `.\scripts\demo.ps1 -SkipBuild`. Nếu cổng Flutter đang bận, dùng `.\scripts\demo.ps1 -Port 7358`.
+- Sau `git pull` hoặc khi đổi nhánh, chạy `.\scripts\demo.ps1` để Compose build lại image. Image backend cũ có thể thiếu `/api/v1/requests/me` và làm các màn lịch sạc báo 404.
+- Để dừng, nhấn `q` trong terminal Flutter và chạy `.\scripts\demo-stop.ps1`. Dữ liệu PostgreSQL được giữ nguyên.
+
+### Cập nhật xác thực trên volume PostgreSQL cũ
+
+Chạy migration [001_app_user_password_hash.sql](database/migrations/001_app_user_password_hash.sql) trước khi mở đăng ký trên DB đã có. Lệnh dưới dùng tên DB mặc định, đổi `-U` và `-d` nếu đã cấu hình tên khác.
+
 ```sh
-docker compose config --quiet
-docker compose up --build -d
-docker compose ps -a
+docker compose up -d postgres
+docker compose exec -T postgres psql -U postgres -d ev_sharegrid -v ON_ERROR_STOP=1 < database/migrations/001_app_user_password_hash.sql
 ```
 
-Chờ `postgres`, `ai-engine` và `backend` báo `healthy`. `catalog-seed` thoát mã 0 sau khi nạp catalog. Xem Swagger của [AI Engine](http://localhost:8001/docs) và [backend](http://localhost:8000/docs). Dùng `docker compose down` để dừng.
+Trong PowerShell, có thể dùng `Get-Content -Raw database/migrations/001_app_user_password_hash.sql | docker compose exec -T postgres psql -U postgres -d ev_sharegrid -v ON_ERROR_STOP=1` cho lệnh áp migration.
 
 ### Cập nhật biểu giá trên volume PostgreSQL cũ
 
@@ -106,15 +117,6 @@ Sau đó dùng hai lệnh dưới đây nếu chỉ muốn nạp biểu giá. C�
 docker compose build catalog-seed
 docker compose run --rm --no-deps catalog-seed python scripts/import_catalog.py --tariffs-only
 ```
-
-### Chạy Flutter Web kết nối backend local
-
-```sh
-flutter pub get
-flutter run -d chrome --web-hostname=localhost --web-port=7357 --no-web-resources-cdn --dart-define=API_BASE_URL=http://localhost:8000 --dart-define=DEMO_OFFLINE=true
-```
-
-Mở [Flutter Web local](http://localhost:7357). Dùng hostname `localhost` cho trang Flutter để khớp cấu hình CORS. Hai tùy chọn dành cho demo offline dùng tài nguyên Flutter và font đã đóng gói cục bộ. Hãy chuẩn bị trước image Docker, các thư viện Python và Flutter nếu máy chấm sẽ chạy offline.
 
 Đăng nhập bằng tài khoản USER để đặt lịch và xem các slot sạc. Đăng nhập bằng ADMIN để xem báo cáo tại `/admin/benchmark`. API đọc lịch trả trạng thái yêu cầu, các slot sạc và, khi đã có kết quả tối ưu, các trường `solver_status`, `algorithm`, `solve_ms` và `explanation`.
 

@@ -7,7 +7,7 @@ import '../../theme.dart';
 import '../../widgets/common.dart';
 import '../../widgets/web_shell.dart';
 
-/// U1 – Đăng nhập bằng thông tin máy chủ; JWT chỉ được giữ trong bộ nhớ.
+/// U1 – Đăng nhập và đăng ký qua API.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, this.client});
   final ApiClient? client;
@@ -26,36 +26,16 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _busy = false;
   String? _error;
 
-  static const _demoPassword = String.fromEnvironment('DEMO_PASSWORD');
   static const _demoAccounts = [
-    (
-      'Tài xế',
-      'user1@sharegrid.vn',
-      String.fromEnvironment('DEMO_USER_PASSWORD', defaultValue: _demoPassword),
-    ),
-    (
-      'Chủ trạm',
-      'host1@sharegrid.vn',
-      String.fromEnvironment('DEMO_HOST_PASSWORD', defaultValue: _demoPassword),
-    ),
-    (
-      'Quản trị',
-      'admin@sharegrid.vn',
-      String.fromEnvironment(
-        'DEMO_ADMIN_PASSWORD',
-        defaultValue: _demoPassword,
-      ),
-    ),
+    ('Tài xế', 'user1@sharegrid.vn'),
+    ('Chủ trạm', 'host1@sharegrid.vn'),
+    ('Quản trị', 'admin@sharegrid.vn'),
   ];
 
-  void _selectDemo(String email, String demoPassword) {
-    if (_email.text != email) _password.clear();
+  void _selectDemo(String email) {
+    _password.clear();
     _email.text = email;
     setState(() => _error = null);
-    if (demoPassword.isNotEmpty) {
-      _password.text = demoPassword;
-      _submit();
-    }
   }
 
   @override
@@ -285,7 +265,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const Gap(12),
                 const MutedText(
-                  'Đăng nhập kết nối máy chủ. Mã truy cập chỉ được giữ trong bộ nhớ phiên này.',
+                  'Phiên đăng nhập được khôi phục khi tải lại trang.',
                   size: 12,
                 ),
                 if (!_registering) ...[
@@ -296,11 +276,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      for (final (label, email, password) in _demoAccounts)
+                      for (final (label, email) in _demoAccounts)
                         OutlinedButton(
-                          onPressed: _busy
-                              ? null
-                              : () => _selectDemo(email, password),
+                          onPressed: _busy ? null : () => _selectDemo(email),
                           child: Text(label),
                         ),
                     ],
