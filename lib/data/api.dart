@@ -340,6 +340,41 @@ class ApiClient extends ChangeNotifier {
     return _decodeObject(response, token: token);
   }
 
+  Future<Map<String, dynamic>> updateProfile({
+    String? fullName,
+    String? phone,
+  }) async {
+    final token = _accessToken;
+    final body = <String, dynamic>{};
+    if (fullName != null) body['full_name'] = fullName;
+    if (phone != null) body['phone'] = phone;
+    final response = await _client.patch(
+      _uri('/api/v1/auth/me'),
+      headers: _headers,
+      body: jsonEncode(body),
+    );
+    final user = await _decodeObject(response, token: token);
+    currentUser = user;
+    notifyListeners();
+    return user;
+  }
+
+  Future<Map<String, dynamic>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final token = _accessToken;
+    final response = await _client.post(
+      _uri('/api/v1/auth/change-password'),
+      headers: _headers,
+      body: jsonEncode({
+        'current_password': currentPassword,
+        'new_password': newPassword,
+      }),
+    );
+    return _decodeObject(response, token: token);
+  }
+
   Future<List<Map<String, dynamic>>> getTariffs() =>
       _getRows('/api/v1/tariffs');
 
