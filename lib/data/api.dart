@@ -283,6 +283,9 @@ class ApiClient extends ChangeNotifier {
   Future<List<Map<String, dynamic>>> getVehicleModels() =>
       _getRows('/api/v1/vehicle-models');
 
+  Future<List<Map<String, dynamic>>> getTariffs() =>
+      _getRows('/api/v1/tariffs');
+
   Future<List<Map<String, dynamic>>> getNotifications() =>
       _getRows('/api/v1/notifications', key: 'notifications');
 

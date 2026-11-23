@@ -40,15 +40,37 @@ Color bandColor(TariffBand b) => switch (b) {
 
 /// Dải biểu giá 24 ô (mỗi ô 1 giờ) + nhãn 0h/6h/12h/18h/24h.
 class TariffStrip extends StatelessWidget {
-  const TariffStrip({super.key, this.height = 30, this.highlightHour});
+  const TariffStrip({
+    super.key,
+    this.height = 30,
+    this.highlightHour,
+    this.tariffs,
+  });
+
   final double height;
   final int? highlightHour;
+  final List<Map<String, dynamic>>? tariffs;
+
+  Color _tierColor(int h) {
+    if (tariffs != null && h < tariffs!.length) {
+      final tier = tariffs![h]['tariff_tier']?.toString().toUpperCase();
+      if (tier != null) {
+        if (tier.contains('OFF')) return AppColors.offPeak;
+        if (tier.contains('PEAK')) return AppColors.peak;
+        return AppColors.normal;
+      }
+    }
+    // EVN TOU mặc định (thứ 2 - thứ 7)
+    if (h < 6) return AppColors.offPeak;
+    if (h >= 18 && h < 23) return AppColors.peak;
+    return AppColors.normal;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
       label:
-          'Biểu giá theo giờ: thấp điểm 22h đến 4h, cao điểm 9h30 đến 11h30 và 17h đến 20h',
+          'Biểu giá theo giờ EVN: Thấp điểm 00h-06h, Cao điểm 17h30-22h30, Bình thường các giờ còn lại',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -63,10 +85,11 @@ class TariffStrip extends StatelessWidget {
                     Expanded(
                       child: Container(
                         decoration: BoxDecoration(
-                          color: bandColor(Mock.bandAt(h + .5)),
+                          color: _tierColor(h),
                           border: h == highlightHour
-                              ? Border.all(color: AppColors.ink, width: 2)
+                              ? Border.all(color: AppColors.navy, width: 2)
                               : null,
+                          borderRadius: BorderRadius.circular(2),
                         ),
                       ),
                     ),

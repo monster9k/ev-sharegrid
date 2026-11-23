@@ -13,7 +13,13 @@ import pandas as pd
 try:
     from backend.auth import AuthUser, require_roles
     from backend.db import connect, dict_cursor
-    from backend.tariffs import get_tou_tier
+    from backend.tariffs import (
+        RATE_NORMAL,
+        RATE_OFF_PEAK,
+        RATE_PEAK,
+        get_24h_tariff_schedule,
+        get_tou_tier,
+    )
     from backend.ai_contract import (
         AIUpstreamError,
         optimization_horizon,
@@ -23,7 +29,13 @@ try:
 except ModuleNotFoundError:  # Support `python backend/main.py` as well as package imports.
     from auth import AuthUser, require_roles
     from db import connect, dict_cursor
-    from tariffs import get_tou_tier
+    from tariffs import (
+        RATE_NORMAL,
+        RATE_OFF_PEAK,
+        RATE_PEAK,
+        get_24h_tariff_schedule,
+        get_tou_tier,
+    )
     from ai_contract import (
         AIUpstreamError,
         optimization_horizon,
@@ -81,6 +93,22 @@ def get_vehicle_models():
             df = pd.read_csv(csv_path)
             return {"status": "success", "count": len(df), "data": df.to_dict("records")}
         raise HTTPException(status_code=500, detail="Không thể truy vấn danh mục mẫu xe điện")
+
+
+@router.get("/tariffs")
+def get_tariffs():
+    """Lấy cấu hình 24 khung giờ biểu giá điện EVN (0h-23h)."""
+    schedule = get_24h_tariff_schedule()
+    return {
+        "status": "success",
+        "count": len(schedule),
+        "data": schedule,
+        "rates": {
+            "OFF_PEAK": RATE_OFF_PEAK,
+            "NORMAL": RATE_NORMAL,
+            "PEAK": RATE_PEAK,
+        },
+    }
 
 
 @router.get("/stations")

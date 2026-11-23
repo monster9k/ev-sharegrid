@@ -454,3 +454,24 @@ def test_get_request_schedule_includes_solver_metadata_and_explanation(monkeypat
     assert "LEFT JOIN LATERAL" in connection.schedule_cursor.query
     assert "optimization_run" in connection.schedule_cursor.query
     assert connection.closed
+
+
+def test_get_tariffs_returns_24_hours():
+    response = CLIENT.get("/api/v1/tariffs")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "success"
+    assert body["count"] == 24
+    assert len(body["data"]) == 24
+    # Hour 2 should be OFF_PEAK (1620)
+    assert body["data"][2]["tariff_tier"] == "OFF_PEAK"
+    assert body["data"][2]["vnd_per_kwh"] == 1620.0
+    # Hour 19 should be PEAK (4212)
+    assert body["data"][19]["tariff_tier"] == "PEAK"
+    assert body["data"][19]["vnd_per_kwh"] == 4212.0
+    # Hour 10 should be NORMAL (2700)
+    assert body["data"][10]["tariff_tier"] == "NORMAL"
+    assert body["data"][10]["vnd_per_kwh"] == 2700.0
+    assert body["rates"]["OFF_PEAK"] == 1620.0
+    assert body["rates"]["NORMAL"] == 2700.0
+    assert body["rates"]["PEAK"] == 4212.0
