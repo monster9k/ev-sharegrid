@@ -283,6 +283,101 @@ class ApiClient extends ChangeNotifier {
   Future<List<Map<String, dynamic>>> getVehicleModels() =>
       _getRows('/api/v1/vehicle-models');
 
+  Future<List<Map<String, dynamic>>> getVehicles() =>
+      _getRows('/api/v1/vehicles');
+
+  Future<Map<String, dynamic>> createVehicle({
+    required int modelId,
+    required String licensePlate,
+    String? nickname,
+    double defaultSocTarget = 80.0,
+    bool isDefault = false,
+  }) async {
+    final token = _accessToken;
+    final response = await _client.post(
+      _uri('/api/v1/vehicles'),
+      headers: _headers,
+      body: jsonEncode({
+        'model_id': modelId,
+        'license_plate': licensePlate,
+        if (nickname != null && nickname.isNotEmpty) 'nickname': nickname,
+        'default_soc_target': defaultSocTarget,
+        'is_default': isDefault,
+      }),
+    );
+    return _decodeObject(response, token: token);
+  }
+
+  Future<Map<String, dynamic>> updateVehicle(
+    int vehicleId, {
+    int? modelId,
+    String? licensePlate,
+    String? nickname,
+    double? defaultSocTarget,
+    bool? isDefault,
+  }) async {
+    final token = _accessToken;
+    final body = <String, dynamic>{};
+    if (modelId != null) body['model_id'] = modelId;
+    if (licensePlate != null) body['license_plate'] = licensePlate;
+    if (nickname != null) body['nickname'] = nickname;
+    if (defaultSocTarget != null) body['default_soc_target'] = defaultSocTarget;
+    if (isDefault != null) body['is_default'] = isDefault;
+    final response = await _client.patch(
+      _uri('/api/v1/vehicles/$vehicleId'),
+      headers: _headers,
+      body: jsonEncode(body),
+    );
+    return _decodeObject(response, token: token);
+  }
+
+  Future<Map<String, dynamic>> deleteVehicle(int vehicleId) async {
+    final token = _accessToken;
+    final response = await _client.delete(
+      _uri('/api/v1/vehicles/$vehicleId'),
+      headers: _headers,
+    );
+    return _decodeObject(response, token: token);
+  }
+
+  Future<Map<String, dynamic>> updateProfile({
+    String? fullName,
+    String? phone,
+  }) async {
+    final token = _accessToken;
+    final body = <String, dynamic>{};
+    if (fullName != null) body['full_name'] = fullName;
+    if (phone != null) body['phone'] = phone;
+    final response = await _client.patch(
+      _uri('/api/v1/auth/me'),
+      headers: _headers,
+      body: jsonEncode(body),
+    );
+    final user = await _decodeObject(response, token: token);
+    currentUser = user;
+    notifyListeners();
+    return user;
+  }
+
+  Future<Map<String, dynamic>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final token = _accessToken;
+    final response = await _client.post(
+      _uri('/api/v1/auth/change-password'),
+      headers: _headers,
+      body: jsonEncode({
+        'current_password': currentPassword,
+        'new_password': newPassword,
+      }),
+    );
+    return _decodeObject(response, token: token);
+  }
+
+  Future<List<Map<String, dynamic>>> getTariffs() =>
+      _getRows('/api/v1/tariffs');
+
   Future<List<Map<String, dynamic>>> getNotifications() =>
       _getRows('/api/v1/notifications', key: 'notifications');
 

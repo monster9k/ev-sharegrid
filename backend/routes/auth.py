@@ -50,6 +50,20 @@ class AuthRoute(APIRoute):
                     }
                     for error in errors:
                         error["msg"] = messages.get(error["loc"][-1], "Thông tin đăng ký không hợp lệ.")
+                elif request.url.path.endswith("/change-password"):
+                    messages = {
+                        "current_password": "Vui lòng nhập mật khẩu hiện tại.",
+                        "new_password": "Mật khẩu mới cần từ 6 đến 128 ký tự.",
+                    }
+                    for error in errors:
+                        error["msg"] = messages.get(error["loc"][-1], "Thông tin mật khẩu không hợp lệ.")
+                elif request.url.path.endswith("/me") and request.method == "PATCH":
+                    messages = {
+                        "full_name": "Họ tên cần từ 1 đến 100 ký tự.",
+                        "phone": "Số điện thoại tối đa 20 ký tự.",
+                    }
+                    for error in errors:
+                        error["msg"] = messages.get(error["loc"][-1], "Thông tin cập nhật không hợp lệ.")
                 raise HTTPException(422, detail=errors) from None
 
         return handle
@@ -108,6 +122,28 @@ class RegisterRequest(BaseModel):
     @classmethod
     def validate_email(cls, value: str) -> str:
         return LoginRequest.validate_email(value)
+
+
+class UpdateProfileRequest(BaseModel):
+    full_name: str | None = Field(default=None, max_length=100)
+    phone: str | None = Field(default=None, max_length=20)
+
+    @field_validator("full_name", "phone", mode="before")
+    @classmethod
+    def trim(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+    @field_validator("full_name")
+    @classmethod
+    def validate_full_name(cls, value: str | None) -> str | None:
+        if value is not None and len(value) < 1:
+            raise ValueError("Họ tên cần có ít nhất 1 ký tự.")
+        return value
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=6, max_length=128)
 
 
 @router.post("/login", dependencies=[Depends(limit_auth)])
@@ -219,6 +255,11 @@ def get_me(user: AuthUser = Depends(require_roles("USER", "HOST", "ADMIN"))):
                 (user.user_id,),
             )
             vehicles = cursor.fetchall()
+            cursor.execute(
+                "SELECT phone, full_name, email, role FROM app_user WHERE user_id = %s",
+                (user.user_id,),
+            )
+            user_row = cursor.fetchone()
     except Exception as exc:
         raise HTTPException(status_code=503, detail="Could not load account vehicles") from exc
     finally:
@@ -226,8 +267,124 @@ def get_me(user: AuthUser = Depends(require_roles("USER", "HOST", "ADMIN"))):
             connection.close()
     return {
         "user_id": user.user_id,
-        "role": user.role,
-        "email": user.email,
-        "full_name": user.full_name,
+        "role": (user_row and user_row.get("role")) or user.role,
+        "email": (user_row and user_row.get("email")) or user.email,
+        "full_name": (user_row and user_row.get("full_name")) or user.full_name,
+        "phone": user_row.get("phone") if user_row else None,
         "vehicles": vehicles,
     }
+
+
+@router.patch("/me")
+def update_profile(
+    body: UpdateProfileRequest,
+    user: AuthUser = Depends(require_roles("USER", "HOST", "ADMIN")),
+):
+    updates = []
+    params = []
+    if body.full_name is not None:
+        updates.append("full_name = %s")
+        params.append(body.full_name)
+    if body.phone is not None:
+        updates.append("phone = %s")
+        params.append(body.phone or None)
+
+    connection = None
+    try:
+        connection = connect()
+        with connection, dict_cursor(connection) as cursor:
+            if updates:
+                params.append(user.user_id)
+                cursor.execute(
+                    f"UPDATE app_user SET {', '.join(updates)} WHERE user_id = %s RETURNING user_id, role, email, full_name, phone",
+                    params,
+                )
+                updated_user = cursor.fetchone()
+            else:
+                cursor.execute(
+                    "SELECT user_id, role, email, full_name, phone FROM app_user WHERE user_id = %s",
+                    (user.user_id,),
+                )
+                updated_user = cursor.fetchone()
+
+            cursor.execute(
+                """
+                SELECT v.vehicle_id, v.model_id, v.plate_number, v.nickname,
+                       v.default_soc_target, v.is_default, vm.brand, vm.model_name,
+                       vm.connector_type, vm.battery_kwh, vm.max_kw
+                FROM vehicle v
+                JOIN vehicle_model vm ON vm.model_id = v.model_id
+                WHERE v.user_id = %s
+                ORDER BY v.is_default DESC, v.vehicle_id
+                """,
+                (user.user_id,),
+            )
+            vehicles = cursor.fetchall()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Không thể cập nhật thông tin tài khoản.") from exc
+    finally:
+        if connection is not None:
+            connection.close()
+
+    full_name = (updated_user and updated_user.get("full_name")) or user.full_name
+    email = (updated_user and updated_user.get("email")) or user.email
+    role = (updated_user and updated_user.get("role")) or user.role
+    phone = updated_user.get("phone") if updated_user else None
+
+    return {
+        "user_id": user.user_id,
+        "role": role,
+        "email": email,
+        "full_name": full_name,
+        "phone": phone,
+        "vehicles": vehicles,
+    }
+
+
+@router.post("/change-password")
+def change_password(
+    body: ChangePasswordRequest,
+    user: AuthUser = Depends(require_roles("USER", "HOST", "ADMIN")),
+):
+    connection = None
+    try:
+        connection = connect()
+        with connection, dict_cursor(connection) as cursor:
+            cursor.execute(
+                "SELECT password_hash FROM app_user WHERE user_id = %s",
+                (user.user_id,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Không tìm thấy tài khoản người dùng.")
+
+            current_hash = row.get("password_hash")
+            configured = None
+            try:
+                configured = configured_password_hashes().get(user.email)
+            except Exception:
+                pass
+
+            valid = False
+            if current_hash and verify_password(body.current_password, current_hash):
+                valid = True
+            elif configured and verify_password(body.current_password, configured):
+                valid = True
+
+            if not valid:
+                raise HTTPException(status_code=400, detail="Mật khẩu hiện tại không chính xác.")
+
+            new_hash = hash_password(body.new_password)
+            cursor.execute(
+                "UPDATE app_user SET password_hash = %s WHERE user_id = %s",
+                (new_hash, user.user_id),
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Không thể đổi mật khẩu. Vui lòng thử lại sau.") from exc
+    finally:
+        if connection is not None:
+            connection.close()
+
+    return {"message": "Đổi mật khẩu thành công."}

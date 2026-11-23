@@ -20,6 +20,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   ApiClient get _api => widget.client ?? apiClient;
   late var _stations = _api.getStations();
+  late final _tariffs = _api.getTariffs();
   late var _requests = _api.role == 'USER'
       ? _api.getMyRequests(limit: 1)
       : null;
@@ -73,20 +74,82 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-        const AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+        FutureBuilder<List<Map<String, dynamic>>>(
+          future: _tariffs,
+          builder: (context, snapshot) {
+            final tariffs = snapshot.data;
+            final nowHour = DateTime.now().hour;
+            return AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(child: BoldText('Khung giờ biểu giá')),
-                  SimTag(text: 'Minh họa'),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: BoldText('Khung giờ biểu giá', size: 16),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.sky100,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: const BoxDecoration(
+                                color: AppColors.blue,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const Gap(4),
+                            Text(
+                              'Hiện tại: ${nowHour}h',
+                              style: AppFonts.body(
+                                size: 11,
+                                weight: FontWeight.w600,
+                                color: AppColors.skyInk,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Gap(10),
+                  TariffStrip(highlightHour: nowHour, tariffs: tariffs),
+                  const Gap(10),
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 6,
+                    children: const [
+                      _TariffLegend(
+                        color: AppColors.offPeak,
+                        label: 'Thấp điểm',
+                        price: '1.620 đ/kWh',
+                      ),
+                      _TariffLegend(
+                        color: AppColors.normal,
+                        label: 'Bình thường',
+                        price: '2.700 đ/kWh',
+                      ),
+                      _TariffLegend(
+                        color: AppColors.peak,
+                        label: 'Cao điểm',
+                        price: '4.212 đ/kWh',
+                      ),
+                    ],
+                  ),
                 ],
               ),
-              Gap(10),
-              TariffStrip(),
-            ],
-          ),
+            );
+          },
         ),
         Row(
           children: [
@@ -212,4 +275,36 @@ class _HomeScreenState extends State<HomeScreen> {
       ],
     );
   }
+}
+
+class _TariffLegend extends StatelessWidget {
+  const _TariffLegend({
+    required this.color,
+    required this.label,
+    required this.price,
+  });
+
+  final Color color;
+  final String label;
+  final String price;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Container(
+        width: 10,
+        height: 10,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(2),
+        ),
+      ),
+      const Gap(5),
+      Text(
+        '$label: $price',
+        style: AppFonts.body(size: 11, color: AppColors.body),
+      ),
+    ],
+  );
 }

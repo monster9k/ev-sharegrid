@@ -16,6 +16,7 @@ from backend.routes.host import router as host_router
 from backend.routes.notifications import router as notifications_router
 from backend.routes.request_actions import router as request_actions_router
 from backend.routes.requests import router as requests_router
+from backend.routes.vehicles import router as vehicles_router
 
 app = FastAPI(title="EV ShareGrid Backend API", version="1.0.0")
 
@@ -46,6 +47,7 @@ app.include_router(auth_router)
 app.include_router(host_router)
 app.include_router(admin_router)
 app.include_router(notifications_router)
+app.include_router(vehicles_router)
 
 @app.get("/")
 def root():

@@ -264,3 +264,74 @@ def test_login_and_register_share_ip_limit_and_recover(monkeypatch):
         assert response.status_code == 429 and response.headers["Retry-After"] == "60"
     now[0] += 60
     assert client.post("/api/v1/auth/register", json=data).status_code == 409
+
+
+def test_update_profile_and_change_password(monkeypatch):
+    set_auth_config(monkeypatch)
+    connections = install_auth_db(monkeypatch)
+
+    current_user_data = {
+        "user_id": 3,
+        "role": "USER",
+        "email": "user1@sharegrid.vn",
+        "full_name": "Test User",
+        "phone": "0912345678",
+        "password_hash": auth.hash_password("old-password-123"),
+    }
+
+    def fake_execute(self, query, params=()):
+        normalized = " ".join(query.split())
+        self.one = None
+        self.many = []
+        if "UPDATE app_user" in normalized:
+            if "password_hash" in normalized:
+                current_user_data["password_hash"] = params[0]
+            else:
+                if len(params) == 3:
+                    current_user_data["full_name"] = params[0]
+                    current_user_data["phone"] = params[1]
+                elif len(params) == 2:
+                    if "full_name" in normalized:
+                        current_user_data["full_name"] = params[0]
+                    elif "phone" in normalized:
+                        current_user_data["phone"] = params[0]
+            self.one = dict(current_user_data)
+        elif "FROM app_user" in normalized:
+            self.one = dict(current_user_data)
+        elif "FROM vehicle v" in normalized:
+            self.many = [dict(VEHICLE)]
+
+    monkeypatch.setattr(AuthCursor, "execute", fake_execute)
+
+    user = AuthUser(3, "USER", "user1@sharegrid.vn", "Test User")
+    token, _ = auth.create_access_token(user)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 1. Update profile
+    patch_resp = client.patch(
+        "/api/v1/auth/me",
+        headers=headers,
+        json={"full_name": "Nguyễn Văn A", "phone": "0987654321"},
+    )
+    assert patch_resp.status_code == 200
+    assert patch_resp.json()["full_name"] == "Nguyễn Văn A"
+    assert patch_resp.json()["phone"] == "0987654321"
+
+    # 2. Change password - wrong old password
+    bad_pw = client.post(
+        "/api/v1/auth/change-password",
+        headers=headers,
+        json={"current_password": "wrong-password", "new_password": "new-password-123"},
+    )
+    assert bad_pw.status_code == 400
+    assert "Mật khẩu hiện tại không chính xác" in bad_pw.json()["detail"]
+
+    # 3. Change password - success
+    good_pw = client.post(
+        "/api/v1/auth/change-password",
+        headers=headers,
+        json={"current_password": "old-password-123", "new_password": "new-password-123"},
+    )
+    assert good_pw.status_code == 200
+    assert auth.verify_password("new-password-123", current_user_data["password_hash"])
+
