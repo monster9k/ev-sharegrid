@@ -221,16 +221,16 @@ class UserScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bottomSpace = (showNav || actionBar != null) ? 104.0 : 24.0;
+    final bottomBar = actionBar ?? (showNav ? GlassNavBar(current: tab) : null);
     return Scaffold(
       backgroundColor: background,
       body: SafeArea(
         bottom: false,
-        child: Stack(
+        child: Column(
           children: [
-            Positioned.fill(
+            Expanded(
               child: ListView(
-                padding: padding.copyWith(bottom: bottomSpace),
+                padding: padding.copyWith(bottom: 24),
                 children: [
                   if (showSimulationTag) ...[
                     const Align(
@@ -246,12 +246,15 @@ class UserScaffold extends StatelessWidget {
                 ],
               ),
             ),
-            if (actionBar != null || showNav)
-              Positioned(
-                left: 12,
-                right: 12,
-                bottom: 14 + MediaQuery.paddingOf(context).bottom,
-                child: actionBar ?? GlassNavBar(current: tab),
+            if (bottomBar != null)
+              SafeArea(
+                top: false,
+                left: false,
+                right: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
+                  child: bottomBar,
+                ),
               ),
           ],
         ),
