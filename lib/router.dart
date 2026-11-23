@@ -33,6 +33,7 @@ GoRoute _page(String path, Widget Function() build) => GoRoute(
 /// Route app USER (bọc trong khung điện thoại khi mở trên màn rộng).
 List<RouteBase> _userRoutes(ApiClient client) => [
   _page('/', () => const OnboardingScreen(step: 1)),
+  GoRoute(path: '/onboarding', redirect: (_, _) => '/'),
   _page('/onboarding/2', () => const OnboardingScreen(step: 2)),
   _page('/onboarding/3', () => const OnboardingScreen(step: 3)),
   _page('/login', () => LoginScreen(client: client)),
@@ -125,7 +126,12 @@ GoRouter buildRouter({String? initialLocation, ApiClient? api}) {
       final path = state.uri.path;
       final role = client.role;
       if (client.accessToken == null || role == null) {
-        return path == '/login' ? null : '/login';
+        final isPublic =
+            path == '/' ||
+            path == '/login' ||
+            path == '/onboarding' ||
+            path.startsWith('/onboarding/');
+        return isPublic ? null : '/login';
       }
       final host = path == '/host' || path.startsWith('/host/');
       final admin = path == '/admin' || path.startsWith('/admin/');
