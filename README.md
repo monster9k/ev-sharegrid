@@ -10,7 +10,7 @@ Trong chủ đề WEFE, dự án tập trung vào năng lượng và giao thông
 |---|---|
 | Flutter | Đăng nhập, tải xe và trạm, đặt lịch, xem lịch, xác nhận và hủy lịch qua API. Các màn như bản đồ, lịch sử phiên sạc, quản lý cổng của HOST và dự báo của ADMIN vẫn có dữ liệu mô phỏng. |
 | Admin Benchmark | Màn ADMIN đọc `GET /api/v1/admin/benchmark`. Trong Compose, backend đọc [báo cáo benchmark](ai_engine/benchmark_real.json) được mount chỉ đọc. |
-| Backend FastAPI | JWT và phân quyền USER/HOST/ADMIN. CORS cho Flutter Web tại `http://localhost` với cổng tùy chọn. `POST /api/v1/requests` trả HTTP 422 nếu khung sạc vượt cửa sổ tối ưu 24 giờ và HTTP 409 nếu trùng `idempotency_key`. |
+| Backend FastAPI | JWT và phân quyền USER/HOST/ADMIN. CORS mặc định cho hai domain Firebase của dự án, localhost và 127.0.0.1. Dùng `CORS_ORIGINS` cho domain riêng và `CORS_ORIGIN_REGEX` cho mẫu origin bổ sung. `POST /api/v1/requests` trả HTTP 422 nếu khung sạc vượt cửa sổ tối ưu 24 giờ và HTTP 409 nếu trùng `idempotency_key`. |
 | AI Engine FastAPI | Backend gửi snapshot qua `/ai/optimize`. Solver dùng OR-Tools SCIP cho biến nguyên, GLOP cho bài toán đủ điều kiện tuyến tính và LLF khi cần fallback. [Ca kiểm chuẩn Trang 20](ai_engine/samples/page20_input.json) trả `MILP_MPC / OPTIMAL`, chi phí 5.500 đ, thiếu điện 0 kWh. |
 | PostgreSQL/PostGIS | [Schema 19 bảng](database/schema_19_tables.sql). Backend lưu yêu cầu, lần tối ưu và lịch theo slot 15 phút, rồi trả lịch cho Flutter. |
 
@@ -25,9 +25,43 @@ flowchart LR
     R["benchmark_real.json"] -->|"Mount chỉ đọc"| B
 ```
 
+## Deployment
+
+### A. Ubuntu + Nginx + Cloudflare Quick Tunnel
+
+Trên server mới, từ thư mục gốc repo:
+
+```sh
+cp .env.example .env
+# Điền POSTGRES_PASSWORD, JWT_SECRET và AUTH_PASSWORD_HASHES_JSON theo .env.example.
+./scripts/check-env.sh
+docker compose up -d --build
+docker compose ps -a
+```
+
+File `ai_engine/benchmark_real.json` đã có trong Git và được backend mount chỉ đọc. Với server đã cấu hình, giữ `.env` hiện tại. Mở `http://localhost` và chạy trên cùng máy Ubuntu (đã cài `cloudflared`):
+
+```sh
+cloudflared tunnel --url http://127.0.0.1:80
+```
+
+Mở URL HTTPS mà tunnel in ra. Để trống `API_BASE_URL` khi build để trình duyệt gọi `/api/v1/...` cùng origin. Nginx phục vụ Flutter và chuyển nguyên đường dẫn API tới FastAPI. Cổng 8000, 8001 và 5432 chỉ bind vào loopback cho công cụ local.
+
+### B. Firebase Hosting + API_BASE_URL
+
+Triển khai backend qua một origin HTTPS mà trình duyệt truy cập được. Trong GitHub Settings → Secrets and variables → Actions, đặt hai repository variables `FIREBASE_PROJECT_ID` và `API_BASE_URL` (chỉ origin, không thêm `/api`), cùng repository secret `FIREBASE_SERVICE_ACCOUNT`. Hosting site trong `firebase.json` phải thuộc project này. Push vào `main` hoặc chạy workflow **Deploy Firebase Hosting** thủ công. Nếu URL backend thay đổi, build và deploy lại. Để deploy thủ công:
+
+```sh
+flutter pub get
+flutter build web --release --dart-define="API_BASE_URL=$API_BASE_URL"
+firebase deploy --only hosting --project "$FIREBASE_PROJECT_ID"
+```
+
+Đặt hai biến trong shell trước khi chạy. Firebase rewrite các đường dẫn giao diện về `index.html`; các request API đi trực tiếp đến origin HTTPS đã cấu hình.
+
 ## Chạy demo cục bộ bằng Docker Compose
 
-Bản nộp chấm thi chạy bằng **Docker Compose và Flutter Web trên máy local**. Firebase Hosting chỉ dùng để xem trước giao diện.
+Bản nộp chấm thi chạy bằng **Docker Compose và Flutter Web trên máy local**. Có thể triển khai bản web theo mục Deployment bên dưới.
 
 Cài Docker Engine với Docker Compose plugin, Python, Flutter và Chrome. Nếu Python local chưa có [thư viện backend](backend/requirements.txt), cài bằng `python -m pip install -r backend/requirements.txt`. Mở terminal tại thư mục gốc rồi chạy [script tạo môi trường](scripts/make_demo_env.py):
 
@@ -77,7 +111,7 @@ docker compose run --rm --no-deps catalog-seed python scripts/import_catalog.py 
 
 ```sh
 flutter pub get
-flutter run -d chrome --web-hostname=localhost --web-port=7357 --no-web-resources-cdn --dart-define=API_BASE=http://localhost:8000 --dart-define=DEMO_OFFLINE=true
+flutter run -d chrome --web-hostname=localhost --web-port=7357 --no-web-resources-cdn --dart-define=API_BASE_URL=http://localhost:8000 --dart-define=DEMO_OFFLINE=true
 ```
 
 Mở [Flutter Web local](http://localhost:7357). Dùng hostname `localhost` cho trang Flutter để khớp cấu hình CORS. Hai tùy chọn dành cho demo offline dùng tài nguyên Flutter và font đã đóng gói cục bộ. Hãy chuẩn bị trước image Docker, các thư viện Python và Flutter nếu máy chấm sẽ chạy offline.
