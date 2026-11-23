@@ -210,7 +210,7 @@ class _SlotPainter extends CustomPainter {
     const left = 30.0, bottom = 36.0, top = 12.0;
     final w = size.width - left - 4;
     final h = size.height - bottom - top;
-    final span = c.to - c.from;
+    final span = math.max(0.25, c.to - c.from);
     double x(double hour) => left + (hour - c.from) / span * w;
     double y(double kw) => top + h - kw / c.maxKw * h;
 
@@ -697,7 +697,7 @@ class _GanttPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     const left = 40.0, top = 4.0;
     final w = size.width - left - 4;
-    final span = c.to - c.from;
+    final span = math.max(0.25, c.to - c.from);
     double x(double hour) => left + (hour - c.from) / span * w;
 
     final grid = Paint()..color = AppColors.grid;

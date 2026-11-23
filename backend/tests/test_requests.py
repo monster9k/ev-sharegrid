@@ -444,6 +444,13 @@ def test_get_request_schedule_includes_solver_metadata_and_explanation(monkeypat
     assert body["explanation"] == "Lịch được xếp trong giờ thấp điểm."
     assert len(body["slots"]) == 2
     assert body["slots"][0]["slot_start"] == slot_start.isoformat()
+    assert body["slots"][0]["tariff_tier"] == "OFF_PEAK"
+    assert body["slots"][0]["unit_price_vnd"] == 1620.0
+    assert body["slots"][0]["slot_cost_vnd"] == round(11 * 0.25 * 1620.0, 2)
+    assert body["fulfillment_pct"] == 100.0
+    assert body["estimated_cost_vnd"] == round(11 * 0.25 * 1620.0 * 2, 2)
+    assert "summary" in body
+    assert body["summary"]["fulfillment_pct"] == 100.0
     assert "LEFT JOIN LATERAL" in connection.schedule_cursor.query
     assert "optimization_run" in connection.schedule_cursor.query
     assert connection.closed
