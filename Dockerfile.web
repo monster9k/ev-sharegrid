@@ -1,4 +1,5 @@
-FROM ghcr.io/cirruslabs/flutter:3.47.6 AS build
+# Flutter 3.44.0 from the upstream stable multi-platform image.
+FROM ghcr.io/cirruslabs/flutter:stable@sha256:46691e311715845de03a3ba4753a475476936805b29431b1f00f1816981033f8 AS build
 WORKDIR /app
 COPY pubspec.yaml pubspec.lock ./
 RUN flutter pub get --enforce-lockfile
