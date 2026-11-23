@@ -8,10 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Firebase Hosting needs the absolute HTTPS API origin at build time.
 const apiBase = String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: String.fromEnvironment(
-    'API_BASE',
-    defaultValue: kIsWeb && kReleaseMode ? '' : 'http://localhost:8000',
-  ),
+  defaultValue: kIsWeb && kReleaseMode ? '' : 'http://localhost:8000',
 );
 
 class ApiException implements Exception {
@@ -155,14 +152,17 @@ class ApiClient extends ChangeNotifier {
   }
 
   Future<void> logout({bool expired = false}) async {
-    _sessionVersion++;
+    final version = ++_sessionVersion;
     _expired = expired;
     _accessToken = null;
     currentUser = null;
     _lastBooking = null;
-    final prefs = SharedPreferences.getInstance();
-    notifyListeners();
-    await (await prefs).remove(_tokenKey);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_tokenKey);
+    } finally {
+      if (version == _sessionVersion) notifyListeners();
+    }
   }
 
   Future<Map<String, dynamic>> getMe() => getJson('/api/v1/auth/me');

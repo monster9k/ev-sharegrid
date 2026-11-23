@@ -79,6 +79,8 @@ Script nạp catalog tạo các tài khoản sau. Dùng mật khẩu đã chọn
 | HOST | `host1@sharegrid.vn` |
 | ADMIN | `admin@sharegrid.vn` |
 
+Nút demo chỉ điền email. Trình duyệt khôi phục JWT đã lưu và xác thực lại qua `/api/v1/auth/me` trước khi mở màn cần đăng nhập. Đăng xuất hoặc nhận HTTP 401 của phiên hiện tại sẽ xóa phiên đã lưu.
+
 ```sh
 docker compose config --quiet
 docker compose up --build -d
@@ -86,6 +88,17 @@ docker compose ps -a
 ```
 
 Chờ `postgres`, `ai-engine` và `backend` báo `healthy`. `catalog-seed` thoát mã 0 sau khi nạp catalog. Xem Swagger của [AI Engine](http://localhost:8001/docs) và [backend](http://localhost:8000/docs). Dùng `docker compose down` để dừng.
+
+### Cập nhật xác thực trên volume PostgreSQL cũ
+
+Chạy migration [001_app_user_password_hash.sql](database/migrations/001_app_user_password_hash.sql) trước khi mở đăng ký trên DB đã có. Lệnh dưới dùng tên DB mặc định, đổi `-U` và `-d` nếu đã cấu hình tên khác.
+
+```sh
+docker compose up -d postgres
+docker compose exec -T postgres psql -U postgres -d ev_sharegrid -v ON_ERROR_STOP=1 < database/migrations/001_app_user_password_hash.sql
+```
+
+Trong PowerShell, có thể dùng `Get-Content -Raw database/migrations/001_app_user_password_hash.sql | docker compose exec -T postgres psql -U postgres -d ev_sharegrid -v ON_ERROR_STOP=1` cho lệnh áp migration.
 
 ### Cập nhật biểu giá trên volume PostgreSQL cũ
 

@@ -126,6 +126,7 @@ GoRouter buildRouter({String? initialLocation, ApiClient? api}) {
       final path = state.uri.path;
       final role = client.role;
       if (client.accessToken == null || role == null) {
+        if (client.sessionExpired && path != '/login') return '/login';
         final isPublic =
             path == '/' ||
             path == '/login' ||
