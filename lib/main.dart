@@ -7,8 +7,10 @@ import 'router.dart';
 import 'theme.dart';
 import 'widgets/web_shell.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   usePathUrlStrategy();
+  await apiClient.restoreSession();
   runApp(EvShareGridApp());
 }
 
