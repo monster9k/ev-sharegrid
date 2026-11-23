@@ -19,10 +19,22 @@ from backend.routes.requests import router as requests_router
 
 app = FastAPI(title="EV ShareGrid Backend API", version="1.0.0")
 
+cors_origins = [
+    origin.strip()
+    for origin in os.getenv(
+        "CORS_ORIGINS", "https://ev-sharegrid.web.app,https://ev-sharegrid.firebaseapp.com"
+    ).split(",")
+    if origin.strip()
+]
+if "*" in cors_origins:
+    raise ValueError("CORS_ORIGINS must list explicit origins when credentials are enabled")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://ev-sharegrid.web.app"],
-    allow_origin_regex=r"^http://localhost(?::\d+)?$",
+    allow_origins=cors_origins,
+    allow_origin_regex=os.getenv(
+        "CORS_ORIGIN_REGEX", r"^http://(localhost|127\.0\.0\.1)(:\d+)?$"
+    ) or None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
