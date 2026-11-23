@@ -40,15 +40,37 @@ Color bandColor(TariffBand b) => switch (b) {
 
 /// Dải biểu giá 24 ô (mỗi ô 1 giờ) + nhãn 0h/6h/12h/18h/24h.
 class TariffStrip extends StatelessWidget {
-  const TariffStrip({super.key, this.height = 30, this.highlightHour});
+  const TariffStrip({
+    super.key,
+    this.height = 30,
+    this.highlightHour,
+    this.tariffs,
+  });
+
   final double height;
   final int? highlightHour;
+  final List<Map<String, dynamic>>? tariffs;
+
+  Color _tierColor(int h) {
+    if (tariffs != null && h < tariffs!.length) {
+      final tier = tariffs![h]['tariff_tier']?.toString().toUpperCase();
+      if (tier != null) {
+        if (tier.contains('OFF')) return AppColors.offPeak;
+        if (tier.contains('PEAK')) return AppColors.peak;
+        return AppColors.normal;
+      }
+    }
+    // EVN TOU mặc định (thứ 2 - thứ 7)
+    if (h < 6) return AppColors.offPeak;
+    if (h >= 18 && h < 23) return AppColors.peak;
+    return AppColors.normal;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
       label:
-          'Biểu giá theo giờ: thấp điểm 22h đến 4h, cao điểm 9h30 đến 11h30 và 17h đến 20h',
+          'Biểu giá theo giờ EVN: Thấp điểm 00h-06h, Cao điểm 17h30-22h30, Bình thường các giờ còn lại',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -63,10 +85,11 @@ class TariffStrip extends StatelessWidget {
                     Expanded(
                       child: Container(
                         decoration: BoxDecoration(
-                          color: bandColor(Mock.bandAt(h + .5)),
+                          color: _tierColor(h),
                           border: h == highlightHour
-                              ? Border.all(color: AppColors.ink, width: 2)
+                              ? Border.all(color: AppColors.navy, width: 2)
                               : null,
+                          borderRadius: BorderRadius.circular(2),
                         ),
                       ),
                     ),
@@ -210,7 +233,7 @@ class _SlotPainter extends CustomPainter {
     const left = 30.0, bottom = 36.0, top = 12.0;
     final w = size.width - left - 4;
     final h = size.height - bottom - top;
-    final span = c.to - c.from;
+    final span = math.max(0.25, c.to - c.from);
     double x(double hour) => left + (hour - c.from) / span * w;
     double y(double kw) => top + h - kw / c.maxKw * h;
 
@@ -697,7 +720,7 @@ class _GanttPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     const left = 40.0, top = 4.0;
     final w = size.width - left - 4;
-    final span = c.to - c.from;
+    final span = math.max(0.25, c.to - c.from);
     double x(double hour) => left + (hour - c.from) / span * w;
 
     final grid = Paint()..color = AppColors.grid;

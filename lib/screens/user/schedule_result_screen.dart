@@ -143,20 +143,29 @@ class _ScheduleResultScreenState extends State<ScheduleResultScreen> {
     final rows = _slotRows;
     if (rows.isEmpty) return const [];
     final first = _slotTime(rows.first);
+    final firstHour = first.hour + first.minute / 60.0;
     return [
       for (final row in rows)
         ScheduleSlot(
-          _slotTime(row).difference(first).inMinutes / 60,
+          firstHour + (_slotTime(row).difference(first).inMinutes / 60.0),
           _power(row),
         ),
     ];
   }
 
-  double get _chartEnd {
-    if (_slotRows.isEmpty) return 1;
-    final last = _slotTime(_slotRows.last);
+  double get _chartStart {
+    if (_slotRows.isEmpty) return 0;
     final first = _slotTime(_slotRows.first);
-    return (last.difference(first).inMinutes / 60) + .25;
+    return first.hour + first.minute / 60.0;
+  }
+
+  double get _chartEnd {
+    if (_slotRows.isEmpty) return 24;
+    final first = _slotTime(_slotRows.first);
+    final last = _slotTime(_slotRows.last);
+    final startHour = first.hour + first.minute / 60.0;
+    final durationHours = (last.difference(first).inMinutes / 60.0) + 0.25;
+    return startHour + durationHours;
   }
 
   double get _maxPower => _slotRows.fold<double>(
@@ -168,6 +177,20 @@ class _ScheduleResultScreenState extends State<ScheduleResultScreen> {
     if (value == null) return '—';
     if (value is num) return value.toStringAsFixed(fractionDigits);
     return value.toString();
+  }
+
+  String _formatVnd(num? value) {
+    if (value == null) return '—';
+    final rounded = value.round();
+    final s = rounded.abs().toString();
+    final buffer = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) {
+        buffer.write('.');
+      }
+      buffer.write(s[i]);
+    }
+    return '${rounded < 0 ? '-' : ''}${buffer.toString()} đ';
   }
 
   Future<void> _changeRequest({required bool confirm}) async {
@@ -325,34 +348,57 @@ class _ScheduleResultScreenState extends State<ScheduleResultScreen> {
             ),
           ),
           LayoutBuilder(
-            builder: (context, constraints) => Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _Metric(
-                  label: summary['expected_soc'] == null
-                      ? 'Đáp ứng nhu cầu'
-                      : 'SOC dự kiến',
-                  value: summary['expected_soc'] == null
-                      ? '—'
-                      : '${_fmtNumber(summary['expected_soc'])}%',
-                  note: 'theo kết quả API',
-                  width: (constraints.maxWidth - 16) / 3,
-                ),
-                _Metric(
-                  label: 'Điện thiếu',
-                  value: _fmtNumber(summary['shortfall_kwh']),
-                  note: 'kWh',
-                  width: (constraints.maxWidth - 16) / 3,
-                ),
-                _Metric(
-                  label: 'Chi phí điện',
-                  value: _fmtNumber(summary['estimated_cost_vnd']),
-                  note: 'VND',
-                  width: (constraints.maxWidth - 16) / 3,
-                ),
-              ],
-            ),
+            builder: (context, constraints) {
+              final width = (constraints.maxWidth - 16) / 3;
+              final needed =
+                  (summary['energy_needed_kwh'] as num?)?.toDouble() ?? 0.0;
+              final shortfall =
+                  (summary['shortfall_kwh'] as num?)?.toDouble() ?? 0.0;
+              final fulfillmentPct =
+                  (summary['fulfillment_pct'] as num?)?.toDouble() ??
+                  (needed > 0
+                      ? ((needed - shortfall) / needed * 100).clamp(0.0, 100.0)
+                      : 100.0);
+              final expectedSoc = (summary['expected_soc'] as num?)?.toDouble();
+
+              final estimatedCost =
+                  (summary['estimated_cost_vnd'] as num?)?.toDouble() ??
+                  slots.fold<double>(
+                    0.0,
+                    (sum, s) =>
+                        sum + ((s['slot_cost_vnd'] as num?)?.toDouble() ?? 0.0),
+                  );
+
+              return Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _Metric(
+                    label: 'Đáp ứng nhu cầu',
+                    value:
+                        '${fulfillmentPct.toStringAsFixed(fulfillmentPct % 1 == 0 ? 0 : 1)}%',
+                    note: expectedSoc != null
+                        ? 'SOC dự kiến: ${expectedSoc.toStringAsFixed(expectedSoc % 1 == 0 ? 0 : 1)}%'
+                        : 'theo kết quả API',
+                    width: width,
+                  ),
+                  _Metric(
+                    label: 'Điện thiếu',
+                    value: shortfall.toStringAsFixed(
+                      shortfall % 1 == 0 ? 0 : 2,
+                    ),
+                    note: 'kWh',
+                    width: width,
+                  ),
+                  _Metric(
+                    label: 'Chi phí điện',
+                    value: _formatVnd(estimatedCost),
+                    note: 'ước tính',
+                    width: width,
+                  ),
+                ],
+              );
+            },
           ),
           AppCard(
             child: Column(
@@ -375,10 +421,12 @@ class _ScheduleResultScreenState extends State<ScheduleResultScreen> {
                 else ...[
                   SlotScheduleChart(
                     slots: _chartSlots,
-                    from: 0,
-                    to: _chartEnd,
+                    from: _chartStart,
+                    to: _chartEnd - _chartStart < 1.0
+                        ? _chartStart + 1.0
+                        : _chartEnd,
                     maxKw: _maxPower,
-                    showTariffBands: false,
+                    showTariffBands: true,
                   ),
                   const Gap(8),
                   for (var index = 0; index < slots.length; index++)
@@ -390,6 +438,9 @@ class _ScheduleResultScreenState extends State<ScheduleResultScreen> {
                                   slots[index]['port_id'] ??
                                   '—')
                               .toString(),
+                      tariffTier: slots[index]['tariff_tier']?.toString(),
+                      unitPriceVnd: (slots[index]['unit_price_vnd'] as num?),
+                      slotCostVnd: (slots[index]['slot_cost_vnd'] as num?),
                       last: index == slots.length - 1,
                     ),
                 ],
@@ -509,35 +560,122 @@ class _SlotLine extends StatelessWidget {
     required this.start,
     required this.powerKw,
     required this.port,
+    this.tariffTier,
+    this.unitPriceVnd,
+    this.slotCostVnd,
     required this.last,
   });
 
   final DateTime start;
   final double powerKw;
   final String port;
+  final String? tariffTier;
+  final num? unitPriceVnd;
+  final num? slotCostVnd;
   final bool last;
 
+  static String _formatVnd(num value) {
+    final rounded = value.round();
+    final s = rounded.abs().toString();
+    final buffer = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) {
+        buffer.write('.');
+      }
+      buffer.write(s[i]);
+    }
+    return '${rounded < 0 ? '-' : ''}${buffer.toString()} đ';
+  }
+
+  (Color, String) _tierInfo() {
+    final tier = (tariffTier ?? '').toUpperCase();
+    if (tier.contains('PEAK') && !tier.contains('OFF')) {
+      return (AppColors.warning, 'Cao điểm');
+    }
+    if (tier.contains('OFF')) {
+      return (AppColors.success, 'Thấp điểm');
+    }
+    if (tier.contains('NORMAL')) {
+      return (AppColors.blue, 'Bình thường');
+    }
+    final h = start.hour + start.minute / 60.0;
+    if (h < 6.0) return (AppColors.success, 'Thấp điểm');
+    if (h >= 17.5 && h < 22.5 && start.weekday != DateTime.sunday) {
+      return (AppColors.warning, 'Cao điểm');
+    }
+    return (AppColors.blue, 'Bình thường');
+  }
+
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(vertical: 8),
-    decoration: BoxDecoration(
-      border: last
-          ? null
-          : const Border(bottom: BorderSide(color: AppColors.divider)),
-    ),
-    child: Row(
-      children: [
-        Expanded(
-          child: Text(
-            '${formatVietnamTime(start)} · Cổng $port · ${powerKw.toString()} kW',
-            style: AppFonts.body(size: 12),
+  Widget build(BuildContext context) {
+    final (dotColor, tierLabel) = _tierInfo();
+    final effectiveUnitPrice =
+        unitPriceVnd ??
+        (tierLabel == 'Thấp điểm'
+            ? 1620
+            : tierLabel == 'Cao điểm'
+            ? 4212
+            : 2700);
+    final energyKwh = powerKw * 0.25;
+    final effectiveCost = slotCostVnd ?? (energyKwh * effectiveUnitPrice);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        border: last
+            ? null
+            : const Border(bottom: BorderSide(color: AppColors.divider)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                margin: const EdgeInsets.only(right: 6),
+                decoration: BoxDecoration(
+                  color: dotColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              Text(
+                tierLabel,
+                style: AppFonts.body(
+                  size: 11,
+                  weight: FontWeight.w600,
+                  color: dotColor,
+                ),
+              ),
+              const Gap(6),
+              Expanded(
+                child: Text(
+                  '${formatVietnamTime(start)} · Cổng $port · ${powerKw.toStringAsFixed(1)} kW',
+                  style: AppFonts.body(size: 12),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Text(
+                _formatVnd(effectiveCost),
+                style: AppFonts.numbers(size: 13, weight: FontWeight.w600),
+              ),
+            ],
           ),
-        ),
-        Text(
-          '${(powerKw * .25).toStringAsFixed(3)} kWh',
-          style: AppFonts.body(size: 12, weight: FontWeight.w600),
-        ),
-      ],
-    ),
-  );
+          const Gap(2),
+          Row(
+            children: [
+              const Gap(14),
+              MutedText(
+                'Đơn giá: ${_formatVnd(effectiveUnitPrice)}/kWh',
+                size: 11,
+              ),
+              const Spacer(),
+              MutedText('${energyKwh.toStringAsFixed(2)} kWh', size: 11),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }

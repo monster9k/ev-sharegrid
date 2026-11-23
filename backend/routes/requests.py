@@ -13,6 +13,13 @@ import pandas as pd
 try:
     from backend.auth import AuthUser, require_roles
     from backend.db import connect, dict_cursor
+    from backend.tariffs import (
+        RATE_NORMAL,
+        RATE_OFF_PEAK,
+        RATE_PEAK,
+        get_24h_tariff_schedule,
+        get_tou_tier,
+    )
     from backend.ai_contract import (
         AIUpstreamError,
         optimization_horizon,
@@ -22,6 +29,13 @@ try:
 except ModuleNotFoundError:  # Support `python backend/main.py` as well as package imports.
     from auth import AuthUser, require_roles
     from db import connect, dict_cursor
+    from tariffs import (
+        RATE_NORMAL,
+        RATE_OFF_PEAK,
+        RATE_PEAK,
+        get_24h_tariff_schedule,
+        get_tou_tier,
+    )
     from ai_contract import (
         AIUpstreamError,
         optimization_horizon,
@@ -79,6 +93,22 @@ def get_vehicle_models():
             df = pd.read_csv(csv_path)
             return {"status": "success", "count": len(df), "data": df.to_dict("records")}
         raise HTTPException(status_code=500, detail="Không thể truy vấn danh mục mẫu xe điện")
+
+
+@router.get("/tariffs")
+def get_tariffs():
+    """Lấy cấu hình 24 khung giờ biểu giá điện EVN (0h-23h)."""
+    schedule = get_24h_tariff_schedule()
+    return {
+        "status": "success",
+        "count": len(schedule),
+        "data": schedule,
+        "rates": {
+            "OFF_PEAK": RATE_OFF_PEAK,
+            "NORMAL": RATE_NORMAL,
+            "PEAK": RATE_PEAK,
+        },
+    }
 
 
 @router.get("/stations")
@@ -387,15 +417,16 @@ def get_request_schedule(
             cursor.execute(
                 """
                 SELECT cr.request_id, cr.status, cr.energy_needed_kwh, cr.shortfall_kwh,
+                       cr.soc_now, cr.soc_target, cr.battery_kwh_snapshot,
                        sc.port_id, sc.slot_start, sc.power_kw, sc.version,
                        solver.solver_status, solver.algorithm, solver.solve_ms,
-                       solver.explanation
+                       solver.explanation, solver.expected_soc, solver.estimated_cost_vnd
                 FROM charging_request cr
                 LEFT JOIN schedule sc
                   ON sc.request_id = cr.request_id AND sc.is_active = TRUE
                 LEFT JOIN LATERAL (
                     SELECT run.status AS solver_status, run.algorithm, run.solve_ms,
-                           rr.explanation
+                           rr.explanation, rr.expected_soc, rr.estimated_cost_vnd
                     FROM run_request rr
                     JOIN optimization_run run ON run.run_id = rr.run_id
                     WHERE rr.request_id = cr.request_id
@@ -412,27 +443,74 @@ def get_request_schedule(
                 raise HTTPException(status_code=404, detail="Charging request not found")
             first = rows[0]
             slots = []
+            total_slot_cost = 0.0
             for row in rows:
                 if row["slot_start"] is None:
                     continue
                 slot_start = row["slot_start"]
+                power_kw = float(row["power_kw"])
+                energy_kwh = round(power_kw * 0.25, 4)
+                tier, unit_price = get_tou_tier(slot_start)
+                slot_cost = round(energy_kwh * unit_price, 2)
+                total_slot_cost += slot_cost
                 slots.append({
                     "slot_start": slot_start.isoformat(),
                     "slot_end": (slot_start + timedelta(minutes=15)).isoformat(),
                     "port_id": int(row["port_id"]),
-                    "power_kw": float(row["power_kw"]),
+                    "power_kw": power_kw,
+                    "energy_kwh": energy_kwh,
+                    "tariff_tier": tier,
+                    "unit_price_vnd": unit_price,
+                    "slot_cost_vnd": slot_cost,
                     "version": int(row["version"]),
                 })
+
+            energy_needed = float(first.get("energy_needed_kwh") or 0.0)
+            shortfall = float(first.get("shortfall_kwh") or 0.0)
+            if energy_needed > 0:
+                fulfillment_pct = max(0.0, min(100.0, (energy_needed - shortfall) / energy_needed * 100.0))
+            else:
+                fulfillment_pct = 100.0
+
+            expected_soc = None
+            if first.get("expected_soc") is not None:
+                expected_soc = float(first["expected_soc"])
+            elif first.get("soc_target") is not None:
+                soc_now = float(first.get("soc_now") or 0.0)
+                soc_target = float(first["soc_target"])
+                battery_kwh = float(first.get("battery_kwh_snapshot") or 0.0)
+                if shortfall <= 0:
+                    expected_soc = soc_target
+                elif battery_kwh > 0:
+                    delivered = max(0.0, energy_needed - shortfall)
+                    expected_soc = min(100.0, soc_now + (delivered / battery_kwh) * 100.0)
+
+            estimated_cost_vnd = total_slot_cost
+            if estimated_cost_vnd == 0.0 and first.get("estimated_cost_vnd") is not None:
+                estimated_cost_vnd = float(first["estimated_cost_vnd"])
+
+            summary = {
+                "estimated_cost_vnd": round(estimated_cost_vnd, 2),
+                "fulfillment_pct": round(fulfillment_pct, 1),
+                "expected_soc": round(expected_soc, 1) if expected_soc is not None else None,
+                "energy_needed_kwh": energy_needed,
+                "shortfall_kwh": shortfall,
+            }
+
             response = {
                 "request_id": int(first["request_id"]),
                 "status": first["status"],
                 "slot_minutes": 15,
-                "energy_needed_kwh": float(first["energy_needed_kwh"]),
-                "shortfall_kwh": float(first["shortfall_kwh"] or 0),
+                "energy_needed_kwh": energy_needed,
+                "shortfall_kwh": shortfall,
+                "estimated_cost_vnd": round(estimated_cost_vnd, 2),
+                "fulfillment_pct": round(fulfillment_pct, 1),
+                "expected_soc": round(expected_soc, 1) if expected_soc is not None else None,
+                "summary": summary,
                 "slots": slots,
             }
             for field in ("solver_status", "algorithm", "solve_ms", "explanation"):
-                if first[field] is not None:
+                if first.get(field) is not None:
                     response[field] = first[field]
             return response
     finally:
