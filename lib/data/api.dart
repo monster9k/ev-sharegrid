@@ -2,7 +2,10 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
+/// Web release uses same-origin /api/ via Nginx when the base is empty.
+/// Firebase Hosting needs the absolute HTTPS API origin at build time.
 const apiBase = String.fromEnvironment(
   'API_BASE_URL',
   defaultValue: String.fromEnvironment(
@@ -32,6 +35,7 @@ class ApiClient extends ChangeNotifier {
     : _client = client ?? http.Client(),
       _baseUrl = (baseUrl ?? apiBase).replaceFirst(RegExp(r'/+$'), '');
 
+  static const _tokenKey = 'access_token';
   final http.Client _client;
   final String _baseUrl;
   String? _accessToken;
@@ -74,8 +78,9 @@ class ApiClient extends ChangeNotifier {
     String path,
     Map<String, dynamic> body,
   ) async {
-    logout();
+    final cleared = logout();
     final version = _sessionVersion;
+    await cleared;
     const timeout = Duration(seconds: 15);
     final result = await postJson(
       path,
@@ -91,22 +96,73 @@ class ApiClient extends ChangeNotifier {
     try {
       final user = await getMe().timeout(timeout);
       if (version != _sessionVersion) throw StateError('Phiên đã thay đổi.');
+      final prefs = await SharedPreferences.getInstance();
+      if (version != _sessionVersion) throw StateError('Phiên đã thay đổi.');
+      if (!await prefs.setString(_tokenKey, token)) {
+        throw StateError('Không thể lưu phiên đăng nhập.');
+      }
+      if (version != _sessionVersion) throw StateError('Phiên đã thay đổi.');
       currentUser = user;
       notifyListeners();
       return user;
     } catch (_) {
-      if (version == _sessionVersion) logout();
+      if (version == _sessionVersion) await logout();
       rethrow;
     }
   }
 
-  void logout({bool expired = false}) {
+  Future<void> restoreSession() async {
+    final version = _sessionVersion;
+    final prefs = await SharedPreferences.getInstance();
+    if (version != _sessionVersion) return;
+    final token = prefs.getString(_tokenKey);
+    if (token == null) return;
+    if (!_hasValidExpiry(token)) {
+      await logout(expired: true);
+      return;
+    }
+
+    _accessToken = token;
+    try {
+      final user = await getMe().timeout(const Duration(seconds: 10));
+      if (version != _sessionVersion) return;
+      currentUser = user;
+      notifyListeners();
+    } catch (_) {
+      // A 401 already clears storage. Keep the saved JWT on a network failure
+      // so a later startup can retry, but only grant access after /me succeeds.
+      if (version == _sessionVersion) {
+        _accessToken = null;
+        currentUser = null;
+        notifyListeners();
+      }
+    }
+  }
+
+  bool _hasValidExpiry(String token) {
+    final parts = token.split('.');
+    if (parts.length != 3) return false;
+    try {
+      final payload = jsonDecode(
+        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+      );
+      final expiry = payload is Map ? payload['exp'] : null;
+      return expiry is num &&
+          expiry > DateTime.now().millisecondsSinceEpoch / 1000;
+    } on FormatException {
+      return false;
+    }
+  }
+
+  Future<void> logout({bool expired = false}) async {
     _sessionVersion++;
     _expired = expired;
     _accessToken = null;
     currentUser = null;
     _lastBooking = null;
+    final prefs = SharedPreferences.getInstance();
     notifyListeners();
+    await (await prefs).remove(_tokenKey);
   }
 
   Future<Map<String, dynamic>> getMe() => getJson('/api/v1/auth/me');
@@ -305,9 +361,12 @@ class ApiClient extends ChangeNotifier {
   Uri _uri(String path) =>
       _baseUrl.isEmpty ? Uri.base.resolve(path) : Uri.parse('$_baseUrl$path');
 
-  Map<String, dynamic> _decodeObject(http.Response response, {String? token}) {
+  Future<Map<String, dynamic>> _decodeObject(
+    http.Response response, {
+    String? token,
+  }) async {
     if (response.statusCode == 401 && token != null && token == _accessToken) {
-      logout(expired: true);
+      await logout(expired: true);
     }
     final text = utf8.decode(response.bodyBytes, allowMalformed: true);
     if (response.statusCode >= 400) {

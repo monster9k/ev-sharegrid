@@ -6,6 +6,8 @@ import '../../widgets/charts.dart';
 import '../../widgets/common.dart';
 import '../../widgets/web_shell.dart';
 
+// TODO: Load queue metrics, jobs and runs through ApiClient when the backend
+// exposes an admin monitoring endpoint for optimization_job and optimization_run.
 /// A4 – Giám sát vận hành & hàng đợi: optimization_job, optimization_run.
 class AdminSolverScreen extends StatelessWidget {
   const AdminSolverScreen({super.key});
@@ -27,8 +29,7 @@ class AdminSolverScreen extends StatelessWidget {
     return WebShell(
       portal: Portal.admin,
       route: '/admin/solver',
-      eyebrow:
-          'Quản trị · optimization_job & optimization_run · cập nhật 09:15:42',
+      eyebrow: 'Mô phỏng · optimization_job & optimization_run',
       title: 'Giám sát solver & hàng đợi',
       children: [
         const AutoGrid(

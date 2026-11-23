@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-ev_sharegrid}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./database/schema_19_tables.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
@@ -24,7 +24,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "8001:8001"
+      - "127.0.0.1:8001:8001"
     volumes:
       - ./ai_engine/models:/app/ai_engine/models
     environment:
@@ -56,7 +56,7 @@ services:
       dockerfile: backend/Dockerfile
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-ev_sharegrid}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -66,6 +66,8 @@ services:
       AI_URL: ${AI_URL:-http://ai-engine:8001}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       AUTH_PASSWORD_HASHES_JSON: ${AUTH_PASSWORD_HASHES_JSON:?Set AUTH_PASSWORD_HASHES_JSON in .env}
+      CORS_ORIGINS:
+      CORS_ORIGIN_REGEX:
       BENCHMARK_REPORT_PATH: ${BENCHMARK_REPORT_PATH:-/app/ai_engine/benchmark_real.json}
     volumes:
       - type: bind
@@ -84,6 +86,19 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        API_BASE_URL: ${API_BASE_URL:-}
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
 
 volumes:
   pgdata:

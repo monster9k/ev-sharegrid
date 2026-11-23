@@ -11,6 +11,19 @@ import 'package:http/testing.dart';
 
 void main() {
   setUpAll(() => AppFonts.enabled = false);
+  testWidgets('guests can open onboarding deep links', (tester) async {
+    await tester.pumpWidget(EvShareGridApp(initialLocation: '/onboarding/2'));
+    await tester.pumpAndSettle();
+    final router = GoRouter.of(tester.element(find.byType(Scaffold).first));
+    String path() => router.routerDelegate.currentConfiguration.uri.path;
+    expect(path(), '/onboarding/2');
+    for (final target in ['/', '/onboarding/3', '/login', '/home']) {
+      router.go(target);
+      await tester.pumpAndSettle();
+      expect(path(), target == '/home' ? '/login' : target);
+    }
+  });
+
   for (final (role, wrong, home) in [
     ('USER', '/admin', '/home'),
     ('HOST', '/admin/review', '/host/stations'),

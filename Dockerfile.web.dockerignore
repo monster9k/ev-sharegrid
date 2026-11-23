@@ -1,0 +1,14 @@
+**
+!pubspec.yaml
+!pubspec.lock
+!web/
+!web/**
+!lib/
+!lib/**
+!assets/
+!assets/**
+!ai_engine/
+!ai_engine/samples/
+!ai_engine/samples/page20_input.json
+!nginx/
+!nginx/default.conf
