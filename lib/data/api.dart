@@ -27,6 +27,13 @@ class ApiException implements Exception {
   String toString() => 'HTTP $statusCode: $message';
 }
 
+/// The credentials were accepted, but the account could not be loaded.
+class ProfileLoadException implements Exception {
+  const ProfileLoadException(this.cause);
+
+  final Exception cause;
+}
+
 class ApiClient extends ChangeNotifier {
   ApiClient({http.Client? client, String? baseUrl})
     : _client = client ?? http.Client(),
@@ -91,7 +98,12 @@ class ApiClient extends ChangeNotifier {
     }
     _accessToken = token;
     try {
-      final user = await getMe().timeout(timeout);
+      final Map<String, dynamic> user;
+      try {
+        user = await getMe().timeout(timeout);
+      } on Exception catch (error) {
+        throw ProfileLoadException(error);
+      }
       if (version != _sessionVersion) throw StateError('Phiên đã thay đổi.');
       final prefs = await SharedPreferences.getInstance();
       if (version != _sessionVersion) throw StateError('Phiên đã thay đổi.');
