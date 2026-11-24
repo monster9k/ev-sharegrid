@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
 import '../../data/api.dart';
 import '../../theme.dart';
@@ -92,18 +93,30 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (error) {
       if (!mounted) return;
-      setState(() {
-        _error = switch (error) {
-          ApiException(statusCode: 401) => 'Email hoặc mật khẩu không đúng.',
-          ApiException(statusCode: 409 || 422 || 429) => error.message,
-          ApiException() => 'Máy chủ chưa thể xử lý yêu cầu. Vui lòng thử lại.',
-          TimeoutException() => 'Máy chủ phản hồi quá lâu. Vui lòng thử lại.',
-          _ => 'Không thể kết nối máy chủ. Hãy kiểm tra kết nối và thử lại.',
-        };
-      });
+      setState(() => _error = _errorMessage(error));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  String _errorMessage(Object error) {
+    final profile = error is ProfileLoadException;
+    final cause = error is ProfileLoadException ? error.cause : error;
+    final message = switch (cause) {
+      ApiException(statusCode: 401) when !profile && !_registering =>
+        'Email hoặc mật khẩu không đúng.',
+      ApiException(statusCode: 409 || 422 || 429) when !profile =>
+        cause.message,
+      ApiException(:final statusCode) => 'Máy chủ trả lỗi HTTP $statusCode.',
+      TimeoutException() => 'Máy chủ phản hồi quá lâu. Vui lòng thử lại.',
+      http.ClientException() =>
+        'Không thể kết nối máy chủ. Hãy kiểm tra kết nối và thử lại.',
+      FormatException() => 'Máy chủ trả dữ liệu không hợp lệ.',
+      _ => 'Chưa thể hoàn tất thao tác. Vui lòng thử lại.',
+    };
+    if (!profile) return message;
+    final action = _registering ? 'Đã tạo tài khoản' : 'Đã xác thực';
+    return '$action nhưng chưa tải được hồ sơ. $message';
   }
 
   @override

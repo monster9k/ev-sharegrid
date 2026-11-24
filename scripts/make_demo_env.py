@@ -1,8 +1,9 @@
-"""Create a local .env for the EV ShareGrid Docker Compose demo."""
+"""Create the local Compose .env or update selected demo passwords."""
 
 import argparse
 import json
 import os
+import re
 import secrets
 import sys
 import warnings
@@ -43,6 +44,62 @@ def write_env(path: Path, contents: str, force: bool) -> None:
         raise
 
 
+def prompt_password(prompt: str) -> str:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", GetPassWarning)
+        password = getpass(prompt)
+    if not 1 <= len(password) <= 1024:
+        raise ValueError("Each demo password must have 1 to 1024 characters.")
+    return password
+
+
+def update_passwords(path: Path, replacements: dict[str, str]) -> None:
+    # Serialize read/modify/write so simultaneous rotations keep both changes.
+    lock = path.with_name(".env.lock")
+    lock.touch(exist_ok=False)
+    try:
+        contents = path.read_bytes().decode("utf-8")  # Preserve CRLF and any BOM.
+        assignments = list(re.finditer(
+            r"(?m)^(?:\ufeff)?[ \t]*(?:export[ \t]+)?AUTH_PASSWORD_HASHES_JSON[ \t]*=[ \t]*([^\r\n]*)",
+            contents,
+        ))
+        if len(assignments) != 1:
+            raise ValueError("Expected one AUTH_PASSWORD_HASHES_JSON assignment in .env.")
+        assignment = assignments[0]
+        value = assignment[1]
+        single_quoted = value.startswith("'")
+        decoder = json.JSONDecoder()
+        if single_quoted:
+            hashes, end = decoder.raw_decode(value, idx=1)
+            if value[end:end + 1] != "'":
+                raise ValueError("Missing closing quote in AUTH_PASSWORD_HASHES_JSON.")
+            end += 1
+        else:
+            hashes, end = decoder.raw_decode(value)
+            if value.startswith('"'):
+                hashes = json.loads(hashes)  # Compose double-quoted JSON string.
+        if value[end:].strip() and not value[end:].lstrip().startswith("#"):
+            raise ValueError("Unexpected text after AUTH_PASSWORD_HASHES_JSON.")
+        if not isinstance(hashes, dict) or not all(isinstance(v, str) for v in hashes.values()):
+            raise ValueError("AUTH_PASSWORD_HASHES_JSON must map emails to hashes.")
+        for email, encoded in replacements.items():
+            keys = [key for key in hashes if key.strip().lower() == email]
+            if len(keys) != 1:
+                raise ValueError(f"Expected one configured entry for {email}.")
+            # Outside single quotes Compose interprets $$ as one literal dollar.
+            hashes[keys[0]] = encoded if single_quoted else encoded.replace("$", "$$")
+        updated = json.dumps(hashes)
+        if single_quoted:
+            updated = "'" + updated.replace("'", r"\u0027") + "'"
+        elif value.startswith('"'):
+            updated = json.dumps(updated)
+        start = assignment.start(1)
+        write_env(path.with_name(".env.bak"), contents, force=True)
+        write_env(path, contents[:start] + updated + contents[start + end:], force=True)
+    finally:
+        lock.unlink()
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -54,9 +111,16 @@ def main(argv: list[str] | None = None) -> None:
         "--generate-passwords", action="store_true",
         help="Generate demo login passwords and print them once.",
     )
+    parser.add_argument(
+        "--set-password", nargs="+", metavar="EMAIL", type=str.lower,
+        help="Enter a new password without echo for the listed demo accounts. "
+             "Backs up the current .env to .env.bak.",
+    )
     args = parser.parse_args(argv)
     path = ROOT / ".env"
-    if os.path.lexists(path) and not args.force:
+    if args.set_password and (args.force or args.generate_passwords):
+        parser.error("--set-password cannot be combined with --force or --generate-passwords.")
+    if os.path.lexists(path) and not args.force and not args.set_password:
         parser.error(".env already exists. Use --force to replace it.")
 
     if __package__ in (None, ""):
@@ -68,17 +132,32 @@ def main(argv: list[str] | None = None) -> None:
             raise
         parser.error("Install backend dependencies with python -m pip install -r backend/requirements.txt.")
 
+    if args.set_password:
+        if any(email not in DEMO_EMAILS for email in args.set_password):
+            parser.error("--set-password accepts these demo accounts: " + ", ".join(DEMO_EMAILS))
+        if not path.is_file():
+            parser.error("--set-password requires an existing .env.")
+        try:
+            password = prompt_password("New password for " + ", ".join(args.set_password) + ": ")
+            update_passwords(path, {email: hash_password(password) for email in args.set_password})
+        except (EOFError, GetPassWarning, KeyboardInterrupt):
+            parser.error("Use a terminal that can hide password input.")
+        except FileExistsError:
+            parser.error("Another password update holds .env.lock.")
+        except (ValueError, OSError) as exc:
+            parser.error(str(exc))
+        print("Updated the selected demo accounts. Previous configuration saved to .env.bak.")
+        return
+
     if args.generate_passwords:
         passwords = {email: secrets.token_urlsafe(18) for email in DEMO_EMAILS}
     else:
         try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("error", GetPassWarning)
-                passwords = {email: getpass(f"Password for {email}: ") for email in DEMO_EMAILS}
+            passwords = {email: prompt_password(f"Password for {email}: ") for email in DEMO_EMAILS}
         except (EOFError, GetPassWarning, KeyboardInterrupt):
             parser.error("Use a terminal that can hide password input, or pass --generate-passwords.")
-        if any(not 1 <= len(password) <= 1024 for password in passwords.values()):
-            parser.error("Each demo password must have 1 to 1024 characters.")
+        except ValueError as exc:
+            parser.error(str(exc))
 
     hashes = json.dumps({email: hash_password(password) for email, password in passwords.items()})
     contents = (
