@@ -89,7 +89,7 @@ Nút demo chỉ điền email. Nhập mật khẩu bằng tay trên màn đăng 
 
 ### Cập nhật xác thực trên volume PostgreSQL cũ
 
-Chạy migration [001_app_user_password_hash.sql](database/migrations/001_app_user_password_hash.sql) trước khi mở đăng ký trên DB đã có. Lệnh dưới dùng tên DB mặc định, đổi `-U` và `-d` nếu đã cấu hình tên khác.
+Với volume PostgreSQL tạo từ bản cũ, hãy chạy [migration 001](database/migrations/001_app_user_password_hash.sql) trước khi đăng nhập hoặc đăng ký. Nếu `POST /api/v1/auth/login` trả HTTP 503 và log PostgreSQL ghi `column "password_hash" does not exist`, đây là migration cần áp. Có thể chạy lại trên cùng volume. Lệnh dưới dùng tên DB mặc định, đổi `-U` và `-d` nếu đã cấu hình tên khác.
 
 ```sh
 docker compose up -d postgres
