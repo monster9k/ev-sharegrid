@@ -203,6 +203,62 @@ void main() {
     expect(fields.last.controller?.text, isEmpty);
     expect(paths, isEmpty);
   });
+  for (final (endpoint, status, message) in [
+    ('login', 401, 'Email hoặc mật khẩu không đúng.'),
+    ('login', 503, 'Máy chủ trả lỗi HTTP 503.'),
+    (
+      'me',
+      503,
+      'Đã xác thực nhưng chưa tải được hồ sơ. Máy chủ trả lỗi HTTP 503.',
+    ),
+    (
+      'me',
+      401,
+      'Đã xác thực nhưng chưa tải được hồ sơ. Máy chủ trả lỗi HTTP 401.',
+    ),
+    (
+      'login',
+      null,
+      'Không thể kết nối máy chủ. Hãy kiểm tra kết nối và thử lại.',
+    ),
+  ]) {
+    testWidgets('hiển thị lỗi $endpoint ${status ?? "mất kết nối"}', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(430, 960);
+      addTearDown(tester.view.reset);
+      final requests = <String>[];
+      final client = ApiClient(
+        client: MockClient((request) async {
+          final name = request.url.pathSegments.last;
+          requests.add(name);
+          if (name == endpoint) {
+            if (status == null) {
+              throw http.ClientException('internal diagnostic');
+            }
+            return http.Response('{"detail":"internal diagnostic"}', status);
+          }
+          return http.Response('{"access_token":"fixture-token"}', 200);
+        }),
+      );
+      await tester.pumpWidget(
+        EvShareGridApp(initialLocation: '/login', api: client),
+      );
+      await tester.pumpAndSettle();
+      final fields = find.byType(TextField);
+      await tester.enterText(fields.first, 'user@example.test');
+      await tester.enterText(fields.last, 'test-input');
+      final submit = find.text('Vào ứng dụng');
+      await tester.ensureVisible(submit);
+      await tester.tap(submit);
+      await tester.pumpAndSettle();
+      expect(find.text(message), findsOneWidget);
+      expect(find.textContaining('internal diagnostic'), findsNothing);
+      expect(requests, ['login', if (endpoint == 'me') 'me']);
+      expect(client.accessToken, isNull);
+    });
+  }
   testWidgets(
     'kiểm tra form đăng ký trước khi gửi và vào trang chủ bằng phiên mới',
     (tester) async {
