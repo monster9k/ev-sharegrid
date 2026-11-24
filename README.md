@@ -49,7 +49,7 @@ Mở URL HTTPS mà tunnel in ra. Để trống `API_BASE_URL` khi build để tr
 
 ### B. Firebase Hosting + API_BASE_URL
 
-Triển khai backend qua một origin HTTPS mà trình duyệt truy cập được. Trong GitHub Settings → Secrets and variables → Actions, đặt hai repository variables `FIREBASE_PROJECT_ID` và `API_BASE_URL` (chỉ origin, không thêm `/api`), cùng repository secret `FIREBASE_SERVICE_ACCOUNT`. Hosting site trong `firebase.json` phải thuộc project này. Push vào `main` hoặc chạy workflow **Deploy Firebase Hosting** thủ công. Nếu URL backend thay đổi, build và deploy lại. Để deploy thủ công:
+Triển khai backend qua một origin HTTPS mà trình duyệt truy cập được. Trong GitHub Settings → Secrets and variables → Actions, đặt hai repository variables `FIREBASE_PROJECT_ID` và `API_BASE_URL` (chỉ origin, không thêm `/api`), cùng repository secret `FIREBASE_SERVICE_ACCOUNT`. Hosting site trong `firebase.json` phải thuộc project này. Push vào `main` hoặc chạy workflow **Deploy Firebase Hosting** thủ công. Khi thiếu một trong ba mục cấu hình, workflow ghi thông báo và bỏ qua build/deploy. Nếu URL backend thay đổi, build và deploy lại. Để deploy thủ công:
 
 ```sh
 flutter pub get
